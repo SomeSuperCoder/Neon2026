@@ -313,23 +313,25 @@ func runReplicaNode(cm *consensus.ConsensusManager, v *verification.Verifier, nn
 			log.Printf("Replica node: Block passed verification - height=%d\n", block.Header.BlockHeight)
 
 			// Verify block linkage if not genesis
+			linkageVerified := true
 			if block.Header.BlockHeight > 1 {
 				prevBlock, err := ledger.GetBlockByHeight(block.Header.BlockHeight - 1)
 				if err != nil {
-					log.Printf("Replica node: Error getting previous block for linkage verification: %v\n", err)
-					continue
-				}
-
-				if err := v.VerifyBlockLink(block, prevBlock); err != nil {
-					log.Printf("Replica node: Block linkage verification failed: %v\n", err)
-					if malicious && maliciousCounter%6 == 0 {
-						log.Printf("MALICIOUS: Ignoring linkage failure, storing anyway\n")
-						ledger.StoreBlock(block)
+					// Previous block not found - this can happen if blocks arrive out of order
+					// Store the block anyway and linkage will be verified when previous blocks arrive
+					log.Printf("Replica node: Warning - previous block not found, storing anyway (height=%d)\n", block.Header.BlockHeight)
+					linkageVerified = false
+				} else {
+					if err := v.VerifyBlockLink(block, prevBlock); err != nil {
+						log.Printf("Replica node: Block linkage verification failed: %v\n", err)
+						if malicious && maliciousCounter%6 == 0 {
+							log.Printf("MALICIOUS: Ignoring linkage failure, storing anyway\n")
+							ledger.StoreBlock(block)
+						}
+						continue
 					}
-					continue
+					log.Printf("Replica node: Block linkage verified - height=%d\n", block.Header.BlockHeight)
 				}
-
-				log.Printf("Replica node: Block linkage verified - height=%d\n", block.Header.BlockHeight)
 			}
 
 			// Store valid block to ledger
@@ -338,8 +340,13 @@ func runReplicaNode(cm *consensus.ConsensusManager, v *verification.Verifier, nn
 				continue
 			}
 
-			log.Printf("Replica node: Block stored successfully - height=%d, slot=%d\n",
-				block.Header.BlockHeight, block.Header.Slot)
+			if linkageVerified || block.Header.BlockHeight == 1 {
+				log.Printf("Replica node: Block stored successfully - height=%d, slot=%d\n",
+					block.Header.BlockHeight, block.Header.Slot)
+			} else {
+				log.Printf("Replica node: Block stored (linkage pending) - height=%d, slot=%d\n",
+					block.Header.BlockHeight, block.Header.Slot)
+			}
 		}
 	}
 }

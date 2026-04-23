@@ -48,10 +48,15 @@ func (cm *ConsensusManager) IsLeader(slot int64) bool {
 
 // ValidateBlock performs basic block validation
 func (cm *ConsensusManager) ValidateBlock(block blockchain.Block) error {
-	// Verify block slot matches expected slot
+	// Verify block slot is within acceptable range
+	// Allow blocks from recent past and near future to account for network delays
+	// and clock skew between nodes
 	currentSlot := cm.GetCurrentSlot()
-	if block.Header.Slot > currentSlot {
-		return fmt.Errorf("block slot %d is in the future (current slot: %d)", block.Header.Slot, currentSlot)
+	const slotTolerance = int64(100) // Allow 100 slots (~40 seconds) of tolerance
+
+	if block.Header.Slot > currentSlot+slotTolerance {
+		return fmt.Errorf("block slot %d is too far in the future (current slot: %d, max allowed: %d)",
+			block.Header.Slot, currentSlot, currentSlot+slotTolerance)
 	}
 
 	// Verify block contains at least 64 ticks worth of hash operations

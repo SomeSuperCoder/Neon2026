@@ -93,6 +93,7 @@ The system uses a layered architecture:
 - **Entry**: Ledger record containing hash link, tick count, and transaction data
 - **Block**: Collection of entries produced during a 400ms slot
 - **Slot**: Time window for block production (minimum 64 ticks)
+- **Slot Tolerance**: 100-slot (~40 second) window for accepting blocks to handle clock skew and network delays
 
 ## Usage
 

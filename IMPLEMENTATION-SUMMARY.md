@@ -121,6 +121,7 @@ A complete Proof of History (PoH) blockchain implementation with comprehensive B
 - Size: Minimum 64 ticks per block
 - Hashes: 800,000 minimum per block
 - Validation: PoH sequence, Merkle root, linkage
+- Slot Tolerance: 100 slots (~40 seconds) for clock skew and network delays
 
 ### Network
 - Protocol: TCP with length-prefixed messages
