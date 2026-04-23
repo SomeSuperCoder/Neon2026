@@ -2,6 +2,18 @@
 
 A Proof of History (PoH) blockchain implementation inspired by Solana's architecture, built in Go.
 
+## Quick Start
+
+```bash
+# Run a basic demo
+./demo.sh
+
+# Test Byzantine Fault Tolerance
+./demo-bft.sh 3 1
+```
+
+See [QUICKSTART.md](QUICKSTART.md) for a 30-second introduction.
+
 ## Overview
 
 This project implements a verifiable delay function using sequential SHA-256 hashing to create a cryptographic clock, enabling high-throughput transaction ordering without traditional consensus overhead.
@@ -14,10 +26,13 @@ This project implements a verifiable delay function using sequential SHA-256 has
 - SQLite-based persistent ledger storage
 - Full chain verification and integrity checking
 - Transaction integration with cryptographic timestamping
+- **Byzantine Fault Tolerance testing with malicious nodes**
+- **Automated demo scripts with tmux visualization**
 
 ## Requirements
 
 - Go 1.21 or higher
+- tmux (for demo scripts)
 - SQLite3
 
 ## Installation
@@ -75,12 +90,84 @@ The system uses a layered architecture:
 
 ## Usage
 
+### Quick Demo with tmux
+
+The easiest way to see the blockchain in action is to use the demo script, which starts a leader and multiple replicas in tmux panes:
+
+```bash
+# Start with default 2 replicas
+./demo.sh
+
+# Or specify the number of replicas (1-9)
+./demo.sh 3
+./demo.sh 5
+```
+
+This will:
+- Build the project
+- Clean up old database files
+- Start a leader node on port 8000
+- Start the specified number of replica nodes on ports 8001, 8002, etc.
+- Display all nodes in a tiled tmux layout
+
+**Example with 2 replicas:**
+```
+┌─────────────────────────────┐
+│        Leader Node          │
+├─────────────┬───────────────┤
+│  Replica 1  │   Replica 2   │
+└─────────────┴───────────────┘
+```
+
+**Example with 4 replicas:**
+```
+┌─────────────┬───────────────┐
+│   Leader    │   Replica 1   │
+├─────────────┼───────────────┤
+│  Replica 2  │   Replica 3   │
+├─────────────┴───────────────┤
+│        Replica 4            │
+└─────────────────────────────┘
+```
+
+**tmux Commands:**
+- Detach from session: `Ctrl+B`, then `D`
+- Navigate between panes: `Ctrl+B`, then arrow keys
+- Stop all nodes: `Ctrl+C` in each pane, or run `./stop-demo.sh`
+
+### BFT Testing Demo
+
+Test Byzantine Fault Tolerance with malicious nodes:
+
+```bash
+# Run with honest and malicious replicas
+./demo-bft.sh 3 1    # 3 honest + 1 malicious (has BFT)
+./demo-bft.sh 4 2    # 4 honest + 2 malicious (has BFT)
+./demo-bft.sh 2 2    # 2 honest + 2 malicious (NO BFT)
+```
+
+The script automatically calculates BFT status:
+- **BFT Requirement**: Honest nodes > 2 × Malicious nodes
+- **With BFT**: Network rejects invalid blocks, maintains integrity
+- **Without BFT**: Network may accept corrupted blocks
+
+**Malicious behaviors include**:
+- Sending blocks with invalid hash counts
+- Broadcasting blocks with wrong previous hashes
+- Skipping validation and accepting invalid blocks
+- Storing unvalidated blocks
+
+See `DEMO.md` for detailed BFT testing scenarios and expected outcomes.
+
 ### Command-Line Options
 
 - `--type`: Node type, either "leader" or "replica" (default: "replica")
 - `--port`: Port to listen on for P2P connections (default: 8080)
 - `--peers`: Comma-separated list of peer addresses in format "host:port"
 - `--db`: Path to the SQLite database file (default: "blockchain.db")
+- `--malicious`: Run node in malicious mode for BFT testing (default: false)
+  - Enables Byzantine fault behaviors for testing network resilience
+  - See BFT-TESTING.md for detailed malicious behaviors
 
 ### Running a Leader Node
 
@@ -105,6 +192,18 @@ The replica node will:
 - Receive and validate blocks from the network
 - Verify block integrity and chain linkage
 - Store valid blocks to the local ledger
+
+### Running a Malicious Node (for BFT Testing)
+
+```bash
+# Malicious leader
+go run cmd/main.go --type=leader --port=8000 --db=./leader.db --malicious
+
+# Malicious replica
+go run cmd/main.go --type=replica --port=8002 --peers=localhost:8000 --db=./malicious.db --malicious
+```
+
+Malicious nodes exhibit Byzantine fault behaviors for testing network resilience. See [BFT-TESTING.md](BFT-TESTING.md) for details on malicious behaviors and testing scenarios.
 
 ### Running a Multi-Node Network
 
@@ -196,8 +295,14 @@ Integration tests create temporary SQLite databases that are automatically clean
 
 ## Documentation
 
-Detailed specifications are available in the `.kiro/specs/poh-blockchain/` directory:
+### Quick References
+- **[QUICKSTART.md](QUICKSTART.md)** - 30-second introduction to running demos
+- **[DEMO.md](DEMO.md)** - Complete demo guide with tmux commands and troubleshooting
+- **[BFT-TESTING.md](BFT-TESTING.md)** - In-depth Byzantine Fault Tolerance testing guide
+- **[TESTING-SUMMARY.md](TESTING-SUMMARY.md)** - Comprehensive testing reference
 
+### Specifications
+Detailed specifications are available in the `.kiro/specs/poh-blockchain/` directory:
 - `requirements.md`: Functional requirements and acceptance criteria
 - `design.md`: Architecture and component design
 - `tasks.md`: Implementation plan and task breakdown

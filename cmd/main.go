@@ -22,6 +22,7 @@ func main() {
 	port := flag.Int("port", 8080, "Port to listen on")
 	peersStr := flag.String("peers", "", "Comma-separated list of peer addresses (host:port)")
 	dbPath := flag.String("db", "blockchain.db", "Path to the database file")
+	malicious := flag.Bool("malicious", false, "Run node in malicious mode (for BFT testing)")
 	flag.Parse()
 
 	// Determine node type
@@ -29,10 +30,18 @@ func main() {
 	switch strings.ToLower(*nodeTypeStr) {
 	case "leader":
 		nodeType = network.LEADER
-		log.Println("Starting node as LEADER")
+		if *malicious {
+			log.Println("Starting node as MALICIOUS LEADER")
+		} else {
+			log.Println("Starting node as LEADER")
+		}
 	case "replica":
 		nodeType = network.REPLICA
-		log.Println("Starting node as REPLICA")
+		if *malicious {
+			log.Println("Starting node as MALICIOUS REPLICA")
+		} else {
+			log.Println("Starting node as REPLICA")
+		}
 	default:
 		log.Fatalf("Invalid node type: %s (must be 'leader' or 'replica')", *nodeTypeStr)
 	}
@@ -120,10 +129,10 @@ func main() {
 
 	if nodeType == network.LEADER {
 		log.Println("Starting leader node logic...")
-		go runLeaderNode(consensusManager, blockProducer, networkNode, ledger, chainHeight, stopChan)
+		go runLeaderNode(consensusManager, blockProducer, networkNode, ledger, chainHeight, *malicious, stopChan)
 	} else {
 		log.Println("Starting replica node logic...")
-		go runReplicaNode(consensusManager, verifier, networkNode, ledger, stopChan)
+		go runReplicaNode(consensusManager, verifier, networkNode, ledger, *malicious, stopChan)
 	}
 
 	// Wait for shutdown signal
@@ -146,10 +155,11 @@ func main() {
 	log.Println("Node shutdown complete")
 }
 
-func runLeaderNode(cm *consensus.ConsensusManager, bp *blockchain.BlockProducer, nn *network.NetworkNode, ledger *storage.Ledger, currentHeight int64, stopChan <-chan struct{}) {
+func runLeaderNode(cm *consensus.ConsensusManager, bp *blockchain.BlockProducer, nn *network.NetworkNode, ledger *storage.Ledger, currentHeight int64, malicious bool, stopChan <-chan struct{}) {
 	log.Println("Leader node: Starting continuous block production")
 
 	blockHeight := currentHeight
+	maliciousCounter := 0
 
 	for {
 		select {
@@ -193,19 +203,39 @@ func runLeaderNode(cm *consensus.ConsensusManager, bp *blockchain.BlockProducer,
 				block.Header.PreviousBlockHash = prevBlock.Header.MerkleRoot
 			}
 
+			// MALICIOUS BEHAVIOR: Corrupt blocks periodically
+			if malicious {
+				maliciousCounter++
+				if maliciousCounter%3 == 0 {
+					// Corrupt the block by modifying entries
+					if len(block.Entries) > 0 {
+						block.Entries[0].NumHashes = 1 // Invalid hash count
+						log.Printf("MALICIOUS: Corrupted block %d by setting invalid hash count\n", blockHeight)
+					}
+				}
+				if maliciousCounter%5 == 0 {
+					// Send block with wrong previous hash
+					block.Header.PreviousBlockHash = []byte("corrupted-hash")
+					log.Printf("MALICIOUS: Corrupted block %d with wrong previous hash\n", blockHeight)
+				}
+			}
+
 			log.Printf("Leader node: Block produced - height=%d, slot=%d, entries=%d\n",
 				block.Header.BlockHeight, block.Header.Slot, len(block.Entries))
 
-			// Store block to ledger
-			if err := ledger.StoreBlock(block); err != nil {
-				log.Printf("Leader node: Error storing block: %v\n", err)
-				blockHeight-- // Rollback height increment
-				continue
+			// Store block to ledger (only if not malicious or not corrupted)
+			if !malicious || maliciousCounter%3 != 0 {
+				if err := ledger.StoreBlock(block); err != nil {
+					log.Printf("Leader node: Error storing block: %v\n", err)
+					blockHeight-- // Rollback height increment
+					continue
+				}
+				log.Printf("Leader node: Block stored to ledger - height=%d\n", block.Header.BlockHeight)
+			} else {
+				log.Printf("MALICIOUS: Skipping storage of corrupted block %d\n", blockHeight)
 			}
 
-			log.Printf("Leader node: Block stored to ledger - height=%d\n", block.Header.BlockHeight)
-
-			// Broadcast block to network
+			// Broadcast block to network (including corrupted ones)
 			if err := nn.BroadcastBlock(block); err != nil {
 				log.Printf("Leader node: Error broadcasting block: %v\n", err)
 				// Continue even if broadcast fails - block is already stored
@@ -216,8 +246,10 @@ func runLeaderNode(cm *consensus.ConsensusManager, bp *blockchain.BlockProducer,
 	}
 }
 
-func runReplicaNode(cm *consensus.ConsensusManager, v *verification.Verifier, nn *network.NetworkNode, ledger *storage.Ledger, stopChan <-chan struct{}) {
+func runReplicaNode(cm *consensus.ConsensusManager, v *verification.Verifier, nn *network.NetworkNode, ledger *storage.Ledger, malicious bool, stopChan <-chan struct{}) {
 	log.Println("Replica node: Starting block reception and validation")
+
+	maliciousCounter := 0
 
 	for {
 		select {
@@ -241,9 +273,28 @@ func runReplicaNode(cm *consensus.ConsensusManager, v *verification.Verifier, nn
 			log.Printf("Replica node: Received block - height=%d, slot=%d, entries=%d\n",
 				block.Header.BlockHeight, block.Header.Slot, len(block.Entries))
 
+			// MALICIOUS BEHAVIOR: Skip validation periodically
+			if malicious {
+				maliciousCounter++
+				if maliciousCounter%4 == 0 {
+					log.Printf("MALICIOUS: Skipping validation for block %d\n", block.Header.BlockHeight)
+					// Store block without validation
+					if err := ledger.StoreBlock(block); err != nil {
+						log.Printf("MALICIOUS: Error storing unvalidated block: %v\n", err)
+					} else {
+						log.Printf("MALICIOUS: Stored block %d without validation\n", block.Header.BlockHeight)
+					}
+					continue
+				}
+			}
+
 			// Validate block with consensus manager
 			if err := cm.ValidateBlock(block); err != nil {
 				log.Printf("Replica node: Block validation failed (consensus): %v\n", err)
+				if malicious && maliciousCounter%6 == 0 {
+					log.Printf("MALICIOUS: Ignoring validation failure, storing anyway\n")
+					ledger.StoreBlock(block)
+				}
 				continue
 			}
 
@@ -252,6 +303,10 @@ func runReplicaNode(cm *consensus.ConsensusManager, v *verification.Verifier, nn
 			// Verify block with verifier
 			if err := v.VerifyBlock(block); err != nil {
 				log.Printf("Replica node: Block verification failed: %v\n", err)
+				if malicious && maliciousCounter%6 == 0 {
+					log.Printf("MALICIOUS: Ignoring verification failure, storing anyway\n")
+					ledger.StoreBlock(block)
+				}
 				continue
 			}
 
@@ -267,6 +322,10 @@ func runReplicaNode(cm *consensus.ConsensusManager, v *verification.Verifier, nn
 
 				if err := v.VerifyBlockLink(block, prevBlock); err != nil {
 					log.Printf("Replica node: Block linkage verification failed: %v\n", err)
+					if malicious && maliciousCounter%6 == 0 {
+						log.Printf("MALICIOUS: Ignoring linkage failure, storing anyway\n")
+						ledger.StoreBlock(block)
+					}
 					continue
 				}
 
