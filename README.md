@@ -5,11 +5,15 @@ A Proof of History (PoH) blockchain implementation inspired by Solana's architec
 ## Quick Start
 
 ```bash
-# Run a basic demo
+# Run a basic demo (with tmux)
 ./demo.sh
 
-# Test Byzantine Fault Tolerance
+# Test Byzantine Fault Tolerance (with tmux)
 ./demo-bft.sh 3 1
+
+# Automated testing (no tmux, AI-friendly)
+./demo-automated.sh 3 1 15
+./analyze-results.sh
 ```
 
 See [QUICKSTART.md](QUICKSTART.md) for a 30-second introduction.
@@ -28,6 +32,8 @@ This project implements a verifiable delay function using sequential SHA-256 has
 - Transaction integration with cryptographic timestamping
 - **Byzantine Fault Tolerance testing with malicious nodes**
 - **Automated demo scripts with tmux visualization**
+- **AI-friendly automated testing tools (no tmux required)**
+- **Comprehensive test launcher with reporting**
 
 ## Requirements
 
@@ -158,6 +164,29 @@ The script automatically calculates BFT status:
 - Storing unvalidated blocks
 
 See `DEMO.md` for detailed BFT testing scenarios and expected outcomes.
+
+### Automated Testing (No tmux)
+
+For AI agents and automated testing without tmux:
+
+```bash
+# Run a single test scenario
+./demo-automated.sh 3 1 15    # 3 honest + 1 malicious, 15 seconds
+
+# Analyze results
+./analyze-results.sh
+
+# Run comprehensive test suite
+./test-launcher.sh 20         # Run all scenarios, 20s each
+```
+
+**Features**:
+- Clear log prefixes: `[LEADER]`, `[HONEST-1]`, `[MALICIOUS-1]`
+- Automatic results analysis
+- Generates markdown reports
+- Saves logs and databases for inspection
+
+See [AUTOMATED-TESTING.md](AUTOMATED-TESTING.md) for complete guide.
 
 ### Command-Line Options
 
@@ -299,6 +328,7 @@ Integration tests create temporary SQLite databases that are automatically clean
 - **[QUICKSTART.md](QUICKSTART.md)** - 30-second introduction to running demos
 - **[DEMO.md](DEMO.md)** - Complete demo guide with tmux commands and troubleshooting
 - **[BFT-TESTING.md](BFT-TESTING.md)** - In-depth Byzantine Fault Tolerance testing guide
+- **[AUTOMATED-TESTING.md](AUTOMATED-TESTING.md)** - Automated testing guide for AI agents (no tmux)
 - **[TESTING-SUMMARY.md](TESTING-SUMMARY.md)** - Comprehensive testing reference
 
 ### Specifications
