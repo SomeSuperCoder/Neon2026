@@ -40,11 +40,11 @@ A complete Proof of History (PoH) blockchain implementation with comprehensive B
 - **analyze-results.sh**: Results analysis tool
 
 ### 4. Documentation
-- **QUICKSTART.md**: 30-second introduction
-- **DEMO.md**: Complete tmux demo guide
-- **BFT-TESTING.md**: In-depth BFT theory and testing
-- **AUTOMATED-TESTING.md**: Automated testing guide for AI agents
-- **TESTING-SUMMARY.md**: Comprehensive reference
+- **docs/guides/quickstart.md**: 30-second introduction
+- **docs/guides/demo.md**: Complete tmux demo guide
+- **docs/testing/bft-testing.md**: In-depth BFT theory and testing
+- **docs/testing/automated-testing.md**: Automated testing guide for AI agents
+- **docs/testing/testing-summary.md**: Comprehensive reference
 - **README.md**: Updated with all features
 
 ## Key Capabilities
@@ -146,12 +146,12 @@ A complete Proof of History (PoH) blockchain implementation with comprehensive B
 - stop-demo.sh
 
 ### Documentation
-- QUICKSTART.md
-- DEMO.md
-- BFT-TESTING.md
-- AUTOMATED-TESTING.md
-- TESTING-SUMMARY.md
-- IMPLEMENTATION-SUMMARY.md (this file)
+- docs/guides/quickstart.md
+- docs/guides/demo.md
+- docs/testing/bft-testing.md
+- docs/testing/automated-testing.md
+- docs/testing/testing-summary.md
+- docs/reference/implementation-summary.md (this file)
 
 ### Code
 - cmd/main.go (updated with --malicious flag)

@@ -136,14 +136,14 @@ Help: Make sure the variable is declared before use.
 
 ## Documentation
 
-For complete language documentation, see the [docs](docs/) directory:
+For complete language documentation, see the [docs](../reference/) directory:
 
-- **[Language Reference](docs/language-reference.md)** - Complete syntax, types, operators, and control flow
-- **[Standard Library Reference](docs/stdlib-reference.md)** - All built-in functions and modules
-- **[Inline Assembly Guide](docs/inline-assembly.md)** - Writing assembly for performance
-- **[Bytecode Reference](docs/bytecode-reference.md)** - Low-level bytecode format and opcodes
-- **[Cost Model Guide](docs/cost-model.md)** - Understanding costs and optimization
-- **[Examples](examples/README.md)** - Sample programs and tutorials
+- **[Language Reference](../reference/language-reference.md)** - Complete syntax, types, operators, and control flow
+- **[Standard Library Reference](../reference/stdlib-reference.md)** - All built-in functions and modules
+- **[Inline Assembly Guide](../reference/inline-assembly.md)** - Writing assembly for performance
+- **[Bytecode Reference](../reference/bytecode-reference.md)** - Low-level bytecode format and opcodes
+- **[Cost Model Guide](../reference/cost-model.md)** - Understanding costs and optimization
+- **[Examples](../../examples/README.md)** - Sample programs and tutorials
 
 ## Quick Language Overview
 
@@ -235,7 +235,7 @@ Every instruction has a fixed computational cost:
 - Blockchain operations: 30-100 units
 - Cryptographic operations: 50-100 units
 
-See the [Cost Model Guide](docs/cost-model.md) for details.
+See the [Cost Model Guide](../reference/cost-model.md) for details.
 
 ### Standard Library
 
@@ -248,7 +248,7 @@ Built-in modules for common operations:
 - **string**: String manipulation
 - **math**: Mathematical operations
 
-See the [Standard Library Reference](docs/stdlib-reference.md) for complete API documentation.
+See the [Standard Library Reference](../reference/stdlib-reference.md) for complete API documentation.
 
 ## Development Workflow
 

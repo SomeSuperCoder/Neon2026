@@ -260,9 +260,9 @@ watch -n 1 'sqlite3 leader.db "SELECT COUNT(*) as total_blocks FROM blocks;"'
 ## Documentation
 
 - **README.md**: Project overview and quick start
-- **DEMO.md**: Detailed demo guide with tmux commands
-- **BFT-TESTING.md**: In-depth BFT theory and testing guide
-- **TESTING-SUMMARY.md**: This file - quick reference
+- **docs/guides/demo.md**: Detailed demo guide with tmux commands
+- **docs/testing/bft-testing.md**: In-depth BFT theory and testing guide
+- **docs/testing/testing-summary.md**: This file - quick reference
 
 ---
 

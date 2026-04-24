@@ -16,7 +16,7 @@ A Proof of History (PoH) blockchain implementation inspired by Solana's architec
 ./analyze-results.sh
 ```
 
-See [QUICKSTART.md](QUICKSTART.md) for a 30-second introduction.
+See [docs/guides/quickstart.md](docs/guides/quickstart.md) for a 30-second introduction.
 
 ## Overview
 
@@ -135,7 +135,7 @@ go run cmd/main.go status --tx <tx-id> --state state.db
 go run cmd/main.go help
 ```
 
-See [CLI-USAGE.md](CLI-USAGE.md) for detailed CLI documentation.
+See [docs/guides/cli-usage.md](docs/guides/cli-usage.md) for detailed CLI documentation.
 
 ### Quick Demo with tmux
 
@@ -204,7 +204,7 @@ The script automatically calculates BFT status:
 - Skipping validation and accepting invalid blocks
 - Storing unvalidated blocks
 
-See `DEMO.md` for detailed BFT testing scenarios and expected outcomes.
+See [docs/guides/demo.md](docs/guides/demo.md) for detailed BFT testing scenarios and expected outcomes.
 
 ### Automated Testing (No tmux)
 
@@ -227,7 +227,7 @@ For AI agents and automated testing without tmux:
 - Generates markdown reports
 - Saves logs and databases for inspection
 
-See [AUTOMATED-TESTING.md](AUTOMATED-TESTING.md) for complete guide.
+See [docs/testing/automated-testing.md](docs/testing/automated-testing.md) for complete guide.
 
 ### Command-Line Options
 
@@ -273,7 +273,7 @@ go run cmd/main.go --type=leader --port=8000 --db=./leader.db --malicious
 go run cmd/main.go --type=replica --port=8002 --peers=localhost:8000 --db=./malicious.db --malicious
 ```
 
-Malicious nodes exhibit Byzantine fault behaviors for testing network resilience. See [BFT-TESTING.md](BFT-TESTING.md) for details on malicious behaviors and testing scenarios.
+Malicious nodes exhibit Byzantine fault behaviors for testing network resilience. See [docs/testing/bft-testing.md](docs/testing/bft-testing.md) for details on malicious behaviors and testing scenarios.
 
 ### Running a Multi-Node Network
 
@@ -591,18 +591,33 @@ Integration tests create temporary SQLite databases that are automatically clean
 
 ## Documentation
 
-### Quick References
-- **[QUICKSTART.md](QUICKSTART.md)** - 30-second introduction to running demos
-- **[DEMO.md](DEMO.md)** - Complete demo guide with tmux commands and troubleshooting
-- **[BFT-TESTING.md](BFT-TESTING.md)** - In-depth Byzantine Fault Tolerance testing guide
-- **[AUTOMATED-TESTING.md](AUTOMATED-TESTING.md)** - Automated testing guide for AI agents (no tmux)
-- **[TESTING-SUMMARY.md](TESTING-SUMMARY.md)** - Comprehensive testing reference
+Complete documentation is available in the [docs/](docs/) directory:
+
+### Getting Started
+- **[Quick Start Guide](docs/guides/quickstart.md)** - Get up and running in 30 seconds
+- **[Demo Guide](docs/guides/demo.md)** - Interactive demos with tmux
+- **[CLI Usage Guide](docs/guides/cli-usage.md)** - Command-line interface reference
+- **[QuanticScript Guide](docs/guides/quanticscript.md)** - Smart contract language overview
+
+### Testing
+- **[BFT Testing Guide](docs/testing/bft-testing.md)** - Byzantine Fault Tolerance testing
+- **[Automated Testing Guide](docs/testing/automated-testing.md)** - Testing without tmux
+- **[Testing Summary](docs/testing/testing-summary.md)** - Quick reference for all testing features
+
+### Reference
+- **[Language Reference](docs/reference/language-reference.md)** - QuanticScript syntax and semantics
+- **[Standard Library Reference](docs/reference/stdlib-reference.md)** - Built-in functions and modules
+- **[Inline Assembly Guide](docs/reference/inline-assembly.md)** - Low-level assembly programming
+- **[Bytecode Reference](docs/reference/bytecode-reference.md)** - Bytecode format and opcodes
+- **[Cost Model Guide](docs/reference/cost-model.md)** - Understanding computational costs
+- **[Implementation Summary](docs/reference/implementation-summary.md)** - Architecture and features
+- **[BFT Fix Summary](docs/reference/bft-fix-summary.md)** - Technical details of BFT fixes
 
 ### Specifications
-Detailed specifications are available in the `.kiro/specs/poh-blockchain/` directory:
-- `requirements.md`: Functional requirements and acceptance criteria
-- `design.md`: Architecture and component design
-- `tasks.md`: Implementation plan and task breakdown
+Detailed specifications are available in the `.kiro/specs/` directory:
+- `poh-blockchain/`: Core blockchain implementation specs
+- `quanticscript-language/`: QuanticScript language specs
+- `file-based-state/`: State model and transaction processing specs
 
 ## License
 
