@@ -31,6 +31,27 @@ type BlockHeader struct {
 
 // Block represents a collection of entries produced during a slot
 type Block struct {
+	Version uint32      `json:"version"` // Block format version for backwards compatibility
 	Header  BlockHeader `json:"header"`
 	Entries []Entry     `json:"entries"`
+}
+
+const (
+	// BlockVersion1 is the initial block format version
+	BlockVersion1 uint32 = 1
+)
+
+// SetVersion sets a custom version for the block
+// This should only be used when explicitly upgrading block format
+func (b *Block) SetVersion(version uint32) {
+	b.Version = version
+}
+
+// GetVersion returns the block version
+func (b *Block) GetVersion() uint32 {
+	if b.Version == 0 {
+		// For backwards compatibility with blocks created before versioning
+		return BlockVersion1
+	}
+	return b.Version
 }

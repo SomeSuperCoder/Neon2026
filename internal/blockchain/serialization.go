@@ -138,3 +138,43 @@ func (bh *BlockHeader) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+// blockJSON is used for custom JSON marshaling of Block
+type blockJSON struct {
+	Version uint32      `json:"version"`
+	Header  BlockHeader `json:"header"`
+	Entries []Entry     `json:"entries"`
+}
+
+// MarshalJSON implements custom JSON marshaling for Block
+func (b Block) MarshalJSON() ([]byte, error) {
+	version := b.Version
+	if version == 0 {
+		version = BlockVersion1
+	}
+
+	return json.Marshal(blockJSON{
+		Version: version,
+		Header:  b.Header,
+		Entries: b.Entries,
+	})
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for Block
+func (b *Block) UnmarshalJSON(data []byte) error {
+	var bj blockJSON
+	if err := json.Unmarshal(data, &bj); err != nil {
+		return err
+	}
+
+	// Default to version 1 if not specified (backwards compatibility)
+	if bj.Version == 0 {
+		bj.Version = BlockVersion1
+	}
+
+	b.Version = bj.Version
+	b.Header = bj.Header
+	b.Entries = bj.Entries
+
+	return nil
+}

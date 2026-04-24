@@ -60,7 +60,7 @@ go mod download
 ├── internal/
 │   ├── poh/               # PoH clock generator
 │   ├── blockchain/        # Core blockchain data structures and serialization
-│   │   ├── types.go       # Transaction, Entry, Block, BlockHeader definitions
+│   │   ├── types.go       # Transaction, Entry, Block, BlockHeader definitions with versioning
 │   │   ├── serialization.go # JSON marshaling with hex encoding
 │   │   └── block_producer.go # Block production and transaction integration
 │   ├── network/           # P2P networking layer
@@ -91,7 +91,8 @@ The system uses a layered architecture:
 - **PoH Clock**: Sequential SHA-256 hash chain serving as a cryptographic timeline
 - **Tick**: Output of 12,500 hash operations
 - **Entry**: Ledger record containing hash link, tick count, and transaction data
-- **Block**: Collection of entries produced during a 400ms slot
+- **Block**: Collection of entries produced during a 400ms slot, with versioning support for backwards compatibility
+- **Block Version**: Format version identifier (currently v1) enabling future protocol upgrades
 - **Slot**: Time window for block production (minimum 64 ticks)
 - **Slot Tolerance**: 100-slot (~40 second) window for accepting blocks to handle clock skew and network delays
 
@@ -264,7 +265,7 @@ This project is currently under active development. See `.kiro/specs/poh-blockch
 
 - [x] Project initialization and Go module setup
 - [x] PoH Clock Generator - Full implementation with thread-safe operations
-- [x] Core blockchain data structures - Transaction, Entry, Block, and BlockHeader types
+- [x] Core blockchain data structures - Transaction, Entry, Block, and BlockHeader types with version support for backwards compatibility
 - [x] JSON serialization - Custom marshaling/unmarshaling with hex encoding for byte slices
 - [x] Block Producer - Transaction integration, entry production, and block generation with Merkle root calculation
 - [x] Network Layer - P2P communication with TCP, block broadcasting/receiving, message framing

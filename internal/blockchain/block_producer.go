@@ -154,8 +154,9 @@ func (bp *BlockProducer) ProduceBlock(slot int64) (Block, error) {
 		BlockHeight:       0, // Will be set by caller
 	}
 
-	// Create the block
+	// Create the block with default version
 	block := Block{
+		Version: BlockVersion1,
 		Header:  header,
 		Entries: bp.entriesBuffer,
 	}
