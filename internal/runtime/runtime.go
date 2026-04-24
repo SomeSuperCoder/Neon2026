@@ -5,6 +5,7 @@ import (
 
 	"github.com/poh-blockchain/internal/access"
 	"github.com/poh-blockchain/internal/filestore"
+	"github.com/poh-blockchain/internal/quanticscript"
 	"github.com/poh-blockchain/internal/transaction"
 )
 
@@ -247,9 +248,17 @@ func (r *Runtime) ExecuteProgram(program *filestore.File, ctx *ExecutionContext)
 		return nil
 	}
 
-	// For non-builtin programs, we would execute bytecode here
-	// This is a stub for future bytecode interpreter implementation (Requirement 2.3)
-	return fmt.Errorf("bytecode execution not yet implemented for program %s", program.ID.String())
+	// Check if this is QuanticScript bytecode
+	if r.isQuanticScriptBytecode(program.Data) {
+		// Execute QuanticScript bytecode
+		if err := r.executeBytecode(program.Data, ctx); err != nil {
+			return fmt.Errorf("bytecode execution failed: %w", err)
+		}
+		return nil
+	}
+
+	// Unknown program format
+	return fmt.Errorf("unsupported program format for program %s", program.ID.String())
 }
 
 // ValidateProgram performs basic validation on a program file
@@ -304,4 +313,175 @@ func (r *Runtime) SetExecutionLimit(limit int64) {
 // GetExecutionLimit returns the current execution limit
 func (r *Runtime) GetExecutionLimit() int64 {
 	return r.executionLimit
+}
+
+// isQuanticScriptBytecode checks if the program data is QuanticScript bytecode
+func (r *Runtime) isQuanticScriptBytecode(data []byte) bool {
+	return quanticscript.IsQuanticScriptBytecode(data)
+}
+
+// executeBytecode executes QuanticScript bytecode with the interpreter
+func (r *Runtime) executeBytecode(bytecode []byte, ctx *ExecutionContext) error {
+	// Parse bytecode header
+	header, err := quanticscript.ParseBytecodeHeader(bytecode)
+	if err != nil {
+		return fmt.Errorf("failed to parse bytecode header: %w", err)
+	}
+
+	// Get bytecode body (without header)
+	body, err := quanticscript.GetBytecodeBody(bytecode)
+	if err != nil {
+		return fmt.Errorf("failed to get bytecode body: %w", err)
+	}
+
+	// Validate entry offset
+	if int(header.EntryOffset) >= len(body) {
+		return fmt.Errorf("invalid entry offset: %d", header.EntryOffset)
+	}
+
+	// Create interpreter with compute budget
+	interpreter := quanticscript.NewBytecodeInterpreter(body, ctx, r.executionLimit)
+
+	// Execute bytecode starting from entry point
+	if err := interpreter.Execute(); err != nil {
+		return fmt.Errorf("bytecode execution error: %w", err)
+	}
+
+	return nil
+}
+
+// GetSigners returns the list of transaction signers
+func (ctx *ExecutionContext) GetSigners() []transaction.PublicKey {
+	return ctx.Signers
+}
+
+// QueryBlock queries a finalized block by hash
+// Returns serialized block data or error if not found/not finalized
+func (ctx *ExecutionContext) QueryBlock(blockHash []byte) ([]byte, error) {
+	// TODO: Implement block query from finalized blockchain state
+	// For now, return error indicating not implemented
+	return nil, fmt.Errorf("block query not yet implemented")
+}
+
+// QueryTransaction queries a finalized transaction by ID
+// Returns serialized transaction data or error if not found/not finalized
+func (ctx *ExecutionContext) QueryTransaction(txID transaction.TxID) ([]byte, error) {
+	// TODO: Implement transaction query from finalized blockchain state
+	// For now, return error indicating not implemented
+	return nil, fmt.Errorf("transaction query not yet implemented")
+}
+
+// QueryInstruction queries a finalized instruction by reference
+// Returns serialized instruction data or error if not found/not finalized
+func (ctx *ExecutionContext) QueryInstruction(txID transaction.TxID, instrIndex uint32) ([]byte, error) {
+	// TODO: Implement instruction query from finalized blockchain state
+	// For now, return error indicating not implemented
+	return nil, fmt.Errorf("instruction query not yet implemented")
+}
+
+// InvokeProgram invokes another program with the given data and compute budget
+// This implements Requirements 9.1, 9.2, 9.3, 9.4, 9.5
+func (ctx *ExecutionContext) InvokeProgram(programID filestore.FileID, invokeData []byte, computeBudget int64, depth int) ([]byte, error) {
+	// Check invocation depth limit (Requirement 9.4)
+	if depth > 4 {
+		return nil, fmt.Errorf("maximum cross-program invocation depth exceeded: %d", depth)
+	}
+
+	// Validate that the target program is in the declared program list (Requirement 9.2)
+	declaredPrograms := ctx.GetDeclaredPrograms()
+	isProgramDeclared := false
+	for _, declaredProgramID := range declaredPrograms {
+		if declaredProgramID == programID {
+			isProgramDeclared = true
+			break
+		}
+	}
+
+	if !isProgramDeclared {
+		return nil, fmt.Errorf("program %s not in declared program list", programID.String())
+	}
+
+	// Load the target program
+	program, err := ctx.FileStore.GetFile(programID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load invoked program %s: %w", programID.String(), err)
+	}
+
+	// Validate the program is executable
+	if !program.Executable {
+		return nil, fmt.Errorf("program %s is not executable", programID.String())
+	}
+
+	// Create a new execution context for the invoked program
+	// The invoked program gets the same signers and file store, but different instruction data
+	invokedInstruction := &transaction.Instruction{
+		ProgramID: programID,
+		Data:      invokeData,
+		Inputs:    ctx.Instruction.Inputs, // Share the same inputs
+	}
+
+	invokedCtx := &ExecutionContext{
+		Instruction:      invokedInstruction,
+		Signers:          ctx.Signers,
+		FileStore:        ctx.FileStore,
+		AccessController: ctx.AccessController,
+	}
+
+	// Check if this is QuanticScript bytecode
+	if !quanticscript.IsQuanticScriptBytecode(program.Data) {
+		return nil, fmt.Errorf("invoked program %s is not QuanticScript bytecode", programID.String())
+	}
+
+	// Parse bytecode header
+	header, err := quanticscript.ParseBytecodeHeader(program.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse bytecode header: %w", err)
+	}
+
+	// Get bytecode body (without header)
+	body, err := quanticscript.GetBytecodeBody(program.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bytecode body: %w", err)
+	}
+
+	// Validate entry offset
+	if int(header.EntryOffset) >= len(body) {
+		return nil, fmt.Errorf("invalid entry offset: %d", header.EntryOffset)
+	}
+
+	// Create interpreter with the allocated compute budget and increased depth
+	interpreter := quanticscript.NewBytecodeInterpreterWithDepth(body, invokedCtx, computeBudget, depth)
+
+	// Execute bytecode starting from entry point
+	if err := interpreter.Execute(); err != nil {
+		// Invocation failed, rollback is handled by the caller (Requirement 9.5)
+		return nil, fmt.Errorf("invoked program execution error: %w", err)
+	}
+
+	// For now, return empty result data
+	// In a full implementation, the invoked program would push result data onto the stack
+	// and we would extract it here
+	return []byte{}, nil
+}
+
+// GetDeclaredPrograms returns the list of programs declared in the instruction
+// This is used to validate cross-program invocations (Requirement 9.2)
+func (ctx *ExecutionContext) GetDeclaredPrograms() []filestore.FileID {
+	if ctx.Instruction == nil {
+		return nil
+	}
+
+	// For now, we'll extract program IDs from the instruction inputs
+	// In a full implementation, there would be a separate field for declared programs
+	programs := make([]filestore.FileID, 0)
+
+	// Add the current program ID
+	programs = append(programs, ctx.Instruction.ProgramID)
+
+	// Add all file IDs from inputs (they could be programs)
+	for _, fileAccess := range ctx.Instruction.Inputs {
+		programs = append(programs, fileAccess.FileID)
+	}
+
+	return programs
 }

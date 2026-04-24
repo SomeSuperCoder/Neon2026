@@ -71,11 +71,16 @@ go mod download
 │   │   └── ledger.go      # SQLite-based blockchain storage with CRUD operations
 │   ├── verification/      # Chain verification
 │   │   └── verifier.go    # Entry, block, and full chain integrity verification
-│   ├── filestore/         # File-based state model (in development)
+│   ├── filestore/         # File-based state model
 │   │   ├── filestore.go   # File data structures, storage cost calculation
 │   │   └── filestore_test.go # Comprehensive unit tests
-│   ├── runtime/           # Program execution runtime (planned)
-│   └── system/            # System program for account management (planned)
+│   ├── quanticscript/     # QuanticScript language (in development)
+│   │   ├── types.go       # Core type system and runtime values
+│   │   ├── opcodes.go     # Bytecode instruction opcodes
+│   │   ├── costs.go       # Instruction cost table
+│   │   └── bytecode.go    # Bytecode format specification
+│   ├── runtime/           # Program execution runtime
+│   └── system/            # System program for account management
 ├── go.mod
 └── README.md
 ```
@@ -295,6 +300,171 @@ Press `Ctrl+C` or send `SIGINT`/`SIGTERM` to gracefully shutdown the node. The n
 
 This project is currently under active development. See `.kiro/specs/poh-blockchain/tasks.md` for the PoH blockchain implementation roadmap.
 
+### QuanticScript Language (In Development)
+
+QuanticScript is a developer-friendly programming language designed specifically for blockchain smart contract execution. It combines TypeScript-like syntax with functional programming principles, deterministic execution guarantees, and a rich standard library.
+
+**Key Features:**
+- TypeScript-like syntax with type annotations
+- Compiles to cost-metered bytecode
+- Inline assembly support for performance optimization
+- Cross-program invocation for composable applications
+- 100% deterministic execution in an unescapable sandbox
+- Rich standard library with crypto, blockchain, and query modules
+
+**Current Status:**
+- ✅ Core type system and value types (i8-i64, u8-u64, bool, bytes, string, FileID, PublicKey, TxID)
+- ✅ Bytecode instruction opcodes and cost table defined
+- ✅ Bytecode format specification with header and versioning
+- ✅ Bytecode interpreter with full instruction set support
+- ✅ Cross-program invocation with depth tracking and budget management (INVOKE/INVOKERET instructions)
+- ✅ Assembler for converting assembly text to bytecode
+- ✅ Disassembler for converting bytecode to assembly text
+- ✅ Lexer for tokenizing TypeScript-like syntax with source location tracking
+- ✅ Parser for building Abstract Syntax Trees (AST) from source code
+- ✅ AST node types for all language constructs
+- ✅ Type checker with type inference, validation, and determinism checks
+- ✅ Code generator for compiling AST to bytecode with inline assembly support
+- 📋 Standard library modules - planned
+
+**Token System:**
+
+The lexer tokenizes QuanticScript source code into a stream of tokens for parsing:
+- Keywords: `function`, `export`, `import`, `let`, `const`, `if`, `else`, `while`, `for`, `return`, `__asm__`
+- Type annotations: `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `bool`, `string`, `bytes`, `void`
+- Operators: arithmetic (`+`, `-`, `*`, `/`, `%`), comparison (`==`, `!=`, `<`, `>`, `<=`, `>=`), logical (`&&`, `||`, `!`)
+- Bitwise operators: `&`, `|`, `^`, `~`, `<<`, `>>`
+- Source location tracking for error reporting with filename, line, and column information
+
+**Code Generator:**
+
+The code generator compiles QuanticScript source code (AST) to bytecode:
+
+```go
+import "github.com/poh-blockchain/internal/quanticscript"
+
+// Parse source code
+lexer := quanticscript.NewLexer(source, "program.qs")
+parser := quanticscript.NewParser(lexer)
+program := parser.ParseProgram()
+
+// Type check
+typeChecker := quanticscript.NewTypeChecker()
+typeChecker.CheckProgram(program)
+
+// Generate bytecode
+codeGen := quanticscript.NewCodeGenerator()
+bytecode, err := codeGen.Generate(program)
+```
+
+**Code Generator Features:**
+- Translates high-level expressions to stack-based bytecode operations
+- Generates control flow instructions (if/else, while, for loops)
+- Allocates local memory slots for variables
+- Handles function calls with automatic label resolution
+- Supports inline assembly blocks with variable binding
+- Compound assignment operators (+=, -=, *=, /=, %=)
+- Two-pass compilation with forward reference resolution
+- Comprehensive error reporting with source locations
+
+**Assembly Language:**
+
+QuanticScript includes a human-readable assembly language for low-level programming and debugging:
+
+```assembly
+; Simple addition program
+entry:
+    PUSH i64 42      ; Push integer 42
+    PUSH i64 10      ; Push integer 10
+    ADD              ; Add top two values
+    RET              ; Return result
+
+; Function with labels
+loop_example:
+    PUSH i64 0
+    STORE 0          ; counter = 0
+loop_start:
+    LOAD 0           ; Load counter
+    PUSH i64 10
+    LT               ; counter < 10?
+    JMPIF loop_body
+    RET
+loop_body:
+    LOAD 0
+    PUSH i64 1
+    ADD
+    STORE 0          ; counter++
+    JMP loop_start
+```
+
+**Assembler Features:**
+- Human-readable mnemonics for all bytecode instructions
+- Label support for jumps and function calls
+- Comment support (semicolon-prefixed)
+- Type annotations for PUSH instructions
+- Automatic label resolution with relative/absolute offsets
+- Error reporting with line numbers
+
+**High-Level Syntax:**
+
+QuanticScript provides TypeScript-like syntax for writing smart contracts:
+
+```typescript
+// Simple addition function
+export function add(a: i64, b: i64): i64 {
+    return a + b;
+}
+
+// Function with control flow
+function factorial(n: i64): i64 {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+// Function with loops
+function sum_range(start: i64, end: i64): i64 {
+    let total: i64 = 0;
+    for (let i = start; i < end; i += 1) {
+        total += i;
+    }
+    return total;
+}
+
+// Function with inline assembly
+function optimized_multiply(a: i64, b: i64): i64 {
+    let result: i64;
+    __asm__ {
+        LOAD a
+        LOAD b
+        MUL
+        STORE result
+    }
+    return result;
+}
+```
+
+**Usage:**
+
+```go
+import "github.com/poh-blockchain/internal/quanticscript"
+
+// Assemble to bytecode file (with header)
+bytecode, err := quanticscript.AssembleToFile(assemblySource)
+
+// Assemble to bytecode body only (no header)
+body, err := quanticscript.AssembleToBody(assemblySource)
+
+// Disassemble bytecode to assembly text
+assembly, err := quanticscript.Disassemble(bytecode)
+```
+
+See `.kiro/specs/quanticscript-language/` for detailed specifications:
+- `requirements.md`: Language requirements and acceptance criteria
+- `design.md`: Architecture and compilation pipeline
+- `tasks.md`: Implementation roadmap
+
 ### File-Based State Model (Production Ready)
 
 The file-based state model enables smart contract functionality and account management. This architecture treats all on-chain state (user accounts, programs, data) as uniform file objects, inspired by Unix's "everything is a file" philosophy and Solana's account model.
@@ -351,6 +521,11 @@ See `.kiro/specs/file-based-state/` for detailed specifications:
 - [x] System Program - Built-in program for account management (CreateAccount, Transfer, CloseAccount, AllocateData)
 - [x] Runtime System - Builtin program registry with execution validation and compute limits
 - [x] End-to-End Integration Tests - 8 comprehensive tests covering transaction flow and access control validation
+- [x] QuanticScript Lexer - Complete tokenization with source location tracking and TypeScript-like syntax support
+- [x] QuanticScript Parser - Full AST construction with expression parsing, control flow, and inline assembly support
+- [x] QuanticScript Type Checker - Type inference, validation, determinism checks, and assembly type safety
+- [x] QuanticScript Code Generator - AST to bytecode compilation with inline assembly, control flow, and two-pass reference resolution
+- [x] QuanticScript Cross-Program Invocation - INVOKE/INVOKERET instructions with depth tracking (max 4 levels), budget management, and program validation
 
 ## Testing
 

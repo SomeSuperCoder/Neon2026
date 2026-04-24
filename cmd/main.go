@@ -19,6 +19,7 @@ import (
 	"github.com/poh-blockchain/internal/network"
 	"github.com/poh-blockchain/internal/poh"
 	"github.com/poh-blockchain/internal/processor"
+	"github.com/poh-blockchain/internal/quanticscript"
 	"github.com/poh-blockchain/internal/runtime"
 	"github.com/poh-blockchain/internal/storage"
 	"github.com/poh-blockchain/internal/system"
@@ -44,6 +45,9 @@ func main() {
 			return
 		case "status":
 			handleStatusCommand()
+			return
+		case "qsc":
+			handleQuanticScriptCommand()
 			return
 		case "help":
 			printHelp()
@@ -407,6 +411,15 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("  status --tx <tx-id> --state <db-path>")
 	fmt.Println("    Check transaction status")
+	fmt.Println()
+	fmt.Println("  qsc <subcommand> [options]")
+	fmt.Println("    QuanticScript compiler commands:")
+	fmt.Println("      compile --input <source.qs> --output <bytecode.qsb>")
+	fmt.Println("        Compile QuanticScript source to bytecode")
+	fmt.Println("      assemble --input <assembly.qsa> --output <bytecode.qsb>")
+	fmt.Println("        Assemble QuanticScript assembly to bytecode")
+	fmt.Println("      disassemble --input <bytecode.qsb> --output <assembly.qsa>")
+	fmt.Println("        Disassemble bytecode to QuanticScript assembly")
 	fmt.Println()
 	fmt.Println("  help")
 	fmt.Println("    Show this help message")
@@ -782,4 +795,373 @@ func initFileStore(dbPath string) (*filestore.FileStore, error) {
 	}
 	ensureSystemProgram(fs)
 	return fs, nil
+}
+
+// handleQuanticScriptCommand handles QuanticScript compiler commands
+func handleQuanticScriptCommand() {
+	if len(os.Args) < 3 {
+		printQuanticScriptHelp()
+		os.Exit(1)
+	}
+
+	subcommand := os.Args[2]
+
+	switch subcommand {
+	case "compile":
+		handleCompileCommand()
+	case "assemble":
+		handleAssembleCommand()
+	case "disassemble":
+		handleDisassembleCommand()
+	case "help":
+		printQuanticScriptHelp()
+	default:
+		fmt.Printf("Unknown QuanticScript subcommand: %s\n", subcommand)
+		printQuanticScriptHelp()
+		os.Exit(1)
+	}
+}
+
+// printQuanticScriptHelp prints help for QuanticScript compiler commands
+func printQuanticScriptHelp() {
+	fmt.Println("QuanticScript Compiler")
+	fmt.Println("\nUsage:")
+	fmt.Println("  poh-blockchain qsc <subcommand> [options]")
+	fmt.Println("\nSubcommands:")
+	fmt.Println("  compile --input <source.qs> --output <bytecode.qsb> [--verbose]")
+	fmt.Println("    Compile QuanticScript source code to bytecode")
+	fmt.Println("    Options:")
+	fmt.Println("      --input, -i    Input source file (.qs)")
+	fmt.Println("      --output, -o   Output bytecode file (.qsb)")
+	fmt.Println("      --verbose, -v  Enable verbose output with diagnostics")
+	fmt.Println()
+	fmt.Println("  assemble --input <assembly.qsa> --output <bytecode.qsb> [--verbose]")
+	fmt.Println("    Assemble QuanticScript assembly to bytecode")
+	fmt.Println("    Options:")
+	fmt.Println("      --input, -i    Input assembly file (.qsa)")
+	fmt.Println("      --output, -o   Output bytecode file (.qsb)")
+	fmt.Println("      --verbose, -v  Enable verbose output with diagnostics")
+	fmt.Println()
+	fmt.Println("  disassemble --input <bytecode.qsb> --output <assembly.qsa> [--verbose]")
+	fmt.Println("    Disassemble bytecode to QuanticScript assembly")
+	fmt.Println("    Options:")
+	fmt.Println("      --input, -i    Input bytecode file (.qsb)")
+	fmt.Println("      --output, -o   Output assembly file (.qsa)")
+	fmt.Println("      --verbose, -v  Enable verbose output with diagnostics")
+	fmt.Println()
+	fmt.Println("  help")
+	fmt.Println("    Show this help message")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  # Compile source to bytecode")
+	fmt.Println("  poh-blockchain qsc compile -i program.qs -o program.qsb")
+	fmt.Println()
+	fmt.Println("  # Assemble assembly to bytecode")
+	fmt.Println("  poh-blockchain qsc assemble -i program.qsa -o program.qsb")
+	fmt.Println()
+	fmt.Println("  # Disassemble bytecode to assembly")
+	fmt.Println("  poh-blockchain qsc disassemble -i program.qsb -o program.qsa")
+}
+
+// handleCompileCommand compiles QuanticScript source to bytecode
+func handleCompileCommand() {
+	fs := flag.NewFlagSet("compile", flag.ExitOnError)
+	input := fs.String("input", "", "Input source file (.qs)")
+	inputShort := fs.String("i", "", "Input source file (.qs) (short)")
+	output := fs.String("output", "", "Output bytecode file (.qsb)")
+	outputShort := fs.String("o", "", "Output bytecode file (.qsb) (short)")
+	verbose := fs.Bool("verbose", false, "Enable verbose output")
+	verboseShort := fs.Bool("v", false, "Enable verbose output (short)")
+
+	fs.Parse(os.Args[3:])
+
+	// Use short flags if long flags are empty
+	if *input == "" {
+		input = inputShort
+	}
+	if *output == "" {
+		output = outputShort
+	}
+	if !*verbose {
+		verbose = verboseShort
+	}
+
+	if *input == "" || *output == "" {
+		fmt.Println("Error: --input and --output are required")
+		fmt.Println()
+		printQuanticScriptHelp()
+		os.Exit(1)
+	}
+
+	if *verbose {
+		fmt.Printf("Compiling %s to %s...\n", *input, *output)
+	}
+
+	// Read source file
+	sourceCode, err := os.ReadFile(*input)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading source file: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Split source into lines for error reporting
+	sourceLines := strings.Split(string(sourceCode), "\n")
+
+	// Compile source to bytecode
+	bytecode, errors := compileSource(string(sourceCode), *verbose)
+	if len(errors) > 0 {
+		fmt.Fprintf(os.Stderr, "\nCompilation failed with %d error(s):\n\n", len(errors))
+		for i, err := range errors {
+			if *verbose {
+				// Verbose mode: show detailed error with suggestions
+				fmt.Fprintf(os.Stderr, "%s\n", formatCompilationError(err, sourceLines))
+			} else {
+				// Normal mode: show error message only
+				fmt.Fprintf(os.Stderr, "%d. %v\n", i+1, err)
+			}
+		}
+		os.Exit(1)
+	}
+
+	// Write bytecode to output file
+	if err := os.WriteFile(*output, bytecode, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *verbose {
+		fmt.Printf("Successfully compiled to %s (%d bytes)\n", *output, len(bytecode))
+	} else {
+		fmt.Printf("Compiled successfully: %s\n", *output)
+	}
+}
+
+// handleAssembleCommand assembles QuanticScript assembly to bytecode
+func handleAssembleCommand() {
+	fs := flag.NewFlagSet("assemble", flag.ExitOnError)
+	input := fs.String("input", "", "Input assembly file (.qsa)")
+	inputShort := fs.String("i", "", "Input assembly file (.qsa) (short)")
+	output := fs.String("output", "", "Output bytecode file (.qsb)")
+	outputShort := fs.String("o", "", "Output bytecode file (.qsb) (short)")
+	verbose := fs.Bool("verbose", false, "Enable verbose output")
+	verboseShort := fs.Bool("v", false, "Enable verbose output (short)")
+
+	fs.Parse(os.Args[3:])
+
+	// Use short flags if long flags are empty
+	if *input == "" {
+		input = inputShort
+	}
+	if *output == "" {
+		output = outputShort
+	}
+	if !*verbose {
+		verbose = verboseShort
+	}
+
+	if *input == "" || *output == "" {
+		fmt.Println("Error: --input and --output are required")
+		fmt.Println()
+		printQuanticScriptHelp()
+		os.Exit(1)
+	}
+
+	if *verbose {
+		fmt.Printf("Assembling %s to %s...\n", *input, *output)
+	}
+
+	// Read assembly file
+	assemblyCode, err := os.ReadFile(*input)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading assembly file: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Assemble to bytecode
+	bytecode, err := quanticscript.AssembleToFile(string(assemblyCode))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Assembly failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Write bytecode to output file
+	if err := os.WriteFile(*output, bytecode, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *verbose {
+		fmt.Printf("Successfully assembled to %s (%d bytes)\n", *output, len(bytecode))
+	} else {
+		fmt.Printf("Assembled successfully: %s\n", *output)
+	}
+}
+
+// handleDisassembleCommand disassembles bytecode to QuanticScript assembly
+func handleDisassembleCommand() {
+	fs := flag.NewFlagSet("disassemble", flag.ExitOnError)
+	input := fs.String("input", "", "Input bytecode file (.qsb)")
+	inputShort := fs.String("i", "", "Input bytecode file (.qsb) (short)")
+	output := fs.String("output", "", "Output assembly file (.qsa)")
+	outputShort := fs.String("o", "", "Output assembly file (.qsa) (short)")
+	verbose := fs.Bool("verbose", false, "Enable verbose output")
+	verboseShort := fs.Bool("v", false, "Enable verbose output (short)")
+
+	fs.Parse(os.Args[3:])
+
+	// Use short flags if long flags are empty
+	if *input == "" {
+		input = inputShort
+	}
+	if *output == "" {
+		output = outputShort
+	}
+	if !*verbose {
+		verbose = verboseShort
+	}
+
+	if *input == "" || *output == "" {
+		fmt.Println("Error: --input and --output are required")
+		fmt.Println()
+		printQuanticScriptHelp()
+		os.Exit(1)
+	}
+
+	if *verbose {
+		fmt.Printf("Disassembling %s to %s...\n", *input, *output)
+	}
+
+	// Read bytecode file
+	bytecode, err := os.ReadFile(*input)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading bytecode file: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Disassemble bytecode
+	assembly, err := quanticscript.DisassembleFile(bytecode)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Disassembly failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Write assembly to output file
+	if err := os.WriteFile(*output, []byte(assembly), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *verbose {
+		fmt.Printf("Successfully disassembled to %s (%d bytes)\n", *output, len(assembly))
+	} else {
+		fmt.Printf("Disassembled successfully: %s\n", *output)
+	}
+}
+
+// compileSource compiles QuanticScript source code to bytecode
+func compileSource(source string, verbose bool) ([]byte, []error) {
+	// Lexical analysis
+	if verbose {
+		fmt.Println("Phase 1: Lexical analysis...")
+	}
+	lexer := quanticscript.NewLexer(source, "<input>")
+
+	// Parsing
+	if verbose {
+		fmt.Println("Phase 2: Parsing...")
+	}
+	parser := quanticscript.NewParser(lexer)
+	program := parser.ParseProgram()
+
+	if len(parser.Errors()) > 0 {
+		if verbose {
+			fmt.Println("  Parsing failed")
+		}
+		return nil, parser.Errors()
+	}
+
+	if verbose {
+		fmt.Printf("  Parsed %d declarations\n", len(program.Declarations))
+	}
+
+	// Type checking
+	if verbose {
+		fmt.Println("Phase 3: Type checking...")
+	}
+	typeChecker := quanticscript.NewTypeChecker()
+	typeChecker.CheckProgram(program)
+
+	if len(typeChecker.Errors()) > 0 {
+		if verbose {
+			fmt.Println("  Type checking failed")
+		}
+		return nil, typeChecker.Errors()
+	}
+
+	if verbose {
+		fmt.Println("  Type checking passed")
+	}
+
+	// Code generation
+	if verbose {
+		fmt.Println("Phase 4: Code generation...")
+	}
+	codeGen := quanticscript.NewCodeGenerator()
+	bytecodeBody, err := codeGen.Generate(program)
+
+	if err != nil {
+		if verbose {
+			fmt.Println("  Code generation failed")
+		}
+		return nil, []error{err}
+	}
+
+	if len(codeGen.Errors()) > 0 {
+		if verbose {
+			fmt.Println("  Code generation failed")
+		}
+		return nil, codeGen.Errors()
+	}
+
+	if verbose {
+		fmt.Printf("  Generated %d bytes of bytecode\n", len(bytecodeBody))
+	}
+
+	// Create bytecode file with header
+	bytecode := quanticscript.CreateBytecode(bytecodeBody, 0)
+
+	if verbose {
+		fmt.Println("Compilation complete!")
+	}
+
+	return bytecode, nil
+}
+
+// formatCompilationError formats a compilation error with helpful context
+func formatCompilationError(err error, sourceLines []string) string {
+	var result strings.Builder
+
+	// Try to extract location information from error
+	errStr := err.Error()
+
+	// Write error message
+	result.WriteString(fmt.Sprintf("Error: %s\n", errStr))
+
+	// Add helpful suggestions based on error type
+	if strings.Contains(errStr, "undefined variable") {
+		result.WriteString("\nHelp: Make sure the variable is declared before use.\n")
+		result.WriteString("      Use 'let' or 'const' to declare variables.\n")
+	} else if strings.Contains(errStr, "expected") {
+		result.WriteString("\nHelp: Check for missing or misplaced syntax elements.\n")
+	} else if strings.Contains(errStr, "type mismatch") {
+		result.WriteString("\nHelp: Ensure operands have compatible types.\n")
+		result.WriteString("      You may need to add explicit type conversions.\n")
+	} else if strings.Contains(errStr, "undefined function") {
+		result.WriteString("\nHelp: Make sure the function is declared or imported.\n")
+	} else if strings.Contains(errStr, "non-deterministic") {
+		result.WriteString("\nHelp: QuanticScript requires deterministic execution.\n")
+		result.WriteString("      Avoid random numbers, system time, and I/O operations.\n")
+	}
+
+	return result.String()
 }
