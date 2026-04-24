@@ -69,8 +69,13 @@ go mod download
 │   │   └── consensus_manager.go # Leader selection, slot timing, block validation
 │   ├── storage/           # Ledger persistence
 │   │   └── ledger.go      # SQLite-based blockchain storage with CRUD operations
-│   └── verification/      # Chain verification
-│       └── verifier.go    # Entry, block, and full chain integrity verification
+│   ├── verification/      # Chain verification
+│   │   └── verifier.go    # Entry, block, and full chain integrity verification
+│   ├── filestore/         # File-based state model (in development)
+│   │   ├── filestore.go   # File data structures, storage cost calculation
+│   │   └── filestore_test.go # Comprehensive unit tests
+│   ├── runtime/           # Program execution runtime (planned)
+│   └── system/            # System program for account management (planned)
 ├── go.mod
 └── README.md
 ```
@@ -85,6 +90,7 @@ The system uses a layered architecture:
 - **Core Blockchain Layer**: PoH clock, entries, and blocks
 - **Storage Layer**: Persistent ledger with SQLite
 - **Verification Layer**: Chain integrity and validity verification
+- **File-Based State Layer**: File store, transaction processing, and smart contract runtime (in development)
 
 ## Key Concepts
 
@@ -93,10 +99,38 @@ The system uses a layered architecture:
 - **Entry**: Ledger record containing hash link, tick count, and transaction data
 - **Block**: Collection of entries produced during a 400ms slot, with versioning support for backwards compatibility
 - **Block Version**: Format version identifier (currently v1) enabling future protocol upgrades
+- **Block Header**: Metadata including previous block hash, Merkle root, state root, slot, timestamp, and block height
+- **State Root**: Merkle root hash of all file state, enabling verification of file-based state transitions
 - **Slot**: Time window for block production (minimum 64 ticks)
 - **Slot Tolerance**: 100-slot (~40 second) window for accepting blocks to handle clock skew and network delays
 
 ## Usage
+
+### CLI Commands for Account Management
+
+The blockchain now includes CLI commands for managing accounts and transactions:
+
+```bash
+# Create a new account
+go run cmd/main.go account create --balance 1000000 --output keypair.json --state state.db
+
+# Transfer balance between accounts
+go run cmd/main.go transfer --from keypair.json --to <address> --amount 1000 --state state.db
+
+# Query account information
+go run cmd/main.go query --address <address> --state state.db
+
+# Submit a transaction from JSON file
+go run cmd/main.go submit --tx transaction.json --state state.db
+
+# Check transaction status
+go run cmd/main.go status --tx <tx-id> --state state.db
+
+# Show help
+go run cmd/main.go help
+```
+
+See [CLI-USAGE.md](CLI-USAGE.md) for detailed CLI documentation.
 
 ### Quick Demo with tmux
 
@@ -259,7 +293,39 @@ Press `Ctrl+C` or send `SIGINT`/`SIGTERM` to gracefully shutdown the node. The n
 
 ## Development Status
 
-This project is currently under active development. See `.kiro/specs/poh-blockchain/tasks.md` for the implementation roadmap.
+This project is currently under active development. See `.kiro/specs/poh-blockchain/tasks.md` for the PoH blockchain implementation roadmap.
+
+### File-Based State Model (Production Ready)
+
+The file-based state model enables smart contract functionality and account management. This architecture treats all on-chain state (user accounts, programs, data) as uniform file objects, inspired by Unix's "everything is a file" philosophy and Solana's account model.
+
+**Key Features:**
+- Uniform file abstraction for accounts, programs, and data
+- Explicit transaction access patterns for future parallel execution
+- Storage cost mechanics with exponential growth
+- Built-in System Program for account management
+- Runtime system for program execution with builtin registry
+- Access control with read/write permission validation
+- CLI tools for account creation, transfers, and queries
+
+**Completed Components:**
+- ✅ File data structures with BadgerDB persistence
+- ✅ Storage cost calculation and validation
+- ✅ Transaction and Instruction types with serialization
+- ✅ Fee calculation system
+- ✅ AccessController for permission validation and access logging
+- ✅ ExecutionContext for program execution with file access API
+- ✅ Runtime system with builtin program registry and validation
+- ✅ System Program with account management operations (CreateAccount, Transfer, CloseAccount, AllocateData)
+- ✅ Transaction Processor with atomic execution and automatic rollback
+- ✅ CLI commands for account management and transaction operations
+- ✅ End-to-end integration tests (12 tests covering transaction flow, access control, and storage cost enforcement)
+
+See `.kiro/specs/file-based-state/` for detailed specifications:
+- `requirements.md`: Functional requirements
+- `design.md`: Architecture and component design
+- `tasks.md`: Implementation progress
+- `IMPLEMENTATION-STATUS.md`: Current status and test coverage
 
 ### Completed
 
@@ -277,6 +343,14 @@ This project is currently under active development. See `.kiro/specs/poh-blockch
 
 - [x] Main application and CLI - Full node initialization with command-line flags, leader/replica logic, graceful shutdown handling
 - [x] Integration tests - Complete end-to-end testing including full node block production, leader-replica communication, and ledger persistence/recovery
+- [x] File-based state model foundation - File data structures, storage cost calculation with exponential growth, BadgerDB persistence
+- [x] Transaction and Instruction structures - Complete implementation with JSON serialization, signature verification, and fee calculation
+- [x] Access Control System - Full AccessController implementation with permission validation, access logging, and concurrent safety
+- [x] Blockchain integration - StateRoot field added to BlockHeader for file state verification, Entry structure supports FileTransactions
+- [x] Transaction Processor - Complete implementation with atomic execution, automatic rollback, and fee management
+- [x] System Program - Built-in program for account management (CreateAccount, Transfer, CloseAccount, AllocateData)
+- [x] Runtime System - Builtin program registry with execution validation and compute limits
+- [x] End-to-End Integration Tests - 8 comprehensive tests covering transaction flow and access control validation
 
 ## Testing
 
@@ -319,6 +393,22 @@ Three main integration tests are included in `internal/integration_test.go`:
    - Creates blockchain, closes database, then reopens
    - Verifies all blocks are correctly recovered
    - Validates chain integrity after recovery
+
+### File-Based State Integration Tests
+
+Eight integration tests for the file-based state model are included in `internal/e2e_transaction_test.go` and `internal/access_control_integration_test.go`:
+
+**E2E Transaction Tests:**
+1. **TestEndToEndAccountCreationAndTransfer** - Full account lifecycle with balance transfers
+2. **TestMultiInstructionTransactionAtomicity** - Atomic multi-instruction execution with rollback
+3. **TestTransactionRevertOnInstructionFailure** - State rollback on instruction errors
+4. **TestFeePaymentAndBalanceUpdates** - Fee deduction and balance management
+
+**Access Control Integration Tests:**
+5. **TestReadPermissionEnforcement** - Read-only permission validation and enforcement
+6. **TestWritePermissionEnforcement** - Write permissions allow both read and write operations
+7. **TestUndeclaredFileAccessDetection** - Undeclared file access rejection with state preservation
+8. **TestPermissionViolationHandling** - Mid-execution permission violations with automatic state revert
 
 ### Test Database Cleanup
 

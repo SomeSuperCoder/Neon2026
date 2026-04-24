@@ -1,7 +1,12 @@
 package main
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -10,14 +15,43 @@ import (
 
 	"github.com/poh-blockchain/internal/blockchain"
 	"github.com/poh-blockchain/internal/consensus"
+	"github.com/poh-blockchain/internal/filestore"
 	"github.com/poh-blockchain/internal/network"
 	"github.com/poh-blockchain/internal/poh"
+	"github.com/poh-blockchain/internal/processor"
+	"github.com/poh-blockchain/internal/runtime"
 	"github.com/poh-blockchain/internal/storage"
+	"github.com/poh-blockchain/internal/system"
+	"github.com/poh-blockchain/internal/transaction"
 	"github.com/poh-blockchain/internal/verification"
 )
 
 func main() {
-	// Parse command-line flags
+	// Check if a subcommand is provided
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "account":
+			handleAccountCommand()
+			return
+		case "transfer":
+			handleTransferCommand()
+			return
+		case "query":
+			handleQueryCommand()
+			return
+		case "submit":
+			handleSubmitCommand()
+			return
+		case "status":
+			handleStatusCommand()
+			return
+		case "help":
+			printHelp()
+			return
+		}
+	}
+
+	// Parse command-line flags for node operation
 	nodeTypeStr := flag.String("type", "replica", "Node type: leader or replica")
 	port := flag.Int("port", 8080, "Port to listen on")
 	peersStr := flag.String("peers", "", "Comma-separated list of peer addresses (host:port)")
@@ -181,8 +215,8 @@ func runLeaderNode(cm *consensus.ConsensusManager, bp *blockchain.BlockProducer,
 
 			log.Printf("Leader node: Producing block for slot %d\n", currentSlot)
 
-			// Produce block
-			block, err := bp.ProduceBlock(currentSlot)
+			// Produce block (with empty state root for now)
+			block, err := bp.ProduceBlock(currentSlot, []byte{})
 			if err != nil {
 				log.Printf("Leader node: Error producing block: %v\n", err)
 				continue
@@ -349,4 +383,403 @@ func runReplicaNode(cm *consensus.ConsensusManager, v *verification.Verifier, nn
 			}
 		}
 	}
+}
+
+// CLI Command Handlers
+
+func printHelp() {
+	fmt.Println("PoH Blockchain CLI")
+	fmt.Println("\nUsage:")
+	fmt.Println("  poh-blockchain [command] [options]")
+	fmt.Println("\nCommands:")
+	fmt.Println("  account create --balance <amount> --output <file>")
+	fmt.Println("    Create a new account with initial balance")
+	fmt.Println("    Generates a new keypair and saves it to the output file")
+	fmt.Println()
+	fmt.Println("  transfer --from <keypair-file> --to <address> --amount <amount> --state <db-path>")
+	fmt.Println("    Transfer balance from one account to another")
+	fmt.Println()
+	fmt.Println("  query --address <address> --state <db-path>")
+	fmt.Println("    Query account information")
+	fmt.Println()
+	fmt.Println("  submit --tx <tx-file> --state <db-path>")
+	fmt.Println("    Submit a transaction from a JSON file")
+	fmt.Println()
+	fmt.Println("  status --tx <tx-id> --state <db-path>")
+	fmt.Println("    Check transaction status")
+	fmt.Println()
+	fmt.Println("  help")
+	fmt.Println("    Show this help message")
+	fmt.Println()
+	fmt.Println("Node Operation:")
+	fmt.Println("  poh-blockchain --type <leader|replica> --port <port> [options]")
+	fmt.Println("    Run as a blockchain node")
+}
+
+// handleAccountCommand creates a new account
+func handleAccountCommand() {
+	fs := flag.NewFlagSet("account", flag.ExitOnError)
+	balance := fs.Int64("balance", 1000000, "Initial balance for the account")
+	output := fs.String("output", "data/keypair.json", "Output file for keypair")
+	stateDB := fs.String("state", "data/state.db", "Path to state database")
+
+	if len(os.Args) < 3 || os.Args[2] != "create" {
+		fmt.Println("Usage: account create --balance <amount> --output <file> --state <db-path>")
+		os.Exit(1)
+	}
+
+	fs.Parse(os.Args[3:])
+
+	// Generate new keypair
+	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		log.Fatalf("Failed to generate keypair: %v", err)
+	}
+
+	// Convert to our PublicKey type
+	var txPubKey transaction.PublicKey
+	copy(txPubKey[:], pubKey)
+
+	// Derive file ID from public key
+	fileID := publicKeyToFileID(txPubKey)
+
+	// Initialize file store
+	fs2, err := initFileStore(*stateDB)
+	if err != nil {
+		log.Fatalf("Failed to open state database: %v", err)
+	}
+	defer fs2.Close()
+
+	// Initialize runtime and processor
+	rt := runtime.NewRuntime()
+	rt.RegisterBuiltinProgram(system.NewSystemProgram())
+	txProcessor := processor.NewTxProcessor(fs2, rt)
+
+	// Create account file directly in the store (genesis account)
+	accountFile := &filestore.File{
+		ID:         fileID,
+		Balance:    *balance,
+		TxManager:  system.SystemProgramID,
+		Data:       []byte{},
+		Executable: false,
+	}
+
+	createdID, err := fs2.CreateFile(accountFile)
+	if err != nil {
+		log.Fatalf("Failed to create account: %v", err)
+	}
+
+	// Save keypair to file
+	keypair := map[string]string{
+		"public_key":  hex.EncodeToString(pubKey),
+		"private_key": hex.EncodeToString(privKey),
+		"address":     createdID.String(),
+	}
+
+	data, err := json.MarshalIndent(keypair, "", "  ")
+	if err != nil {
+		log.Fatalf("Failed to marshal keypair: %v", err)
+	}
+
+	// Ensure output directory exists
+	if idx := strings.LastIndex(*output, "/"); idx != -1 {
+		dir := (*output)[:idx]
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			log.Fatalf("Failed to create output directory: %v", err)
+		}
+	}
+
+	if err := os.WriteFile(*output, data, 0600); err != nil {
+		log.Fatalf("Failed to write keypair file: %v", err)
+	}
+
+	fmt.Printf("Account created successfully!\n")
+	fmt.Printf("Address: %s\n", createdID.String())
+	fmt.Printf("Balance: %d\n", *balance)
+	fmt.Printf("Keypair saved to: %s\n", *output)
+
+	_ = txProcessor // Suppress unused warning
+}
+
+// handleTransferCommand transfers balance between accounts
+func handleTransferCommand() {
+	fs := flag.NewFlagSet("transfer", flag.ExitOnError)
+	fromFile := fs.String("from", "", "Keypair file for source account")
+	toAddr := fs.String("to", "", "Destination account address")
+	amount := fs.Int64("amount", 0, "Amount to transfer")
+	stateDB := fs.String("state", "data/state.db", "Path to state database")
+
+	fs.Parse(os.Args[2:])
+
+	if *fromFile == "" || *toAddr == "" || *amount <= 0 {
+		fmt.Println("Usage: transfer --from <keypair-file> --to <address> --amount <amount> --state <db-path>")
+		os.Exit(1)
+	}
+
+	// Load keypair
+	keypairData, err := os.ReadFile(*fromFile)
+	if err != nil {
+		log.Fatalf("Failed to read keypair file: %v", err)
+	}
+
+	var keypair map[string]string
+	if err := json.Unmarshal(keypairData, &keypair); err != nil {
+		log.Fatalf("Failed to parse keypair file: %v", err)
+	}
+
+	pubKeyBytes, err := hex.DecodeString(keypair["public_key"])
+	if err != nil {
+		log.Fatalf("Invalid public key: %v", err)
+	}
+
+	privKeyBytes, err := hex.DecodeString(keypair["private_key"])
+	if err != nil {
+		log.Fatalf("Invalid private key: %v", err)
+	}
+
+	var txPubKey transaction.PublicKey
+	copy(txPubKey[:], pubKeyBytes)
+
+	fromID, err := filestore.FileIDFromString(keypair["address"])
+	if err != nil {
+		log.Fatalf("Invalid from address: %v", err)
+	}
+
+	toID, err := filestore.FileIDFromString(*toAddr)
+	if err != nil {
+		log.Fatalf("Invalid to address: %v", err)
+	}
+
+	// Initialize file store
+	fs2, err := initFileStore(*stateDB)
+	if err != nil {
+		log.Fatalf("Failed to open state database: %v", err)
+	}
+	defer fs2.Close()
+
+	// Initialize runtime and processor
+	rt := runtime.NewRuntime()
+	rt.RegisterBuiltinProgram(system.NewSystemProgram())
+	txProcessor := processor.NewTxProcessor(fs2, rt)
+
+	// Create transfer instruction
+	transferData := system.EncodeTransferInstruction(*amount)
+	instruction := transaction.Instruction{
+		ProgramID: system.SystemProgramID,
+		Inputs: map[string]transaction.FileAccess{
+			"from": {FileID: fromID, Permission: transaction.Write},
+			"to":   {FileID: toID, Permission: transaction.Write},
+		},
+		Data: transferData,
+	}
+
+	// Create transaction
+	tx := &transaction.Transaction{
+		LastSeen:     transaction.TxID{},
+		Instructions: []transaction.Instruction{instruction},
+		Signatures:   []transaction.Signature{},
+	}
+
+	// Sign transaction
+	txData, err := tx.Marshal()
+	if err != nil {
+		log.Fatalf("Failed to marshal transaction: %v", err)
+	}
+
+	signature := ed25519.Sign(ed25519.PrivateKey(privKeyBytes), txData)
+	var sig [64]byte
+	copy(sig[:], signature)
+
+	tx.Signatures = []transaction.Signature{
+		{PublicKey: txPubKey, Signature: sig},
+	}
+
+	// Process transaction
+	result, err := txProcessor.ProcessTransaction(tx)
+	if err != nil {
+		log.Fatalf("Transaction failed: %v", err)
+	}
+
+	if !result.Success {
+		log.Fatalf("Transaction failed: %v", result.Error)
+	}
+
+	fmt.Printf("Transfer successful!\n")
+	fmt.Printf("Transaction ID: %s\n", result.TxID.String())
+	fmt.Printf("Amount: %d\n", *amount)
+	fmt.Printf("From: %s\n", fromID.String())
+	fmt.Printf("To: %s\n", toID.String())
+}
+
+// handleQueryCommand queries account information
+func handleQueryCommand() {
+	fs := flag.NewFlagSet("query", flag.ExitOnError)
+	address := fs.String("address", "", "Account address to query")
+	stateDB := fs.String("state", "data/state.db", "Path to state database")
+
+	fs.Parse(os.Args[2:])
+
+	if *address == "" {
+		fmt.Println("Usage: query --address <address> --state <db-path>")
+		os.Exit(1)
+	}
+
+	fileID, err := filestore.FileIDFromString(*address)
+	if err != nil {
+		log.Fatalf("Invalid address: %v", err)
+	}
+
+	// Initialize file store
+	fs2, err := initFileStore(*stateDB)
+	if err != nil {
+		log.Fatalf("Failed to open state database: %v", err)
+	}
+	defer fs2.Close()
+
+	// Query file
+	file, err := fs2.GetFile(fileID)
+	if err != nil {
+		log.Fatalf("Failed to query account: %v", err)
+	}
+
+	fmt.Printf("Account Information:\n")
+	fmt.Printf("  Address: %s\n", file.ID.String())
+	fmt.Printf("  Balance: %d\n", file.Balance)
+	fmt.Printf("  TxManager: %s\n", file.TxManager.String())
+	fmt.Printf("  Executable: %v\n", file.Executable)
+	fmt.Printf("  Data Size: %d bytes\n", len(file.Data))
+	fmt.Printf("  Created: %s\n", file.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("  Updated: %s\n", file.UpdatedAt.Format("2006-01-02 15:04:05"))
+
+	// Calculate storage cost
+	storageCost := filestore.CalculateStorageCost(int64(len(file.Data)))
+	fmt.Printf("  Storage Cost: %d\n", storageCost)
+}
+
+// handleSubmitCommand submits a transaction from a JSON file
+func handleSubmitCommand() {
+	fs := flag.NewFlagSet("submit", flag.ExitOnError)
+	txFile := fs.String("tx", "", "Transaction JSON file")
+	stateDB := fs.String("state", "data/state.db", "Path to state database")
+
+	fs.Parse(os.Args[2:])
+
+	if *txFile == "" {
+		fmt.Println("Usage: submit --tx <tx-file> --state <db-path>")
+		os.Exit(1)
+	}
+
+	// Load transaction from file
+	txData, err := os.ReadFile(*txFile)
+	if err != nil {
+		log.Fatalf("Failed to read transaction file: %v", err)
+	}
+
+	tx, err := transaction.UnmarshalTransaction(txData)
+	if err != nil {
+		log.Fatalf("Failed to parse transaction: %v", err)
+	}
+
+	// Initialize file store
+	fs2, err := initFileStore(*stateDB)
+	if err != nil {
+		log.Fatalf("Failed to open state database: %v", err)
+	}
+	defer fs2.Close()
+
+	// Initialize runtime and processor
+	rt := runtime.NewRuntime()
+	rt.RegisterBuiltinProgram(system.NewSystemProgram())
+	txProcessor := processor.NewTxProcessor(fs2, rt)
+
+	// Process transaction
+	result, err := txProcessor.ProcessTransaction(tx)
+	if err != nil {
+		log.Fatalf("Transaction failed: %v", err)
+	}
+
+	if !result.Success {
+		log.Fatalf("Transaction failed: %v", result.Error)
+	}
+
+	fmt.Printf("Transaction submitted successfully!\n")
+	fmt.Printf("Transaction ID: %s\n", result.TxID.String())
+	fmt.Printf("Gas Used: %d\n", result.GasUsed)
+}
+
+// handleStatusCommand checks transaction status
+func handleStatusCommand() {
+	fs := flag.NewFlagSet("status", flag.ExitOnError)
+	txID := fs.String("tx", "", "Transaction ID")
+	stateDB := fs.String("state", "data/state.db", "Path to state database")
+
+	fs.Parse(os.Args[2:])
+
+	if *txID == "" {
+		fmt.Println("Usage: status --tx <tx-id> --state <db-path>")
+		os.Exit(1)
+	}
+
+	// Initialize file store
+	fs2, err := initFileStore(*stateDB)
+	if err != nil {
+		log.Fatalf("Failed to open state database: %v", err)
+	}
+	defer fs2.Close()
+
+	// For now, we just confirm the state database is accessible
+	// A full implementation would track transaction history
+	fmt.Printf("Transaction Status Check:\n")
+	fmt.Printf("  Transaction ID: %s\n", *txID)
+	fmt.Printf("  Note: Transaction history tracking not yet implemented\n")
+	fmt.Printf("  State database: %s (accessible)\n", *stateDB)
+}
+
+// publicKeyToFileID converts a public key to a file ID
+func publicKeyToFileID(pubkey transaction.PublicKey) filestore.FileID {
+	var fileID filestore.FileID
+	copy(fileID[:], pubkey[:])
+	return fileID
+}
+
+// ensureSystemProgram ensures the system program file exists in the state
+func ensureSystemProgram(fs *filestore.FileStore) {
+	// Check if system program already exists
+	_, err := fs.GetFile(system.SystemProgramID)
+	if err == nil {
+		return // Already exists
+	}
+
+	// Create system program file with sufficient balance for storage
+	systemProgram := &filestore.File{
+		ID:         system.SystemProgramID,
+		Balance:    1000000,                // Sufficient balance for storage
+		TxManager:  system.SystemProgramID, // Self-managed
+		Data:       []byte("builtin-system-program"),
+		Executable: true,
+	}
+
+	_, err = fs.CreateFile(systemProgram)
+	if err != nil {
+		log.Printf("Warning: Failed to create system program file: %v", err)
+	}
+}
+
+// initFileStore initializes a file store and ensures system program exists
+func initFileStore(dbPath string) (*filestore.FileStore, error) {
+	// Ensure the directory exists
+	dir := "."
+	if idx := strings.LastIndex(dbPath, "/"); idx != -1 {
+		dir = dbPath[:idx]
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	fs, err := filestore.NewFileStore(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	ensureSystemProgram(fs)
+	return fs, nil
 }

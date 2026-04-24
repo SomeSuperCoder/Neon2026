@@ -10,24 +10,26 @@ import (
 
 // BlockProducer integrates transactions into the PoH clock and produces blocks
 type BlockProducer struct {
-	pohClock            *poh.PohClock
-	pendingTransactions []Transaction
-	currentSlot         int64
-	entriesBuffer       []Entry
-	previousEntryHash   []byte
-	hashCountSinceEntry int64
-	mu                  sync.Mutex
+	pohClock                *poh.PohClock
+	pendingTransactions     []Transaction
+	pendingFileTransactions [][]byte // Serialized file-based transactions
+	currentSlot             int64
+	entriesBuffer           []Entry
+	previousEntryHash       []byte
+	hashCountSinceEntry     int64
+	mu                      sync.Mutex
 }
 
 // NewBlockProducer initializes a new BlockProducer with a PoH clock instance
 func NewBlockProducer(pohClock *poh.PohClock) *BlockProducer {
 	return &BlockProducer{
-		pohClock:            pohClock,
-		pendingTransactions: make([]Transaction, 0),
-		currentSlot:         0,
-		entriesBuffer:       make([]Entry, 0),
-		previousEntryHash:   pohClock.GetCurrentHash(),
-		hashCountSinceEntry: 0,
+		pohClock:                pohClock,
+		pendingTransactions:     make([]Transaction, 0),
+		pendingFileTransactions: make([][]byte, 0),
+		currentSlot:             0,
+		entriesBuffer:           make([]Entry, 0),
+		previousEntryHash:       pohClock.GetCurrentHash(),
+		hashCountSinceEntry:     0,
 	}
 }
 
@@ -37,6 +39,14 @@ func (bp *BlockProducer) AddTransaction(tx Transaction) {
 	defer bp.mu.Unlock()
 
 	bp.pendingTransactions = append(bp.pendingTransactions, tx)
+}
+
+// AddFileTransaction queues a serialized file-based transaction for inclusion in the next entry
+func (bp *BlockProducer) AddFileTransaction(txData []byte) {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+
+	bp.pendingFileTransactions = append(bp.pendingFileTransactions, txData)
 }
 
 // MixTransactionHash mixes a transaction hash into the PoH chain
@@ -79,16 +89,31 @@ func (bp *BlockProducer) ProduceEntry() (Entry, error) {
 		bp.hashCountSinceEntry++
 	}
 
+	// Mix file transaction hashes into the PoH chain
+	for _, ftx := range bp.pendingFileTransactions {
+		ftxHash := sha256.Sum256(ftx)
+
+		// Get current hash and mix with transaction hash
+		currentHash := bp.pohClock.GetCurrentHash()
+		combined := append(currentHash, ftxHash[:]...)
+		sha256.Sum256(combined)
+
+		// Hash once to incorporate the mix
+		bp.pohClock.HashOnce()
+		bp.hashCountSinceEntry++
+	}
+
 	// Get the current hash state from PoH clock
 	currentHash := bp.pohClock.GetCurrentHash()
 
 	// Create the entry
 	entry := Entry{
-		Hash:         currentHash,
-		NumHashes:    bp.hashCountSinceEntry,
-		Transactions: bp.pendingTransactions,
-		PreviousHash: bp.previousEntryHash,
-		Timestamp:    time.Now(),
+		Hash:             currentHash,
+		NumHashes:        bp.hashCountSinceEntry,
+		Transactions:     bp.pendingTransactions,
+		FileTransactions: bp.pendingFileTransactions,
+		PreviousHash:     bp.previousEntryHash,
+		Timestamp:        time.Now(),
 	}
 
 	// Add entry to buffer
@@ -100,12 +125,13 @@ func (bp *BlockProducer) ProduceEntry() (Entry, error) {
 
 	// Clear pending transactions
 	bp.pendingTransactions = make([]Transaction, 0)
+	bp.pendingFileTransactions = make([][]byte, 0)
 
 	return entry, nil
 }
 
-// ProduceBlock produces a complete block for the given slot
-func (bp *BlockProducer) ProduceBlock(slot int64) (Block, error) {
+// ProduceBlock produces a complete block for the given slot with the provided state root
+func (bp *BlockProducer) ProduceBlock(slot int64, stateRoot []byte) (Block, error) {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
 
@@ -128,11 +154,12 @@ func (bp *BlockProducer) ProduceBlock(slot int64) (Block, error) {
 		// Create an entry for this tick
 		currentHash := bp.pohClock.GetCurrentHash()
 		entry := Entry{
-			Hash:         currentHash,
-			NumHashes:    bp.hashCountSinceEntry,
-			Transactions: []Transaction{}, // No transactions for tick-only entries
-			PreviousHash: bp.previousEntryHash,
-			Timestamp:    time.Now(),
+			Hash:             currentHash,
+			NumHashes:        bp.hashCountSinceEntry,
+			Transactions:     []Transaction{}, // No transactions for tick-only entries
+			FileTransactions: [][]byte{},      // No file transactions for tick-only entries
+			PreviousHash:     bp.previousEntryHash,
+			Timestamp:        time.Now(),
 		}
 
 		bp.entriesBuffer = append(bp.entriesBuffer, entry)
@@ -145,10 +172,11 @@ func (bp *BlockProducer) ProduceBlock(slot int64) (Block, error) {
 	// Calculate Merkle root from entries
 	merkleRoot := calculateMerkleRoot(bp.entriesBuffer)
 
-	// Create block header
+	// Create block header with state root
 	header := BlockHeader{
 		PreviousBlockHash: []byte{}, // Will be set by caller if needed
 		MerkleRoot:        merkleRoot,
+		StateRoot:         stateRoot,
 		Slot:              slot,
 		Timestamp:         time.Now(),
 		BlockHeight:       0, // Will be set by caller

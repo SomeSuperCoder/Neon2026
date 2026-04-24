@@ -1,5 +1,6 @@
 # Binaries
 /bin/
+poh-blockchain
 *.exe
 *.exe~
 *.dll
@@ -17,6 +18,16 @@ go.work
 
 # Database files
 *.db
+*.db-shm
+*.db-wal
+
+# Keypair and wallet files
+*.json
+!go.mod
+!go.sum
+!package.json
+!package-lock.json
+!tsconfig.json
 
 # Log files
 logs/
@@ -36,3 +47,6 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Data directory (databases, keypairs, etc.)
+data/

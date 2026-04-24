@@ -124,6 +124,9 @@ func (v *Verifier) VerifyBlock(block blockchain.Block) error {
 			totalHashes, minHashesRequired)
 	}
 
+	// Note: State root verification requires access to FileStore and is performed
+	// separately via VerifyStateTransition method
+
 	return nil
 }
 
@@ -245,4 +248,34 @@ func (v *Verifier) VerifyChain(ledger *storage.Ledger) error {
 	}
 
 	return nil
+}
+
+// StateRootVerifier is an interface for verifying state roots
+// This allows the verifier to work with different state implementations
+type StateRootVerifier interface {
+	CalculateStateRoot() ([]byte, error)
+}
+
+// VerifyStateRoot verifies that a block's state root matches the actual state
+func (v *Verifier) VerifyStateRoot(block blockchain.Block, stateVerifier StateRootVerifier) error {
+	// Calculate the actual state root
+	actualStateRoot, err := stateVerifier.CalculateStateRoot()
+	if err != nil {
+		return fmt.Errorf("failed to calculate state root: %w", err)
+	}
+
+	// Compare with the block's state root
+	if !bytes.Equal(block.Header.StateRoot, actualStateRoot) {
+		return fmt.Errorf("state root mismatch: expected %x, got %x",
+			block.Header.StateRoot, actualStateRoot)
+	}
+
+	return nil
+}
+
+// VerifyStateTransition verifies that state transitions in a block are valid
+// This should be called after processing all transactions in the block
+func (v *Verifier) VerifyStateTransition(block blockchain.Block, stateVerifier StateRootVerifier) error {
+	// Verify that the state root in the block header matches the actual state
+	return v.VerifyStateRoot(block, stateVerifier)
 }

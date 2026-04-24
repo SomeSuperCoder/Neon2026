@@ -41,7 +41,7 @@ func TestFullNodeBlockProductionAndVerification(t *testing.T) {
 
 	// Produce first block (genesis)
 	currentSlot := consensusManager.GetCurrentSlot()
-	block1, err := blockProducer.ProduceBlock(currentSlot)
+	block1, err := blockProducer.ProduceBlock(currentSlot, []byte{})
 	if err != nil {
 		t.Fatalf("Failed to produce block 1: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestFullNodeBlockProductionAndVerification(t *testing.T) {
 
 	// Produce second block
 	currentSlot = consensusManager.GetCurrentSlot()
-	block2, err := blockProducer.ProduceBlock(currentSlot)
+	block2, err := blockProducer.ProduceBlock(currentSlot, []byte{})
 	if err != nil {
 		t.Fatalf("Failed to produce block 2: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestLeaderReplicaCommunication(t *testing.T) {
 
 	// Leader produces a block
 	currentSlot := leaderConsensus.GetCurrentSlot()
-	block, err := leaderBlockProducer.ProduceBlock(currentSlot)
+	block, err := leaderBlockProducer.ProduceBlock(currentSlot, []byte{})
 	if err != nil {
 		t.Fatalf("Failed to produce block: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestLedgerPersistenceAndRecovery(t *testing.T) {
 		var previousBlock blockchain.Block
 		for i := 1; i <= 3; i++ {
 			currentSlot := consensusManager.GetCurrentSlot()
-			block, err := blockProducer.ProduceBlock(currentSlot)
+			block, err := blockProducer.ProduceBlock(currentSlot, []byte{})
 			if err != nil {
 				t.Fatalf("Failed to produce block %d: %v", i, err)
 			}

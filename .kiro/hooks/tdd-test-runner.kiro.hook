@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "TDD Test Runner",
+  "description": "Automatically runs relevant tests when Go source files are modified to support test-driven development workflow",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.go"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A Go source file has been modified. Run the relevant tests for the changed file. If it's a test file that was modified, run that specific test file. If it's a source file, run the corresponding test file (e.g., if foo.go changed, run foo_test.go). Use `go test` with the appropriate package path. Show the test results and if there are failures, provide a brief analysis of what might be wrong."
+  }
+}

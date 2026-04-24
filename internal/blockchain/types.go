@@ -13,17 +13,19 @@ type Transaction struct {
 
 // Entry represents a ledger record in the blockchain
 type Entry struct {
-	Hash         []byte        `json:"hash"`
-	NumHashes    int64         `json:"num_hashes"`
-	Transactions []Transaction `json:"transactions"`
-	PreviousHash []byte        `json:"previous_hash"`
-	Timestamp    time.Time     `json:"timestamp"`
+	Hash             []byte        `json:"hash"`
+	NumHashes        int64         `json:"num_hashes"`
+	Transactions     []Transaction `json:"transactions"`
+	FileTransactions [][]byte      `json:"file_transactions,omitempty"` // Serialized file-based transactions
+	PreviousHash     []byte        `json:"previous_hash"`
+	Timestamp        time.Time     `json:"timestamp"`
 }
 
 // BlockHeader contains metadata for a block
 type BlockHeader struct {
 	PreviousBlockHash []byte    `json:"previous_block_hash"`
 	MerkleRoot        []byte    `json:"merkle_root"`
+	StateRoot         []byte    `json:"state_root"` // Root hash of file state tree
 	Slot              int64     `json:"slot"`
 	Timestamp         time.Time `json:"timestamp"`
 	BlockHeight       int64     `json:"block_height"`

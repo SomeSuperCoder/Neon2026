@@ -49,21 +49,32 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 
 // entryJSON is used for custom JSON marshaling of Entry
 type entryJSON struct {
-	Hash         string        `json:"hash"`
-	NumHashes    int64         `json:"num_hashes"`
-	Transactions []Transaction `json:"transactions"`
-	PreviousHash string        `json:"previous_hash"`
-	Timestamp    time.Time     `json:"timestamp"`
+	Hash             string        `json:"hash"`
+	NumHashes        int64         `json:"num_hashes"`
+	Transactions     []Transaction `json:"transactions"`
+	FileTransactions []string      `json:"file_transactions,omitempty"`
+	PreviousHash     string        `json:"previous_hash"`
+	Timestamp        time.Time     `json:"timestamp"`
 }
 
 // MarshalJSON implements custom JSON marshaling for Entry
 func (e Entry) MarshalJSON() ([]byte, error) {
+	// Convert file transactions to hex strings
+	var fileTxsHex []string
+	if len(e.FileTransactions) > 0 {
+		fileTxsHex = make([]string, len(e.FileTransactions))
+		for i, ftx := range e.FileTransactions {
+			fileTxsHex[i] = hex.EncodeToString(ftx)
+		}
+	}
+
 	return json.Marshal(entryJSON{
-		Hash:         hex.EncodeToString(e.Hash),
-		NumHashes:    e.NumHashes,
-		Transactions: e.Transactions,
-		PreviousHash: hex.EncodeToString(e.PreviousHash),
-		Timestamp:    e.Timestamp,
+		Hash:             hex.EncodeToString(e.Hash),
+		NumHashes:        e.NumHashes,
+		Transactions:     e.Transactions,
+		FileTransactions: fileTxsHex,
+		PreviousHash:     hex.EncodeToString(e.PreviousHash),
+		Timestamp:        e.Timestamp,
 	})
 }
 
@@ -84,9 +95,23 @@ func (e *Entry) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	// Decode file transactions if present
+	var fileTxs [][]byte
+	if len(ej.FileTransactions) > 0 {
+		fileTxs = make([][]byte, len(ej.FileTransactions))
+		for i, ftxHex := range ej.FileTransactions {
+			ftxBytes, err := hex.DecodeString(ftxHex)
+			if err != nil {
+				return err
+			}
+			fileTxs[i] = ftxBytes
+		}
+	}
+
 	e.Hash = hash
 	e.NumHashes = ej.NumHashes
 	e.Transactions = ej.Transactions
+	e.FileTransactions = fileTxs
 	e.PreviousHash = prevHash
 	e.Timestamp = ej.Timestamp
 
@@ -97,6 +122,7 @@ func (e *Entry) UnmarshalJSON(data []byte) error {
 type blockHeaderJSON struct {
 	PreviousBlockHash string    `json:"previous_block_hash"`
 	MerkleRoot        string    `json:"merkle_root"`
+	StateRoot         string    `json:"state_root"`
 	Slot              int64     `json:"slot"`
 	Timestamp         time.Time `json:"timestamp"`
 	BlockHeight       int64     `json:"block_height"`
@@ -107,6 +133,7 @@ func (bh BlockHeader) MarshalJSON() ([]byte, error) {
 	return json.Marshal(blockHeaderJSON{
 		PreviousBlockHash: hex.EncodeToString(bh.PreviousBlockHash),
 		MerkleRoot:        hex.EncodeToString(bh.MerkleRoot),
+		StateRoot:         hex.EncodeToString(bh.StateRoot),
 		Slot:              bh.Slot,
 		Timestamp:         bh.Timestamp,
 		BlockHeight:       bh.BlockHeight,
@@ -130,8 +157,14 @@ func (bh *BlockHeader) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	stateRoot, err := hex.DecodeString(bhj.StateRoot)
+	if err != nil {
+		return err
+	}
+
 	bh.PreviousBlockHash = prevBlockHash
 	bh.MerkleRoot = merkleRoot
+	bh.StateRoot = stateRoot
 	bh.Slot = bhj.Slot
 	bh.Timestamp = bhj.Timestamp
 	bh.BlockHeight = bhj.BlockHeight
