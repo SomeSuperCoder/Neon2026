@@ -2,11 +2,23 @@
 
 ## Overview
 
-Replace the stub `.qsa`/`.qsb` files with production-ready bytecode. The guiding principle is **minimalism**: all parsing and dispatch complexity lives in Go (interpreter + stdlib); the assembly files are thin shells that call `DISPATCH` once and branch to handler labels.
+Replace the stub `.qs`/`.qsa`/`.qsb` files with production-ready programs. The guiding principle is **source-first**: the `.qs` file is the single source of truth. All parsing and dispatch complexity lives in Go (interpreter + stdlib); the `.qs` source files are thin shells that call `DISPATCH` once and branch to handler functions. Assembly and bytecode are always compiler outputs.
 
 ## Architecture
 
 ```
+programs/system/system.qs   (source of truth)
+programs/token/token.qs     (source of truth)
+    ↓  go run cmd/main.go qsc compile
+programs/system/system.qsa  (compiler output)
+programs/token/token.qsa    (compiler output)
+    ↓  go run cmd/main.go qsc assemble
+programs/system/system.qsb  (compiler output)
+programs/token/token.qsb    (compiler output)
+    ↓  programs/embed.go
+Loaded at genesis
+
+Runtime flow:
 Raw instruction bytes
     ↓
 DISPATCH opcode (interpreter)
@@ -15,12 +27,10 @@ DISPATCH opcode (interpreter)
     ├── parses all args (i64, u64, bytes, bool) with LE conversion
     └── pushes parsed args onto stack
     ↓
-Assembly handler label
-    ├── pops args from stack
-    ├── calls blockchain opcodes (HASSIGNER, GETFILE, UPDATEBALANCE, etc.)
-    └── RET with result code
-    ↓
-Assembler → .qsb → embedded in programs/embed.go → loaded at genesis
+.qs handler function
+    ├── receives args as typed parameters
+    ├── calls blockchain stdlib (hasSigner, getFile, updateBalance, etc.)
+    └── returns result code
 ```
 
 ## Components
@@ -114,46 +124,46 @@ All 11 instruction types registered with their arg schemas:
 | 9 | REVOKE | account(bytes@1,32) |
 | 10 | CREATE_ASSOCIATED_TOKEN_ACCOUNT | owner(bytes@1,32), mint(bytes@33,32) |
 
-### 5. Assembly Structure (minimal)
+### 5. QuanticScript Source Structure
 
-**system.qsa** — illustrative skeleton:
-```asm
-; System_Program entry point
-entry:
-    GETINSTRDATA
-    DISPATCH                    ; pops bytes, pushes (handler_name, arg0, arg1, ...)
-    JMPTABLE                    ; jumps to handler label from stack
+**system.qs** — illustrative skeleton:
+```typescript
+// System_Program entry point
+fn main(): i64 {
+    let instrData = getInstrData();
+    let (handlerName, args) = dispatch(instrData);
+    if handlerName == "CREATE_ACCOUNT" {
+        return handleCreateAccount(args["owner"], args["balance"]);
+    } else if handlerName == "TRANSFER" {
+        return handleTransfer(args["from"], args["to"], args["amount"]);
+    } else if handlerName == "ALLOCATE_SPACE" {
+        return handleAllocateSpace(args["account"], args["extra_balance"]);
+    }
+    return 0x1FFF; // ERROR_INVALID_INSTRUCTION
+}
 
-handle_create_account:
-    ; stack: [owner: bytes, balance: i64]
-    STORE 0                     ; balance
-    STORE 1                     ; owner
-    LOAD 1
-    HASSIGNER
-    JMPIF auth_ok
-    PUSH i64 0x1004             ; ERROR_UNAUTHORIZED_SIGNER
-    RET
-auth_ok:
-    LOAD 1
-    LOAD 0
-    CREATEFILE                  ; (owner, balance) → fileID
-    PUSH i64 0
-    RET
+fn handleCreateAccount(owner: bytes, balance: i64): i64 {
+    if !hasSigner(owner) { return 0x1004; }
+    createFile(owner, balance);
+    return 0;
+}
 
-handle_transfer:
-    ; stack: [from: bytes, to: bytes, amount: i64]
-    ; ... balance checks, HASSIGNER, UPDATEBALANCE calls
-    PUSH i64 0
-    RET
+fn handleTransfer(from: bytes, to: bytes, amount: i64): i64 {
+    if !hasSigner(from) { return 0x1004; }
+    // balance checks, updateBalance calls
+    return 0;
+}
 
-handle_allocate_space:
-    ; stack: [account: bytes, extra_balance: i64]
-    ; ... storage cost check, UPDATEBALANCE
-    PUSH i64 0
-    RET
+fn handleAllocateSpace(account: bytes, extraBalance: i64): i64 {
+    if !hasSigner(account) { return 0x1004; }
+    // storage cost check, updateBalance
+    return 0;
+}
 ```
 
-**token.qsa** follows the same pattern — `DISPATCH` at entry, one label per instruction, blockchain opcodes only.
+**token.qs** follows the same pattern — `dispatch()` at entry, one handler function per instruction, stdlib calls only.
+
+The `.qsa` and `.qsb` files are always compiler outputs — never hand-written.
 
 ## Data Models
 
@@ -205,8 +215,8 @@ handle_allocate_space:
 ## Error Handling
 
 - All validation happens before any state change
-- `DISPATCH` returns error code on bad data — assembly never sees malformed args
-- Handler labels only run with guaranteed-valid, typed args on the stack
+- `DISPATCH` returns error code on bad data — `.qs` handler functions never see malformed args
+- Handler functions only run with guaranteed-valid, typed args
 - No panics, no state corruption on any error path
 
 ## Testing Strategy
@@ -220,6 +230,11 @@ handle_allocate_space:
 ## Bytecode Generation
 
 ```bash
+# Compile .qs source to assembly
+go run cmd/main.go qsc compile -i programs/system/system.qs -o programs/system/system.qsa
+go run cmd/main.go qsc compile -i programs/token/token.qs -o programs/token/token.qsa
+
+# Assemble to bytecode
 go run cmd/main.go qsc assemble -i programs/system/system.qsa -o programs/system/system.qsb
 go run cmd/main.go qsc assemble -i programs/token/token.qsa -o programs/token/token.qsb
 ```

@@ -159,13 +159,25 @@ __asm__ {
 #### PUSH
 Push a value onto the stack.
 
+Supported types:
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `i64` | Signed 64-bit integer | `PUSH i64 42` |
+| `u64` | Unsigned 64-bit integer | `PUSH u64 100` |
+| `bool` | Boolean (`true`/`false`) | `PUSH bool true` |
+| `bytes` | Zero-filled byte slice of given length | `PUSH bytes 32` |
+
 ```typescript
 __asm__ {
     PUSH i64 42
-    PUSH i64 100
+    PUSH u64 100
     PUSH bool true
+    PUSH bytes 32    // pushes a 32-byte zero-filled slice
 }
 ```
+
+`PUSH bytes <N>` is useful for allocating a zeroed buffer on the stack before populating it with data, for example when building a fixed-size file ID or key.
 
 **Cost:** 1
 

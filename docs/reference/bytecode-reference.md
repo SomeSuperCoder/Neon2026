@@ -63,10 +63,21 @@ Push a value onto the stack.
 
 **Cost:** 1
 
+**Supported types:**
+
+| Type | Encoding | Size |
+|------|----------|------|
+| `i64` | 8-byte little-endian signed integer | 9 bytes |
+| `u64` | 8-byte little-endian unsigned integer | 9 bytes |
+| `bool` | 1-byte (0 or 1) | 2 bytes |
+| `bytes` | 8-byte LE length + N zero bytes | 9 + N bytes |
+
 **Example:**
 ```assembly
 PUSH i64 42
+PUSH u64 100
 PUSH bool true
+PUSH bytes 32    ; pushes a 32-byte zero-filled byte slice
 ```
 
 ---

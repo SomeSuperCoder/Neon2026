@@ -2,21 +2,22 @@
 
 ## Introduction
 
-The QuanticScript programs (System_Program and Token_Program) have complete source code in `.qs` files but their assembly (`.qsa`) and bytecode (`.qsb`) files are stubs. The goal is to produce production-ready bytecode by:
+The QuanticScript programs (System_Program and Token_Program) have stub `.qs` source files and stub assembly (`.qsa`) and bytecode (`.qsb`) files. The goal is to produce production-ready bytecode by:
 
-1. Adding a `DISPATCH` opcode to the interpreter that maps an instruction type code to a typed argument struct — all parsing logic lives in Go, not in assembly
-2. Writing minimal assembly files that use `DISPATCH` as their entry point, then call handler labels with pre-parsed args on the stack
-3. Assembling those files to bytecode and embedding them at genesis
+1. Adding a `DISPATCH` opcode to the interpreter that maps an instruction type code to a typed argument struct — all parsing logic lives in Go, not in QuanticScript source
+2. Writing complete `.qs` source files that use `DISPATCH` as their entry point, then call handler functions with pre-parsed args on the stack
+3. Compiling `.qs` → `.qsa` → `.qsb` using the QuanticScript compiler toolchain and embedding the bytecode at genesis
 
-**Core constraint: assembly and bytecode MUST be minimal. The compiler, stdlib, and interpreter own all complexity.**
+**Core constraint: the `.qs` source is the single source of truth. Assembly and bytecode are always compiler outputs — never hand-written. The compiler, stdlib, and interpreter own all complexity.**
 
 ## Glossary
 
 - **System_Program**: Built-in program managing Neon accounts (create, transfer, allocate)
 - **Token_Program**: Built-in program managing fungible tokens (mint, burn, transfer, freeze, delegate)
 - **QuanticScript**: TypeScript-like smart contract language with deterministic execution
-- **Assembly (.qsa)**: Human-readable bytecode representation — must stay minimal
-- **Bytecode (.qsb)**: Compiled binary executed by the interpreter
+- **QuanticScript Source (.qs)**: High-level TypeScript-like source — the single source of truth for program logic
+- **Assembly (.qsa)**: Human-readable bytecode representation — always a compiler output, never hand-written
+- **Bytecode (.qsb)**: Compiled binary executed by the interpreter — always produced by the toolchain
 - **InstructionDef**: Go struct describing an instruction's type code, name, and typed arg schema
 - **DISPATCH opcode**: Single interpreter opcode that reads raw instruction bytes, looks up the registry, and pushes parsed args onto the stack
 - **ArgDef**: A single argument definition: `{Name, Type, Offset, Length}`
@@ -35,25 +36,25 @@ The QuanticScript programs (System_Program and Token_Program) have complete sour
 4. THE System_Program SHALL register `InstructionDef` schemas for `CREATE_ACCOUNT(0)`, `TRANSFER(1)`, and `ALLOCATE_SPACE(2)` with fully typed arg offsets
 5. THE Token_Program SHALL register `InstructionDef` schemas for all 11 instruction types with fully typed arg offsets
 
-### Requirement 2: Minimal Assembly Programs
+### Requirement 2: QuanticScript Source Programs
 
-**User Story:** As a developer reading the assembly, I want each program to be a thin dispatch shell, so that the logic is easy to audit and the bytecode stays small.
+**User Story:** As a developer reading the programs, I want each program written in `.qs` source as a thin dispatch shell, so that the logic is easy to audit and the bytecode stays small.
 
 #### Acceptance Criteria
 
-1. THE System_Program assembly SHALL contain no manual byte-offset arithmetic — all arg extraction SHALL be performed by `DISPATCH`
-2. THE Token_Program assembly SHALL contain no manual byte-offset arithmetic — all arg extraction SHALL be performed by `DISPATCH`
-3. WHEN `DISPATCH` is called, THE assembly SHALL branch directly to the correct handler label using the instruction name pushed onto the stack
-4. THE assembly files SHALL contain only: the entry point, handler labels, blockchain opcode calls (GETFILE, UPDATEBALANCE, HASSIGNER, etc.), and control flow
-5. THE assembly files SHALL NOT contain helper functions for serialization, byte slicing, or little-endian parsing — those belong in the interpreter or stdlib
+1. THE System_Program `.qs` source SHALL contain no manual byte-offset arithmetic — all arg extraction SHALL be performed by `DISPATCH`
+2. THE Token_Program `.qs` source SHALL contain no manual byte-offset arithmetic — all arg extraction SHALL be performed by `DISPATCH`
+3. WHEN `DISPATCH` is called, THE `.qs` source SHALL branch directly to the correct handler function using the instruction name returned
+4. THE `.qs` source files SHALL contain only: the entry point, handler functions, blockchain stdlib calls (getFile, updateBalance, hasSigner, etc.), and control flow
+5. THE `.qs` source files SHALL NOT contain helper functions for serialization, byte slicing, or little-endian parsing — those belong in the interpreter or stdlib
 
-### Requirement 3: Production-Ready Bytecode
+### Requirement 3: Production-Ready Bytecode via Compiler Toolchain
 
 **User Story:** As a node operator, I want the embedded bytecode to correctly execute all documented operations, so that the chain behaves as specified.
 
 #### Acceptance Criteria
 
-1. WHEN the assembly files are assembled, THE resulting bytecode SHALL be valid and loadable by the interpreter
+1. WHEN the `.qs` source files are compiled, THE resulting `.qsa` assembly and `.qsb` bytecode SHALL be valid and loadable by the interpreter
 2. WHEN the bytecode is executed with valid instruction data, THE programs SHALL produce correct results for all operations
 3. WHEN invalid or malformed instruction data is provided, THE programs SHALL return appropriate error codes without corrupting state
 4. WHEN the bytecode is executed multiple times with identical inputs, THE results SHALL be identical (determinism)
