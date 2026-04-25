@@ -630,9 +630,11 @@ Update file balance.
 
 **Cost:** 80
 
+**Note:** The `file_id` parameter accepts both `FileID` (32-byte identifier) and `i64` (converted to FileID by placing the value in the last 8 bytes, big-endian). This allows convenient use of integer account identifiers.
+
 **Errors:**
 - Security error if called by non-system program
-- Type error if operands are not FileID and i64
+- Type error if file_id is not FileID or i64, or if delta is not i64
 - Runtime error if resulting balance would be negative
 
 ---

@@ -35,3 +35,10 @@
   - Verify error messages are accurate
   - _Requirements: 1.4, 3.1, 3.3_
   - _Status: Infinite loop issue resolved! 3 of 4 tests pass; 1 test has unrelated FileID type issue (not related to infinite loop bug)_
+
+- [x] 5. Fix FileID type compatibility issue
+  - Enhanced `execUpdateBalance()` to accept both FileID and i64 types for file identifier
+  - i64 values are converted to FileID by placing the value in the last 8 bytes (big-endian)
+  - Updated bytecode reference documentation to reflect the dual-type support
+  - Updated CHANGELOG.md with the API enhancement
+  - _Status: Complete - UPDATEBALANCE now supports convenient i64 account identifiers_

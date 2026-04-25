@@ -109,6 +109,12 @@ func TestUpdateBalancePrivilege(t *testing.T) {
 		ctx.files[accountID] = testAccount
 
 		interpreter := NewBytecodeInterpreter(bytecode, ctx, 100000)
+
+		// Enable debug logging
+		interpreter.SetDebugLogger(func(format string, args ...interface{}) {
+			t.Logf(format, args...)
+		})
+
 		err := interpreter.Execute()
 
 		if err != nil {

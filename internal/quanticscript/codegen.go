@@ -217,9 +217,22 @@ func (cg *CodeGenerator) generateStatement(stmt Statement) {
 	case *LetStmt:
 		cg.generateLetStmt(s)
 	case *ExprStmt:
+		// Check if this is a void function call
+		isVoidCall := false
+		if callExpr, ok := s.Expression.(*CallExpr); ok {
+			if ident, ok := callExpr.Function.(*IdentExpr); ok {
+				if cg.isBuiltinFunction(ident.Name) && cg.isVoidBuiltinFunction(ident.Name) {
+					isVoidCall = true
+				}
+			}
+		}
+
 		cg.generateExpression(s.Expression)
-		// Pop the result since it's not used
-		cg.emitOpcode(OpPop)
+
+		// Only pop the result if it's not a void function call
+		if !isVoidCall {
+			cg.emitOpcode(OpPop)
+		}
 	case *IfStmt:
 		cg.generateIfStmt(s)
 	case *WhileStmt:
@@ -885,6 +898,15 @@ func (cg *CodeGenerator) isBuiltinFunction(name string) bool {
 		"sqrt": true,
 	}
 	return builtins[name]
+}
+
+// isVoidBuiltinFunction checks if a builtin function returns void
+func (cg *CodeGenerator) isVoidBuiltinFunction(name string) bool {
+	voidBuiltins := map[string]bool{
+		"updateBalance": true,
+		"updateFile":    true,
+	}
+	return voidBuiltins[name]
 }
 
 // emitBuiltinCall emits bytecode for a builtin function call

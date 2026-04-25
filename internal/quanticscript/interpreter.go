@@ -1039,14 +1039,28 @@ func (bi *BytecodeInterpreter) execGetBalance() error {
 		return err
 	}
 
-	if fileIDValue.Type != TypeFileID {
-		return fmt.Errorf("GETBALANCE requires FileID, got %v", fileIDValue.Type)
-	}
-
-	fileIDBytes, _ := fileIDValue.AsBytes()
-	fileID, err := filestore.FileIDFromBytes(fileIDBytes)
-	if err != nil {
-		return fmt.Errorf("invalid FileID: %w", err)
+	// Accept both FileID and i64 types for the file ID parameter
+	var fileID filestore.FileID
+	if fileIDValue.Type == TypeFileID {
+		fileIDBytes, _ := fileIDValue.AsBytes()
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID: %w", err)
+		}
+	} else if fileIDValue.Type == TypeI64 {
+		// Convert i64 to FileID by placing the value in the last 8 bytes
+		i64Val, _ := fileIDValue.AsI64()
+		// Store as big-endian in the last 8 bytes of FileID
+		fileID[24] = byte(i64Val >> 56)
+		fileID[25] = byte(i64Val >> 48)
+		fileID[26] = byte(i64Val >> 40)
+		fileID[27] = byte(i64Val >> 32)
+		fileID[28] = byte(i64Val >> 24)
+		fileID[29] = byte(i64Val >> 16)
+		fileID[30] = byte(i64Val >> 8)
+		fileID[31] = byte(i64Val)
+	} else {
+		return fmt.Errorf("GETBALANCE requires FileID or i64, got %v", fileIDValue.Type)
 	}
 
 	// Get balance from context
@@ -1073,7 +1087,7 @@ func (bi *BytecodeInterpreter) execUpdateBalance() error {
 		return fmt.Errorf("UPDATEBALANCE can only be called by the system program")
 	}
 
-	// Pop delta from stack
+	// Pop amount (delta) from stack (pushed second, so popped first)
 	deltaValue, err := bi.pop()
 	if err != nil {
 		return err
@@ -1083,20 +1097,34 @@ func (bi *BytecodeInterpreter) execUpdateBalance() error {
 		return fmt.Errorf("UPDATEBALANCE requires i64 for delta, got %v", deltaValue.Type)
 	}
 
-	// Pop file ID from stack
+	// Pop file ID from stack (pushed first, so popped second)
 	fileIDValue, err := bi.pop()
 	if err != nil {
 		return err
 	}
 
-	if fileIDValue.Type != TypeFileID {
-		return fmt.Errorf("UPDATEBALANCE requires FileID, got %v", fileIDValue.Type)
-	}
-
-	fileIDBytes, _ := fileIDValue.AsBytes()
-	fileID, err := filestore.FileIDFromBytes(fileIDBytes)
-	if err != nil {
-		return fmt.Errorf("invalid FileID: %w", err)
+	// Accept both FileID and i64 types for the file ID parameter
+	var fileID filestore.FileID
+	if fileIDValue.Type == TypeFileID {
+		fileIDBytes, _ := fileIDValue.AsBytes()
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID: %w", err)
+		}
+	} else if fileIDValue.Type == TypeI64 {
+		// Convert i64 to FileID by placing the value in the last 8 bytes
+		i64Val, _ := fileIDValue.AsI64()
+		// Store as big-endian in the last 8 bytes of FileID
+		fileID[24] = byte(i64Val >> 56)
+		fileID[25] = byte(i64Val >> 48)
+		fileID[26] = byte(i64Val >> 40)
+		fileID[27] = byte(i64Val >> 32)
+		fileID[28] = byte(i64Val >> 24)
+		fileID[29] = byte(i64Val >> 16)
+		fileID[30] = byte(i64Val >> 8)
+		fileID[31] = byte(i64Val)
+	} else {
+		return fmt.Errorf("UPDATEBALANCE requires FileID or i64, got %v", fileIDValue.Type)
 	}
 
 	delta, _ := deltaValue.AsI64()
