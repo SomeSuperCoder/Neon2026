@@ -2,15 +2,28 @@ package internal
 
 import (
 	"crypto/ed25519"
+	"encoding/binary"
 	"os"
 	"testing"
 
 	"github.com/poh-blockchain/internal/filestore"
+	"github.com/poh-blockchain/internal/genesis"
 	"github.com/poh-blockchain/internal/processor"
 	"github.com/poh-blockchain/internal/runtime"
-	"github.com/poh-blockchain/internal/system"
 	"github.com/poh-blockchain/internal/transaction"
+	"github.com/poh-blockchain/programs"
 )
+
+// encodeTransferInstructionAC encodes a transfer instruction payload.
+// Format: [type(1), amount_le(8), from_fileID(32), to_fileID(32)] = 73 bytes
+func encodeTransferInstructionAC(amount int64, from, to filestore.FileID) []byte {
+	data := make([]byte, 73)
+	data[0] = 1 // Transfer opcode
+	binary.LittleEndian.PutUint64(data[1:9], uint64(amount))
+	copy(data[9:41], from[:])
+	copy(data[41:73], to[:])
+	return data
+}
 
 // TestReadPermissionEnforcement verifies that read-only permissions are enforced
 // Requirements: 4.2, 8.2
@@ -26,24 +39,9 @@ func TestReadPermissionEnforcement(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	// Create system program file
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	// Register a test program that attempts to write to a read-only file
@@ -56,7 +54,7 @@ func TestReadPermissionEnforcement(t *testing.T) {
 	testProgFile := &filestore.File{
 		ID:         testProg.GetProgramID(),
 		Balance:    0,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: true,
 	}
@@ -81,7 +79,7 @@ func TestReadPermissionEnforcement(t *testing.T) {
 	feePayerFile := &filestore.File{
 		ID:         feePayerID,
 		Balance:    100000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -95,7 +93,7 @@ func TestReadPermissionEnforcement(t *testing.T) {
 	testAccountFile := &filestore.File{
 		ID:         testAccountID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -163,23 +161,9 @@ func TestWritePermissionEnforcement(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	txProcessor := processor.NewTxProcessor(fs, rt)
@@ -198,7 +182,7 @@ func TestWritePermissionEnforcement(t *testing.T) {
 	feePayerFile := &filestore.File{
 		ID:         feePayerID,
 		Balance:    100000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -214,14 +198,14 @@ func TestWritePermissionEnforcement(t *testing.T) {
 	fromFile := &filestore.File{
 		ID:         fromID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
 	toFile := &filestore.File{
 		ID:         toID,
 		Balance:    5000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -236,9 +220,9 @@ func TestWritePermissionEnforcement(t *testing.T) {
 	}
 
 	// Create transfer instruction with WRITE permission on both accounts
-	transferData := system.EncodeTransferInstruction(1000)
+	transferData := encodeTransferInstructionAC(1000, fromID, toID)
 	instr := transaction.Instruction{
-		ProgramID: system.SystemProgramID,
+		ProgramID: genesis.SystemProgramID,
 		Inputs: map[string]transaction.FileAccess{
 			"from": {FileID: fromID, Permission: transaction.Write},
 			"to":   {FileID: toID, Permission: transaction.Write},
@@ -300,23 +284,9 @@ func TestUndeclaredFileAccessDetection(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	// Register a test program that accesses an undeclared file
@@ -329,7 +299,7 @@ func TestUndeclaredFileAccessDetection(t *testing.T) {
 	testProgFile := &filestore.File{
 		ID:         testProg.GetProgramID(),
 		Balance:    0,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: true,
 	}
@@ -354,7 +324,7 @@ func TestUndeclaredFileAccessDetection(t *testing.T) {
 	feePayerFile := &filestore.File{
 		ID:         feePayerID,
 		Balance:    100000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -370,14 +340,14 @@ func TestUndeclaredFileAccessDetection(t *testing.T) {
 	declaredFile := &filestore.File{
 		ID:         declaredID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
 	undeclaredFile := &filestore.File{
 		ID:         undeclaredID,
 		Balance:    5000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -459,23 +429,9 @@ func TestPermissionViolationHandling(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	// Register a test program that violates permissions mid-execution
@@ -488,7 +444,7 @@ func TestPermissionViolationHandling(t *testing.T) {
 	testProgFile := &filestore.File{
 		ID:         testProg.GetProgramID(),
 		Balance:    0,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: true,
 	}
@@ -513,7 +469,7 @@ func TestPermissionViolationHandling(t *testing.T) {
 	feePayerFile := &filestore.File{
 		ID:         feePayerID,
 		Balance:    100000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -529,14 +485,14 @@ func TestPermissionViolationHandling(t *testing.T) {
 	account1File := &filestore.File{
 		ID:         account1ID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
 	account2File := &filestore.File{
 		ID:         account2ID,
 		Balance:    5000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}

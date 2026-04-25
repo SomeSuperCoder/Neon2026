@@ -27,7 +27,7 @@ This document specifies the requirements for implementing Delegated Proof of Sta
 - **FileStore**: The BadgerDB-backed state store in `internal/filestore` that persists all on-chain Files.
 - **Runtime**: The program execution environment in `internal/runtime` that dispatches instructions to built-in and bytecode programs.
 - **SystemProgramID**: The well-known FileID `0x...01` identifying the built-in System Program.
-- **StakingProgramID**: The well-known FileID `0x...02` identifying the built-in Staking Program.
+- **StakingProgramID**: The well-known FileID `0x...03` identifying the Staking Program bytecode file in the FileStore.
 
 ---
 
@@ -104,17 +104,18 @@ This document specifies the requirements for implementing Delegated Proof of Sta
 
 ---
 
-### Requirement 6 — Staking Program Native Integration
+### Requirement 6 — Staking Program as QuanticScript Contract
 
-**User Story:** As a developer, I want the Staking Program to be a native built-in program registered in the Runtime, so that it executes with the same security guarantees as the System Program.
+**User Story:** As a developer, I want the Staking Program to be written in QuanticScript and compiled to bytecode, so that it executes through the same bytecode interpreter as all other on-chain programs and can be audited, upgraded, and tested like any smart contract.
 
 #### Acceptance Criteria
 
-1. THE Staking Program SHALL be registered in the Runtime under the well-known StakingProgramID `0x...02` at node startup, before any transactions are processed.
-2. THE Staking Program SHALL implement the `BuiltinProgram` interface defined in `internal/runtime`, providing `Execute` and `GetProgramID` methods.
-3. WHEN the Staking Program executes an instruction, THE Staking Program SHALL use the ExecutionContext's FileStore and AccessController for all state reads and writes, without accessing the FileStore directly.
-4. WHEN the Staking Program is invoked with an unrecognized instruction type byte, THE Staking Program SHALL return an error identifying the unknown instruction type.
-5. THE Staking Program SHALL be initialized with a genesis Staking Program File in the FileStore at node startup, with `Executable = true` and `TxManager = StakingProgramID`.
+1. THE Staking Program SHALL be authored as a QuanticScript source file at `programs/staking/staking.qs`, following the same structure and builtin conventions used by `programs/system/system.qs` and `programs/token/token.qs`.
+2. WHEN the QuanticScript compiler is invoked on `programs/staking/staking.qs`, THE compiler SHALL produce a valid assembly file at `programs/staking/staking.qsa` and a bytecode file at `programs/staking/staking.qsb` without errors.
+3. THE Staking Program source SHALL export a single `entry()` function that reads the first byte of instruction data to dispatch to the appropriate handler function for each of the seven instruction types: `RegisterValidator`, `DeregisterValidator`, `DelegateStake`, `UndelegateStake`, `WithdrawStake`, `DistributeRewards`, and `ReportDoubleSign`.
+4. WHEN the Staking Program is invoked with an unrecognized instruction type byte, THE Staking Program SHALL return the error code `ERROR_INVALID_INSTRUCTION` (value `0x3FFF`).
+5. WHEN a node starts, THE node SHALL load the compiled `staking.qsb` bytecode into the FileStore under the well-known `StakingProgramID` (`0x...03`) with `Executable = true`, using the same `LoadBuiltinPrograms` mechanism in `internal/genesis/programs.go` used for the System and Token programs.
+6. THE Staking Program SHALL use only QuanticScript builtins available to all programs (`getInstructionData`, `getFile`, `getBalance`, `hasSigner`, `updateFile`, `createFile`, `transferBalance`, `deleteFile`, `len`, `slice`, `hashBytes`) and SHALL NOT require any new runtime builtins beyond those already used by the Token Program.
 
 ---
 

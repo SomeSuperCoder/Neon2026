@@ -2,15 +2,36 @@ package internal
 
 import (
 	"crypto/ed25519"
+	"encoding/binary"
 	"os"
 	"testing"
 
 	"github.com/poh-blockchain/internal/filestore"
+	"github.com/poh-blockchain/internal/genesis"
 	"github.com/poh-blockchain/internal/processor"
 	"github.com/poh-blockchain/internal/runtime"
-	"github.com/poh-blockchain/internal/system"
 	"github.com/poh-blockchain/internal/transaction"
+	"github.com/poh-blockchain/programs"
 )
+
+// encodeTransferInstructionSC encodes a transfer instruction payload.
+// Format: [type(1), amount_le(8), from_fileID(32), to_fileID(32)] = 73 bytes
+func encodeTransferInstructionSC(amount int64, from, to filestore.FileID) []byte {
+	data := make([]byte, 73)
+	data[0] = 1 // Transfer opcode
+	binary.LittleEndian.PutUint64(data[1:9], uint64(amount))
+	copy(data[9:41], from[:])
+	copy(data[41:73], to[:])
+	return data
+}
+
+// encodeAllocateDataInstruction encodes an AllocateData instruction payload.
+func encodeAllocateDataInstruction(size int64) []byte {
+	data := make([]byte, 9)
+	data[0] = 3 // AllocateData opcode
+	binary.LittleEndian.PutUint64(data[1:], uint64(size))
+	return data
+}
 
 // TestFileCreationWithInsufficientBalance tests that file creation fails when balance is insufficient for storage cost
 // This validates Requirements 6.1, 6.2, 6.5
@@ -148,20 +169,8 @@ func TestDataAllocationExceedingBalance(t *testing.T) {
 	t.Run("system program allocate data exceeding balance", func(t *testing.T) {
 		// Initialize runtime and processor
 		rt := runtime.NewRuntime()
-		sysProg := system.NewSystemProgram()
-		rt.RegisterBuiltinProgram(sysProg)
-
-		// Create system program file
-		sysProgramFile := &filestore.File{
-			ID:         system.SystemProgramID,
-			Balance:    0,
-			TxManager:  system.SystemProgramID,
-			Data:       []byte{},
-			Executable: true,
-		}
-		_, err := fs.CreateFile(sysProgramFile)
-		if err != nil {
-			t.Fatalf("Failed to create system program file: %v", err)
+		if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+			t.Fatalf("Failed to load builtin programs: %v", err)
 		}
 
 		txProc := processor.NewTxProcessor(fs, rt)
@@ -181,7 +190,7 @@ func TestDataAllocationExceedingBalance(t *testing.T) {
 		accountFile := &filestore.File{
 			ID:         accountID,
 			Balance:    initialBalance,
-			TxManager:  system.SystemProgramID,
+			TxManager:  genesis.SystemProgramID,
 			Data:       []byte{},
 			Executable: false,
 		}
@@ -197,12 +206,12 @@ func TestDataAllocationExceedingBalance(t *testing.T) {
 		requiredCost := filestore.CalculateStorageCost(allocateSize)
 		t.Logf("Attempting to allocate %d bytes (requires %d, have %d)", allocateSize, requiredCost, initialBalance)
 
-		allocateInstr := system.EncodeAllocateDataInstruction(allocateSize)
+		allocateInstr := encodeAllocateDataInstruction(allocateSize)
 		allocateTx := &transaction.Transaction{
 			LastSeen: transaction.TxID{},
 			Instructions: []transaction.Instruction{
 				{
-					ProgramID: system.SystemProgramID,
+					ProgramID: genesis.SystemProgramID,
 					Inputs: map[string]transaction.FileAccess{
 						"account": {FileID: accountID, Permission: transaction.Write},
 					},
@@ -326,20 +335,8 @@ func TestBalanceReductionBelowStorageCost(t *testing.T) {
 	t.Run("transfer causing balance below storage cost", func(t *testing.T) {
 		// Initialize runtime and processor
 		rt := runtime.NewRuntime()
-		sysProg := system.NewSystemProgram()
-		rt.RegisterBuiltinProgram(sysProg)
-
-		// Create system program file
-		sysProgramFile := &filestore.File{
-			ID:         system.SystemProgramID,
-			Balance:    0,
-			TxManager:  system.SystemProgramID,
-			Data:       []byte{},
-			Executable: true,
-		}
-		_, err := fs.CreateFile(sysProgramFile)
-		if err != nil {
-			t.Fatalf("Failed to create system program file: %v", err)
+		if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+			t.Fatalf("Failed to load builtin programs: %v", err)
 		}
 
 		txProc := processor.NewTxProcessor(fs, rt)
@@ -368,7 +365,7 @@ func TestBalanceReductionBelowStorageCost(t *testing.T) {
 		aliceFile := &filestore.File{
 			ID:         aliceID,
 			Balance:    aliceBalance,
-			TxManager:  system.SystemProgramID,
+			TxManager:  genesis.SystemProgramID,
 			Data:       make([]byte, dataSize),
 			Executable: false,
 		}
@@ -382,7 +379,7 @@ func TestBalanceReductionBelowStorageCost(t *testing.T) {
 		bobFile := &filestore.File{
 			ID:         bobID,
 			Balance:    10000,
-			TxManager:  system.SystemProgramID,
+			TxManager:  genesis.SystemProgramID,
 			Data:       []byte{},
 			Executable: false,
 		}
@@ -400,12 +397,12 @@ func TestBalanceReductionBelowStorageCost(t *testing.T) {
 		t.Logf("Attempting to transfer %d (would leave Alice with %d, needs %d)",
 			transferAmount, aliceBalance-transferAmount, requiredCost)
 
-		transferInstr := system.EncodeTransferInstruction(transferAmount)
+		transferInstr := encodeTransferInstructionSC(transferAmount, aliceID, bobID)
 		transferTx := &transaction.Transaction{
 			LastSeen: transaction.TxID{},
 			Instructions: []transaction.Instruction{
 				{
-					ProgramID: system.SystemProgramID,
+					ProgramID: genesis.SystemProgramID,
 					Inputs: map[string]transaction.FileAccess{
 						"from": {FileID: aliceID, Permission: transaction.Write},
 						"to":   {FileID: bobID, Permission: transaction.Write},

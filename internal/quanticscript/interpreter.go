@@ -262,6 +262,10 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 	case OpMathPow:
 		return bi.execMathPow()
 
+	// Conversion operations
+	case OpBytesToI64LE:
+		return bi.execBytesToI64LE()
+
 	default:
 		return fmt.Errorf("unknown opcode: 0x%02x", opcode)
 	}
@@ -1066,7 +1070,7 @@ func (bi *BytecodeInterpreter) execGetBalance() error {
 		return err
 	}
 
-	// Accept both FileID and i64 types for the file ID parameter
+	// Accept FileID, Bytes (32 bytes), and i64 types for the file ID parameter
 	var fileID filestore.FileID
 	if fileIDValue.Type == TypeFileID {
 		fileIDBytes, ok := fileIDValue.Data.([]byte)
@@ -1076,6 +1080,15 @@ func (bi *BytecodeInterpreter) execGetBalance() error {
 		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
 		if err != nil {
 			return fmt.Errorf("invalid FileID: %w", err)
+		}
+	} else if fileIDValue.Type == TypeBytes {
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID bytes data")
+		}
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID from bytes: %w", err)
 		}
 	} else if fileIDValue.Type == TypeI64 {
 		// Convert i64 to FileID by placing the value in the last 8 bytes
@@ -1090,7 +1103,7 @@ func (bi *BytecodeInterpreter) execGetBalance() error {
 		fileID[30] = byte(i64Val >> 8)
 		fileID[31] = byte(i64Val)
 	} else {
-		return fmt.Errorf("GETBALANCE requires FileID or i64, got %v", fileIDValue.Type)
+		return fmt.Errorf("GETBALANCE requires FileID, bytes, or i64, got %v", fileIDValue.Type)
 	}
 
 	// Get balance from context
@@ -1133,7 +1146,7 @@ func (bi *BytecodeInterpreter) execUpdateBalance() error {
 		return err
 	}
 
-	// Accept both FileID and i64 types for the file ID parameter
+	// Accept FileID, Bytes (32 bytes), and i64 types for the file ID parameter
 	var fileID filestore.FileID
 	if fileIDValue.Type == TypeFileID {
 		fileIDBytes, ok := fileIDValue.Data.([]byte)
@@ -1143,6 +1156,15 @@ func (bi *BytecodeInterpreter) execUpdateBalance() error {
 		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
 		if err != nil {
 			return fmt.Errorf("invalid FileID: %w", err)
+		}
+	} else if fileIDValue.Type == TypeBytes {
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID bytes data")
+		}
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID from bytes: %w", err)
 		}
 	} else if fileIDValue.Type == TypeI64 {
 		// Convert i64 to FileID by placing the value in the last 8 bytes
@@ -1157,7 +1179,7 @@ func (bi *BytecodeInterpreter) execUpdateBalance() error {
 		fileID[30] = byte(i64Val >> 8)
 		fileID[31] = byte(i64Val)
 	} else {
-		return fmt.Errorf("UPDATEBALANCE requires FileID or i64, got %v", fileIDValue.Type)
+		return fmt.Errorf("UPDATEBALANCE requires FileID, bytes, or i64, got %v", fileIDValue.Type)
 	}
 
 	delta, _ := deltaValue.AsI64()

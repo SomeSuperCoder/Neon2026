@@ -2,6 +2,7 @@ package internal
 
 import (
 	"crypto/ed25519"
+	"encoding/binary"
 	"testing"
 
 	"github.com/poh-blockchain/internal/access"
@@ -9,10 +10,20 @@ import (
 	"github.com/poh-blockchain/internal/genesis"
 	"github.com/poh-blockchain/internal/processor"
 	"github.com/poh-blockchain/internal/runtime"
-	"github.com/poh-blockchain/internal/system"
 	"github.com/poh-blockchain/internal/transaction"
 	"github.com/poh-blockchain/programs"
 )
+
+// encodeTransferInstruction encodes a transfer instruction payload.
+// Format: [type(1), amount_le(8), from_fileID(32), to_fileID(32)] = 73 bytes
+func encodeTransferInstruction(amount int64, from, to filestore.FileID) []byte {
+	data := make([]byte, 73)
+	data[0] = 1 // Transfer opcode
+	binary.LittleEndian.PutUint64(data[1:9], uint64(amount))
+	copy(data[9:41], from[:])
+	copy(data[41:73], to[:])
+	return data
+}
 
 // setupBuiltinEnv creates a fresh FileStore with both builtin programs loaded.
 func setupBuiltinEnv(t *testing.T) (*filestore.FileStore, *runtime.Runtime, *processor.TxProcessor) {
@@ -29,11 +40,6 @@ func setupBuiltinEnv(t *testing.T) (*filestore.FileStore, *runtime.Runtime, *pro
 	}
 
 	rt := runtime.NewRuntime()
-	sysProg := system.NewSystemProgram()
-	if err := rt.RegisterBuiltinProgram(sysProg); err != nil {
-		t.Fatalf("RegisterBuiltinProgram: %v", err)
-	}
-
 	tp := processor.NewTxProcessor(fs, rt)
 	return fs, rt, tp
 }
@@ -44,7 +50,7 @@ func makeAccount(t *testing.T, fs *filestore.FileStore, id filestore.FileID, bal
 	f := &filestore.File{
 		ID:         id,
 		Balance:    balance,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -142,10 +148,10 @@ func TestSystemProgramCreateAccountAndTransfer(t *testing.T) {
 	makeAccount(t, fs, bobID, 0)
 
 	// Build a Transfer transaction: Alice → Bob, 10 000 Neon
-	transferData := system.EncodeTransferInstruction(10_000)
+	transferData := encodeTransferInstruction(10_000, aliceID, bobID)
 	tx := &transaction.Transaction{
 		Instructions: []transaction.Instruction{{
-			ProgramID: system.SystemProgramID,
+			ProgramID: genesis.SystemProgramID,
 			Inputs: map[string]transaction.FileAccess{
 				"from": {FileID: aliceID, Permission: transaction.Write},
 				"to":   {FileID: bobID, Permission: transaction.Write},
@@ -198,12 +204,12 @@ func TestSystemProgramTransferInsufficientBalance(t *testing.T) {
 
 	tx := &transaction.Transaction{
 		Instructions: []transaction.Instruction{{
-			ProgramID: system.SystemProgramID,
+			ProgramID: genesis.SystemProgramID,
 			Inputs: map[string]transaction.FileAccess{
 				"from": {FileID: senderID, Permission: transaction.Write},
 				"to":   {FileID: recipientID, Permission: transaction.Write},
 			},
-			Data: system.EncodeTransferInstruction(999_999_999),
+			Data: encodeTransferInstruction(999_999_999, senderID, recipientID),
 		}},
 	}
 	// Fee payer signs first, sender signs second
@@ -338,14 +344,15 @@ func TestFileStoreStateConsistency(t *testing.T) {
 }
 
 // TestTransactionProcessingThroughRuntime verifies that the Runtime correctly
-// dispatches to the builtin System_Program and that the TxProcessor handles
+// dispatches to the QuanticScript System_Program and that the TxProcessor handles
 // the full lifecycle (Requirements 3.3, 3.4, 3.5).
 func TestTransactionProcessingThroughRuntime(t *testing.T) {
 	fs, rt, _ := setupBuiltinEnv(t)
 
-	// Verify the runtime recognises the System_Program as a builtin
-	if !rt.IsBuiltinProgram(system.SystemProgramID) {
-		t.Error("Runtime should recognise System_Program as builtin")
+	// Verify the runtime does NOT have a Go builtin for System_Program
+	// (it now runs as QuanticScript bytecode)
+	if rt.IsBuiltinProgram(genesis.SystemProgramID) {
+		t.Error("System_Program should not be a Go builtin after migration")
 	}
 
 	// Verify the program file is executable
@@ -364,12 +371,12 @@ func TestTransactionProcessingThroughRuntime(t *testing.T) {
 	makeAccount(t, fs, recipientID, 0)
 
 	instr := &transaction.Instruction{
-		ProgramID: system.SystemProgramID,
+		ProgramID: genesis.SystemProgramID,
 		Inputs: map[string]transaction.FileAccess{
 			"from": {FileID: senderID, Permission: transaction.Write},
 			"to":   {FileID: recipientID, Permission: transaction.Write},
 		},
-		Data: system.EncodeTransferInstruction(5_000),
+		Data: encodeTransferInstruction(5_000, senderID, recipientID),
 	}
 
 	ac := access.NewAccessController()

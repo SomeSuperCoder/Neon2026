@@ -181,6 +181,10 @@ func (a *Assembler) parseInstruction(line string, lineNum int) error {
 		return a.parseNoOperands(operands, lineNum)
 	case OpQueryBlock, OpQueryTx, OpQueryInstr:
 		return a.parseNoOperands(operands, lineNum)
+	case OpBytesToI64LE:
+		return a.parseNoOperands(operands, lineNum)
+	case OpStrConcat, OpStrSubstring, OpStrLen, OpStrToBytes, OpStrFromBytes:
+		return a.parseNoOperands(operands, lineNum)
 	default:
 		return fmt.Errorf("unhandled opcode: %v", opcode)
 	}

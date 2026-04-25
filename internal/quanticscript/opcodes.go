@@ -135,6 +135,11 @@ const (
 	OpMathPow Opcode = 0xD3 // Power (deterministic integer only)
 )
 
+// Conversion Operations
+const (
+	OpBytesToI64LE Opcode = 0xE0 // Decode TypeBytes (8 bytes) as little-endian i64
+)
+
 // OpcodeNames maps opcodes to their human-readable names
 var OpcodeNames = map[Opcode]string{
 	// Stack Operations
@@ -240,4 +245,7 @@ var OpcodeNames = map[Opcode]string{
 	OpMathMax: "MATHMAX",
 	OpMathAbs: "MATHABS",
 	OpMathPow: "MATHPOW",
+
+	// Conversion Operations
+	OpBytesToI64LE: "BYTESTOI64LE",
 }

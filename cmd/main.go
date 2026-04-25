@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -23,7 +24,6 @@ import (
 	"github.com/poh-blockchain/internal/quanticscript"
 	"github.com/poh-blockchain/internal/runtime"
 	"github.com/poh-blockchain/internal/storage"
-	"github.com/poh-blockchain/internal/system"
 	"github.com/poh-blockchain/internal/transaction"
 	"github.com/poh-blockchain/internal/verification"
 	"github.com/poh-blockchain/programs"
@@ -467,14 +467,13 @@ func handleAccountCommand() {
 
 	// Initialize runtime and processor
 	rt := runtime.NewRuntime()
-	rt.RegisterBuiltinProgram(system.NewSystemProgram())
 	txProcessor := processor.NewTxProcessor(fs2, rt)
 
 	// Create account file directly in the store (genesis account)
 	accountFile := &filestore.File{
 		ID:         fileID,
 		Balance:    *balance,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -574,13 +573,12 @@ func handleTransferCommand() {
 
 	// Initialize runtime and processor
 	rt := runtime.NewRuntime()
-	rt.RegisterBuiltinProgram(system.NewSystemProgram())
 	txProcessor := processor.NewTxProcessor(fs2, rt)
 
 	// Create transfer instruction
-	transferData := system.EncodeTransferInstruction(*amount)
+	transferData := encodeTransferInstruction(*amount, fromID, toID)
 	instruction := transaction.Instruction{
-		ProgramID: system.SystemProgramID,
+		ProgramID: genesis.SystemProgramID,
 		Inputs: map[string]transaction.FileAccess{
 			"from": {FileID: fromID, Permission: transaction.Write},
 			"to":   {FileID: toID, Permission: transaction.Write},
@@ -704,7 +702,6 @@ func handleSubmitCommand() {
 
 	// Initialize runtime and processor
 	rt := runtime.NewRuntime()
-	rt.RegisterBuiltinProgram(system.NewSystemProgram())
 	txProcessor := processor.NewTxProcessor(fs2, rt)
 
 	// Process transaction
@@ -757,31 +754,18 @@ func publicKeyToFileID(pubkey transaction.PublicKey) filestore.FileID {
 	return fileID
 }
 
-// ensureSystemProgram ensures the system program file exists in the state
-func ensureSystemProgram(fs *filestore.FileStore) {
-	// Check if system program already exists
-	_, err := fs.GetFile(system.SystemProgramID)
-	if err == nil {
-		return // Already exists
-	}
-
-	// Create system program file with sufficient balance for storage
-	systemProgram := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    1000000,                // Sufficient balance for storage
-		TxManager:  system.SystemProgramID, // Self-managed
-		Data:       []byte("builtin-system-program"),
-		Executable: true,
-	}
-
-	_, err = fs.CreateFile(systemProgram)
-	if err != nil {
-		log.Printf("Warning: Failed to create system program file: %v", err)
-	}
+// encodeTransferInstruction encodes a transfer instruction payload:
+// byte[0] = 0x01 (Transfer), byte[1-8] = amount LE, byte[9-40] = from FileID, byte[41-72] = to FileID.
+func encodeTransferInstruction(amount int64, from, to filestore.FileID) []byte {
+	data := make([]byte, 73)
+	data[0] = 1 // Transfer
+	binary.LittleEndian.PutUint64(data[1:9], uint64(amount))
+	copy(data[9:41], from[:])
+	copy(data[41:73], to[:])
+	return data
 }
 
-// initFileStore initializes a file store, ensures the legacy system program
-// stub exists, and loads the built-in QuanticScript programs at genesis.
+// initFileStore initializes a file store and loads the built-in QuanticScript programs at genesis.
 func initFileStore(dbPath string) (*filestore.FileStore, error) {
 	// Ensure the directory exists
 	dir := "."
@@ -796,8 +780,6 @@ func initFileStore(dbPath string) (*filestore.FileStore, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	ensureSystemProgram(fs)
 
 	// Load built-in QuanticScript programs (System_Program and Token_Program).
 	// This is idempotent — already-loaded programs are skipped.

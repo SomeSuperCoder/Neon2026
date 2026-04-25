@@ -365,3 +365,32 @@ func uintPow(base, exp uint64) uint64 {
 // Note: This is implemented by reading the interpreter's invokeDepth field
 // The compiler will need to provide a way to access this, possibly through
 // a special builtin function or by storing it in a known memory location
+
+// execBytesToI64LE decodes TypeBytes (8 bytes) as a little-endian int64.
+// This enables bytecode programs to decode LE-encoded amounts from instruction data.
+func (bi *BytecodeInterpreter) execBytesToI64LE() error {
+	bytesValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if bytesValue.Type != TypeBytes {
+		return fmt.Errorf("BYTESTOI64LE requires bytes, got %v", bytesValue.Type)
+	}
+
+	data, _ := bytesValue.AsBytes()
+	if len(data) < 8 {
+		return fmt.Errorf("BYTESTOI64LE requires at least 8 bytes, got %d", len(data))
+	}
+
+	val := int64(data[0]) |
+		int64(data[1])<<8 |
+		int64(data[2])<<16 |
+		int64(data[3])<<24 |
+		int64(data[4])<<32 |
+		int64(data[5])<<40 |
+		int64(data[6])<<48 |
+		int64(data[7])<<56
+
+	return bi.push(NewI64(val))
+}

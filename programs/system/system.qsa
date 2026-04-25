@@ -1,20 +1,71 @@
-; QuanticScript Bytecode
-; Version: 0x0100
-; Entry Offset: 0
+; System_Program - Transfer handler
+; Instruction format for Transfer (type=1):
+;   byte[0]     = 0x01 (Transfer)
+;   byte[1-8]   = amount (i64 little-endian)
+;   byte[9-40]  = from FileID (32 bytes)
+;   byte[41-72] = to FileID (32 bytes)
+;
+; Memory layout:
+;   mem[0] = instrStr (string version of instruction data)
+;   mem[1] = fromBytes (32 bytes)
+;   mem[2] = toBytes (32 bytes)
+;   mem[4] = amount (i64)
 
-    CALL        func_0 ; cost: 5
-    RET          ; cost: 2
+    ; Get instruction data and convert to string for slicing
+    GETINSTRDATA
+    STRFROMBYTES
+    STORE 0
 
-func_0:
-    PUSH        i64 0 ; cost: 1
-    RET          ; cost: 2
-    RET          ; cost: 2
-    PUSH        i64 0 ; cost: 1
-    RET          ; cost: 2
-    RET          ; cost: 2
-    PUSH        i64 0 ; cost: 1
-    RET          ; cost: 2
-    RET          ; cost: 2
-    PUSH        i64 0 ; cost: 1
-    RET          ; cost: 2
-    RET          ; cost: 2
+    ; Check instruction data length >= 73 bytes
+    LOAD 0
+    STRLEN
+    PUSH u64 73
+    GTE
+    JMPIF do_transfer
+
+    ; Insufficient data - return error code
+    PUSH i64 0
+    RET
+
+do_transfer:
+    ; Extract amount bytes (bytes 1-8)
+    LOAD 0
+    PUSH u64 1
+    PUSH u64 9
+    STRSUBSTRING
+    STRTOBYTES
+    BYTESTOI64LE
+    STORE 4
+
+    ; Extract from FileID bytes (bytes 9-40)
+    LOAD 0
+    PUSH u64 9
+    PUSH u64 41
+    STRSUBSTRING
+    STRTOBYTES
+    STORE 1
+
+    ; Extract to FileID bytes (bytes 41-72)
+    LOAD 0
+    PUSH u64 41
+    PUSH u64 73
+    STRSUBSTRING
+    STRTOBYTES
+    STORE 2
+
+    ; UPDATEBALANCE(from, -amount)
+    LOAD 1
+    LOAD 4
+    PUSH i64 0
+    SWAP
+    SUB
+    UPDATEBALANCE
+
+    ; UPDATEBALANCE(to, +amount)
+    LOAD 2
+    LOAD 4
+    UPDATEBALANCE
+
+    ; Return success
+    PUSH i64 0
+    RET

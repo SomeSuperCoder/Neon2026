@@ -2,15 +2,28 @@ package internal
 
 import (
 	"crypto/ed25519"
+	"encoding/binary"
 	"os"
 	"testing"
 
 	"github.com/poh-blockchain/internal/filestore"
+	"github.com/poh-blockchain/internal/genesis"
 	"github.com/poh-blockchain/internal/processor"
 	"github.com/poh-blockchain/internal/runtime"
-	"github.com/poh-blockchain/internal/system"
 	"github.com/poh-blockchain/internal/transaction"
+	"github.com/poh-blockchain/programs"
 )
+
+// encodeTransferInstructionE2E encodes a transfer instruction payload.
+// Format: [type(1), amount_le(8), from_fileID(32), to_fileID(32)] = 73 bytes
+func encodeTransferInstructionE2E(amount int64, from, to filestore.FileID) []byte {
+	data := make([]byte, 73)
+	data[0] = 1 // Transfer opcode
+	binary.LittleEndian.PutUint64(data[1:9], uint64(amount))
+	copy(data[9:41], from[:])
+	copy(data[41:73], to[:])
+	return data
+}
 
 // TestEndToEndAccountCreationAndTransfer tests the complete flow:
 // 1. Create two accounts
@@ -29,24 +42,9 @@ func TestEndToEndAccountCreationAndTransfer(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	// Create system program file
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	txProcessor := processor.NewTxProcessor(fs, rt)
@@ -71,7 +69,7 @@ func TestEndToEndAccountCreationAndTransfer(t *testing.T) {
 	aliceFeePayerFile := &filestore.File{
 		ID:         aliceAccountID,
 		Balance:    100000, // Sufficient for fees and transfers
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -85,7 +83,7 @@ func TestEndToEndAccountCreationAndTransfer(t *testing.T) {
 	bobAccountFile := &filestore.File{
 		ID:         bobAccountID,
 		Balance:    5000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -105,13 +103,13 @@ func TestEndToEndAccountCreationAndTransfer(t *testing.T) {
 	}
 
 	// Step 2: Transfer 2000 from Alice to Bob
-	transferData := system.EncodeTransferInstruction(2000)
+	transferData := encodeTransferInstructionE2E(2000, aliceAccountID, bobAccountID)
 
 	transferTx := &transaction.Transaction{
 		LastSeen: transaction.TxID{}, // Zero TxID
 		Instructions: []transaction.Instruction{
 			{
-				ProgramID: system.SystemProgramID,
+				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
 					"from": {FileID: aliceAccountID, Permission: transaction.Write},
 					"to":   {FileID: bobAccountID, Permission: transaction.Write},
@@ -189,24 +187,9 @@ func TestMultiInstructionTransactionAtomicity(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	// Create system program file
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	txProcessor := processor.NewTxProcessor(fs, rt)
@@ -228,21 +211,21 @@ func TestMultiInstructionTransactionAtomicity(t *testing.T) {
 	account1 := &filestore.File{
 		ID:         account1ID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
 	account2 := &filestore.File{
 		ID:         account2ID,
 		Balance:    5000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
 	account3 := &filestore.File{
 		ID:         account3ID,
 		Balance:    3000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -272,20 +255,20 @@ func TestMultiInstructionTransactionAtomicity(t *testing.T) {
 		LastSeen: transaction.TxID{}, // Zero TxID
 		Instructions: []transaction.Instruction{
 			{
-				ProgramID: system.SystemProgramID,
+				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
 					"from": {FileID: account1ID, Permission: transaction.Write},
 					"to":   {FileID: account2ID, Permission: transaction.Write},
 				},
-				Data: system.EncodeTransferInstruction(1000),
+				Data: encodeTransferInstructionE2E(1000, account1ID, account2ID),
 			},
 			{
-				ProgramID: system.SystemProgramID,
+				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
 					"from": {FileID: account2ID, Permission: transaction.Write},
 					"to":   {FileID: account3ID, Permission: transaction.Write},
 				},
-				Data: system.EncodeTransferInstruction(10000), // This will fail
+				Data: encodeTransferInstructionE2E(10000, account2ID, account3ID), // This will fail
 			},
 		},
 		Signatures: []transaction.Signature{}, // Empty initially for signing
@@ -347,24 +330,9 @@ func TestTransactionRevertOnInstructionFailure(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	// Create system program file
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	txProcessor := processor.NewTxProcessor(fs, rt)
@@ -385,14 +353,14 @@ func TestTransactionRevertOnInstructionFailure(t *testing.T) {
 	fromAccount := &filestore.File{
 		ID:         fromID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
 	toAccount := &filestore.File{
 		ID:         toID,
 		Balance:    5000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -414,12 +382,12 @@ func TestTransactionRevertOnInstructionFailure(t *testing.T) {
 		LastSeen: transaction.TxID{}, // Zero TxID
 		Instructions: []transaction.Instruction{
 			{
-				ProgramID: system.SystemProgramID,
+				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
 					"from": {FileID: fromID, Permission: transaction.Write},
 					"to":   {FileID: toID, Permission: transaction.Write},
 				},
-				Data: system.EncodeTransferInstruction(20000), // More than available
+				Data: encodeTransferInstructionE2E(20000, fromID, toID), // More than available
 			},
 		},
 		Signatures: []transaction.Signature{}, // Empty initially for signing
@@ -476,24 +444,9 @@ func TestFeePaymentAndBalanceUpdates(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	// Create system program file
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	txProcessor := processor.NewTxProcessor(fs, rt)
@@ -521,21 +474,21 @@ func TestFeePaymentAndBalanceUpdates(t *testing.T) {
 	feePayerAccount := &filestore.File{
 		ID:         feePayerID,
 		Balance:    50000, // Sufficient for fees
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
 	senderAccount := &filestore.File{
 		ID:         senderID,
 		Balance:    20000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
 	recipientAccount := &filestore.File{
 		ID:         recipientID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -563,20 +516,20 @@ func TestFeePaymentAndBalanceUpdates(t *testing.T) {
 		LastSeen: transaction.TxID{}, // Zero TxID
 		Instructions: []transaction.Instruction{
 			{
-				ProgramID: system.SystemProgramID,
+				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
 					"from": {FileID: senderID, Permission: transaction.Write},
 					"to":   {FileID: recipientID, Permission: transaction.Write},
 				},
-				Data: system.EncodeTransferInstruction(3000),
+				Data: encodeTransferInstructionE2E(3000, senderID, recipientID),
 			},
 			{
-				ProgramID: system.SystemProgramID,
+				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
 					"from": {FileID: senderID, Permission: transaction.Write},
 					"to":   {FileID: recipientID, Permission: transaction.Write},
 				},
-				Data: system.EncodeTransferInstruction(2000),
+				Data: encodeTransferInstructionE2E(2000, senderID, recipientID),
 			},
 		},
 		Signatures: []transaction.Signature{}, // Empty initially for signing

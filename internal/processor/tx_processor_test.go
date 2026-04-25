@@ -2,14 +2,27 @@ package processor
 
 import (
 	"crypto/ed25519"
+	"encoding/binary"
 	"os"
 	"testing"
 
 	"github.com/poh-blockchain/internal/filestore"
+	"github.com/poh-blockchain/internal/genesis"
 	"github.com/poh-blockchain/internal/runtime"
-	"github.com/poh-blockchain/internal/system"
 	"github.com/poh-blockchain/internal/transaction"
+	"github.com/poh-blockchain/programs"
 )
+
+// encodeTransferInstructionTP encodes a transfer instruction payload.
+// Format: [type(1), amount_le(8), from_fileID(32), to_fileID(32)] = 73 bytes
+func encodeTransferInstructionTP(amount int64, from, to filestore.FileID) []byte {
+	data := make([]byte, 73)
+	data[0] = 1 // Transfer opcode
+	binary.LittleEndian.PutUint64(data[1:9], uint64(amount))
+	copy(data[9:41], from[:])
+	copy(data[41:73], to[:])
+	return data
+}
 
 // TestNewTxProcessor verifies TxProcessor initialization
 func TestNewTxProcessor(t *testing.T) {
@@ -72,7 +85,7 @@ func TestValidateTransaction(t *testing.T) {
 	feePayerFile := &filestore.File{
 		ID:         feePayerID,
 		Balance:    100000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -85,7 +98,7 @@ func TestValidateTransaction(t *testing.T) {
 	tx := &transaction.Transaction{
 		Instructions: []transaction.Instruction{
 			{
-				ProgramID: system.SystemProgramID,
+				ProgramID: genesis.SystemProgramID,
 				Inputs:    map[string]transaction.FileAccess{},
 				Data:      []byte{},
 			},
@@ -157,7 +170,7 @@ func TestDeductFee(t *testing.T) {
 	accountFile := &filestore.File{
 		ID:         accountID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -207,24 +220,9 @@ func TestExecuteInstruction(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	// Create system program file
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	processor := NewTxProcessor(fs, rt)
@@ -243,7 +241,7 @@ func TestExecuteInstruction(t *testing.T) {
 	fromFile := &filestore.File{
 		ID:         fromID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -256,7 +254,7 @@ func TestExecuteInstruction(t *testing.T) {
 	toFile := &filestore.File{
 		ID:         toID,
 		Balance:    5000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -266,9 +264,9 @@ func TestExecuteInstruction(t *testing.T) {
 	}
 
 	// Create transfer instruction
-	transferData := system.EncodeTransferInstruction(1000)
+	transferData := encodeTransferInstructionTP(1000, fromID, toID)
 	instr := &transaction.Instruction{
-		ProgramID: system.SystemProgramID,
+		ProgramID: genesis.SystemProgramID,
 		Inputs: map[string]transaction.FileAccess{
 			"from": {FileID: fromID, Permission: transaction.Write},
 			"to":   {FileID: toID, Permission: transaction.Write},
@@ -314,24 +312,9 @@ func TestProcessTransaction(t *testing.T) {
 
 	rt := runtime.NewRuntime()
 
-	// Register system program
-	sysProg := system.NewSystemProgram()
-	err = rt.RegisterBuiltinProgram(sysProg)
-	if err != nil {
-		t.Fatalf("Failed to register system program: %v", err)
-	}
-
-	// Create system program file
-	sysProgramFile := &filestore.File{
-		ID:         system.SystemProgramID,
-		Balance:    0,
-		TxManager:  system.SystemProgramID,
-		Data:       []byte{},
-		Executable: true,
-	}
-	_, err = fs.CreateFile(sysProgramFile)
-	if err != nil {
-		t.Fatalf("Failed to create system program file: %v", err)
+	// Load built-in programs via genesis
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
 	processor := NewTxProcessor(fs, rt)
@@ -350,7 +333,7 @@ func TestProcessTransaction(t *testing.T) {
 	feePayerFile := &filestore.File{
 		ID:         feePayerID,
 		Balance:    100000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -364,7 +347,7 @@ func TestProcessTransaction(t *testing.T) {
 	recipientFile := &filestore.File{
 		ID:         recipientID,
 		Balance:    5000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -374,11 +357,11 @@ func TestProcessTransaction(t *testing.T) {
 	}
 
 	// Create transfer transaction
-	transferData := system.EncodeTransferInstruction(1000)
+	transferData := encodeTransferInstructionTP(1000, feePayerID, recipientID)
 	tx := &transaction.Transaction{
 		Instructions: []transaction.Instruction{
 			{
-				ProgramID: system.SystemProgramID,
+				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
 					"from": {FileID: feePayerID, Permission: transaction.Write},
 					"to":   {FileID: recipientID, Permission: transaction.Write},
@@ -458,7 +441,7 @@ func TestRevertState(t *testing.T) {
 	accountFile := &filestore.File{
 		ID:         accountID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
@@ -521,7 +504,7 @@ func TestAccessControlValidation(t *testing.T) {
 	programFile := &filestore.File{
 		ID:         violatingProgram.GetProgramID(),
 		Balance:    0,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: true,
 	}
@@ -538,7 +521,7 @@ func TestAccessControlValidation(t *testing.T) {
 	accountFile := &filestore.File{
 		ID:         accountID,
 		Balance:    10000,
-		TxManager:  system.SystemProgramID,
+		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
