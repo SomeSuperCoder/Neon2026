@@ -188,6 +188,13 @@ func (cg *CodeGenerator) generateFunction(fn *FunctionDecl) {
 		cg.nextLocalSlot++
 	}
 
+	// Pop arguments from stack into local memory slots (reverse order, stack is LIFO)
+	for i := len(fn.Parameters) - 1; i >= 0; i-- {
+		slot := cg.localVars[fn.Parameters[i].Name]
+		cg.emitOpcode(OpStore)
+		cg.emitU16(uint16(slot))
+	}
+
 	// Generate function body
 	cg.generateBlock(fn.Body)
 
@@ -675,11 +682,6 @@ func (cg *CodeGenerator) generateUnaryExpr(expr *UnaryExpr) {
 
 // generateCallExpr generates bytecode for a function call
 func (cg *CodeGenerator) generateCallExpr(expr *CallExpr) {
-	// Generate arguments (in order)
-	for _, arg := range expr.Arguments {
-		cg.generateExpression(arg)
-	}
-
 	// Get function name
 	var funcName string
 	if ident, ok := expr.Function.(*IdentExpr); ok {
@@ -687,6 +689,23 @@ func (cg *CodeGenerator) generateCallExpr(expr *CallExpr) {
 	} else {
 		cg.addError(expr.Location, "complex function expressions not yet supported")
 		return
+	}
+
+	// Check if this is a builtin function
+	if cg.isBuiltinFunction(funcName) {
+		// Generate arguments (in order)
+		for _, arg := range expr.Arguments {
+			cg.generateExpression(arg)
+		}
+
+		// Emit the appropriate builtin opcode
+		cg.emitBuiltinCall(funcName, expr.Location)
+		return
+	}
+
+	// Generate arguments (in order) for regular function calls
+	for _, arg := range expr.Arguments {
+		cg.generateExpression(arg)
 	}
 
 	// Emit CALL instruction
@@ -810,6 +829,164 @@ func (cg *CodeGenerator) patchReferences() error {
 	}
 
 	return nil
+}
+
+// isBuiltinFunction checks if a function name is a builtin
+func (cg *CodeGenerator) isBuiltinFunction(name string) bool {
+	builtins := map[string]bool{
+		// Blockchain operations
+		"getBalance":         true,
+		"updateBalance":      true,
+		"getInstructionData": true,
+		"getProgramId":       true,
+		"hasSigner":          true,
+		"getSigner":          true,
+		"getFile":            true,
+		"getFileMut":         true,
+		"updateFile":         true,
+		// Cryptographic operations
+		"sha256":          true,
+		"verifySignature": true,
+		"derivePublicKey": true,
+		// Cross-program invocation
+		"invoke":         true,
+		"getInvokeDepth": true,
+		// Query operations
+		"queryBlock":       true,
+		"queryTransaction": true,
+		"queryInstruction": true,
+		// Collection operations
+		"arrayNew":    true,
+		"arrayLength": true,
+		"arrayGet":    true,
+		"arraySet":    true,
+		"arrayPush":   true,
+		"arrayPop":    true,
+		"mapNew":      true,
+		"mapGet":      true,
+		"mapSet":      true,
+		"mapHas":      true,
+		"mapDel":      true,
+		"setNew":      true,
+		"setAdd":      true,
+		"setHas":      true,
+		"setDel":      true,
+		// String operations
+		"stringConcat":    true,
+		"stringSubstring": true,
+		"stringLength":    true,
+		"stringToBytes":   true,
+		"bytesToString":   true,
+		// Math operations
+		"min":  true,
+		"max":  true,
+		"abs":  true,
+		"pow":  true,
+		"sqrt": true,
+	}
+	return builtins[name]
+}
+
+// emitBuiltinCall emits bytecode for a builtin function call
+func (cg *CodeGenerator) emitBuiltinCall(name string, loc SourceLocation) {
+	switch name {
+	// Blockchain operations
+	case "getBalance":
+		cg.emitOpcode(OpGetBalance)
+	case "updateBalance":
+		cg.emitOpcode(OpUpdateBalance)
+	case "getInstructionData":
+		cg.emitOpcode(OpGetInstrData)
+	case "getProgramId":
+		cg.emitOpcode(OpGetProgramID)
+	case "hasSigner":
+		cg.emitOpcode(OpHasSigner)
+	case "getSigner":
+		cg.emitOpcode(OpGetSigner)
+	case "getFile":
+		cg.emitOpcode(OpGetFile)
+	case "getFileMut":
+		cg.emitOpcode(OpGetFileMut)
+	case "updateFile":
+		cg.emitOpcode(OpUpdateFile)
+	// Cryptographic operations
+	case "sha256":
+		cg.emitOpcode(OpSha256)
+	case "verifySignature":
+		cg.emitOpcode(OpVerifySig)
+	case "derivePublicKey":
+		cg.emitOpcode(OpDerivePubKey)
+	// Cross-program invocation
+	case "invoke":
+		cg.emitOpcode(OpInvoke)
+	case "getInvokeDepth":
+		// Push current invoke depth (this would need runtime support)
+		// For now, emit a placeholder
+		cg.addError(loc, "getInvokeDepth not yet implemented")
+	// Query operations
+	case "queryBlock":
+		cg.emitOpcode(OpQueryBlock)
+	case "queryTransaction":
+		cg.emitOpcode(OpQueryTx)
+	case "queryInstruction":
+		cg.emitOpcode(OpQueryInstr)
+	// Collection operations
+	case "arrayNew":
+		cg.emitOpcode(OpArrayNew)
+	case "arrayLength":
+		cg.emitOpcode(OpArrayLen)
+	case "arrayGet":
+		cg.emitOpcode(OpArrayGet)
+	case "arraySet":
+		cg.emitOpcode(OpArraySet)
+	case "arrayPush":
+		cg.emitOpcode(OpArrayPush)
+	case "arrayPop":
+		cg.emitOpcode(OpArrayPop)
+	case "mapNew":
+		cg.emitOpcode(OpMapNew)
+	case "mapGet":
+		cg.emitOpcode(OpMapGet)
+	case "mapSet":
+		cg.emitOpcode(OpMapSet)
+	case "mapHas":
+		cg.emitOpcode(OpMapHas)
+	case "mapDel":
+		cg.emitOpcode(OpMapDel)
+	case "setNew":
+		cg.emitOpcode(OpSetNew)
+	case "setAdd":
+		cg.emitOpcode(OpSetAdd)
+	case "setHas":
+		cg.emitOpcode(OpSetHas)
+	case "setDel":
+		cg.emitOpcode(OpSetDel)
+	// String operations
+	case "stringConcat":
+		cg.emitOpcode(OpStrConcat)
+	case "stringSubstring":
+		cg.emitOpcode(OpStrSubstring)
+	case "stringLength":
+		cg.emitOpcode(OpStrLen)
+	case "stringToBytes":
+		cg.emitOpcode(OpStrToBytes)
+	case "bytesToString":
+		cg.emitOpcode(OpStrFromBytes)
+	// Math operations
+	case "min":
+		cg.emitOpcode(OpMathMin)
+	case "max":
+		cg.emitOpcode(OpMathMax)
+	case "abs":
+		cg.emitOpcode(OpMathAbs)
+	case "pow":
+		cg.emitOpcode(OpMathPow)
+	case "sqrt":
+		// sqrt not yet implemented
+		cg.addError(loc, "sqrt not yet implemented")
+	default:
+		cg.addError(loc, "unknown builtin function '%s'", name)
+	}
 }
 
 // CodeGenError represents a code generation error

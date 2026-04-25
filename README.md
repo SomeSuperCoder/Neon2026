@@ -311,6 +311,7 @@ QuanticScript is a developer-friendly programming language designed specifically
 - Cross-program invocation for composable applications
 - 100% deterministic execution in an unescapable sandbox
 - Rich standard library with crypto, blockchain, and query modules
+- Privilege-based security model with system program restrictions
 
 **Current Status:**
 - ✅ Core type system and value types (i8-i64, u8-u64, bool, bytes, string, FileID, PublicKey, TxID)
@@ -607,6 +608,7 @@ Complete documentation is available in the [docs/](docs/) directory:
 ### Reference
 - **[Language Reference](docs/reference/language-reference.md)** - QuanticScript syntax and semantics
 - **[Standard Library Reference](docs/reference/stdlib-reference.md)** - Built-in functions and modules
+- **[Security Model](docs/reference/security-model.md)** - Security mechanisms and privilege restrictions
 - **[Inline Assembly Guide](docs/reference/inline-assembly.md)** - Low-level assembly programming
 - **[Bytecode Reference](docs/reference/bytecode-reference.md)** - Bytecode format and opcodes
 - **[Cost Model Guide](docs/reference/cost-model.md)** - Understanding computational costs

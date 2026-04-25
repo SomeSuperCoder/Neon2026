@@ -397,3 +397,4 @@ func TestCallStackDepthLimit(t *testing.T) {
 	// Should fail with stack overflow or compute budget exhaustion
 	t.Logf("Call stack depth limit enforced: %v", err)
 }
+

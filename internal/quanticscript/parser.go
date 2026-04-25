@@ -254,8 +254,14 @@ func (p *Parser) parseBlockStmt() *BlockStmt {
 	}
 
 	for p.current.Type != TOKEN_RBRACE && p.current.Type != TOKEN_EOF {
+		// Save current token to detect if we're stuck
+		prevToken := p.current
 		if stmt := p.parseStatement(); stmt != nil {
 			block.Statements = append(block.Statements, stmt)
+		}
+		// If we're still on the same token after parsing, advance to prevent infinite loop
+		if p.current == prevToken {
+			p.nextToken()
 		}
 	}
 

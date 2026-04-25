@@ -45,12 +45,52 @@ func NewTypeChecker() *TypeChecker {
 
 // registerBuiltinFunctions registers built-in functions and marks non-deterministic ones
 func (tc *TypeChecker) registerBuiltinFunctions() {
-	// These are placeholder registrations for standard library functions
-	// In a full implementation, these would be loaded from the standard library
+	// Blockchain operations
+	tc.registerFunction("getBalance", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("updateBalance", []*TypeAnnotation{{Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "void"})
+	tc.registerFunction("getInstructionData", []*TypeAnnotation{}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("getProgramId", []*TypeAnnotation{}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("hasSigner", []*TypeAnnotation{{Name: "PublicKey"}}, &TypeAnnotation{Name: "bool"})
+	tc.registerFunction("getSigner", []*TypeAnnotation{{Name: "u64"}}, &TypeAnnotation{Name: "PublicKey"})
+	tc.registerFunction("getFile", []*TypeAnnotation{{Name: "FileID"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("getFileMut", []*TypeAnnotation{{Name: "FileID"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("updateFile", []*TypeAnnotation{{Name: "FileID"}, {Name: "bytes"}}, &TypeAnnotation{Name: "void"})
 
-	// Deterministic functions are allowed
+	// Cryptographic operations
 	tc.registerFunction("sha256", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "bytes"})
 	tc.registerFunction("verifySignature", []*TypeAnnotation{{Name: "PublicKey"}, {Name: "bytes"}, {Name: "bytes"}}, &TypeAnnotation{Name: "bool"})
+	tc.registerFunction("derivePublicKey", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "PublicKey"})
+
+	// Cross-program invocation
+	tc.registerFunction("invoke", []*TypeAnnotation{{Name: "i64"}, {Name: "bytes"}, {Name: "i64"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("getInvokeDepth", []*TypeAnnotation{}, &TypeAnnotation{Name: "i64"})
+
+	// Query operations
+	tc.registerFunction("queryBlock", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("queryTransaction", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("queryInstruction", []*TypeAnnotation{{Name: "bytes"}, {Name: "u32"}}, &TypeAnnotation{Name: "bytes"})
+
+	// Collection operations
+	tc.registerFunction("arrayNew", []*TypeAnnotation{}, &TypeAnnotation{Name: "array"})
+	tc.registerFunction("arrayLength", []*TypeAnnotation{{Name: "array"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("arrayGet", []*TypeAnnotation{{Name: "array"}, {Name: "i64"}}, &TypeAnnotation{Name: "any"})
+	tc.registerFunction("arraySet", []*TypeAnnotation{{Name: "array"}, {Name: "i64"}, {Name: "any"}}, &TypeAnnotation{Name: "void"})
+	tc.registerFunction("arrayPush", []*TypeAnnotation{{Name: "array"}, {Name: "any"}}, &TypeAnnotation{Name: "void"})
+	tc.registerFunction("arrayPop", []*TypeAnnotation{{Name: "array"}}, &TypeAnnotation{Name: "any"})
+
+	// String operations
+	tc.registerFunction("stringConcat", []*TypeAnnotation{{Name: "string"}, {Name: "string"}}, &TypeAnnotation{Name: "string"})
+	tc.registerFunction("stringSubstring", []*TypeAnnotation{{Name: "string"}, {Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "string"})
+	tc.registerFunction("stringLength", []*TypeAnnotation{{Name: "string"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("stringToBytes", []*TypeAnnotation{{Name: "string"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("bytesToString", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "string"})
+
+	// Math operations
+	tc.registerFunction("min", []*TypeAnnotation{{Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("max", []*TypeAnnotation{{Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("abs", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("pow", []*TypeAnnotation{{Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("sqrt", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "i64"})
 
 	// Non-deterministic functions are registered but will be rejected
 	tc.registerNonDeterministicFunction("random")

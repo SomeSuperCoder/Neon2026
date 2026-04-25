@@ -23,10 +23,12 @@ Complete documentation for the Proof of History blockchain implementation.
 - **[Inline Assembly Guide](reference/inline-assembly.md)** - Low-level assembly programming
 - **[Bytecode Reference](reference/bytecode-reference.md)** - Bytecode format and opcodes
 - **[Cost Model Guide](reference/cost-model.md)** - Understanding computational costs
+- **[Security Model](reference/security-model.md)** - Security mechanisms and restrictions
 
 ### Implementation
 - **[Implementation Summary](reference/implementation-summary.md)** - Architecture and features
 - **[BFT Fix Summary](reference/bft-fix-summary.md)** - Technical details of BFT fixes
+- **[Parser Infinite Loop Fix](reference/parser-infinite-loop-fix.md)** - Parser error handling improvements
 
 ## Documentation Structure
 
@@ -48,8 +50,10 @@ docs/
     ├── inline-assembly.md             # Assembly programming
     ├── bytecode-reference.md          # Bytecode specification
     ├── cost-model.md                  # Cost model details
+    ├── security-model.md              # Security mechanisms and restrictions
     ├── implementation-summary.md      # Implementation overview
-    └── bft-fix-summary.md             # BFT fixes technical details
+    ├── bft-fix-summary.md             # BFT fixes technical details
+    └── parser-infinite-loop-fix.md    # Parser error handling improvements
 ```
 
 ## Quick Links

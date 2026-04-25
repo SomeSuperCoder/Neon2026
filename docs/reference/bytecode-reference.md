@@ -620,6 +620,8 @@ Get file balance.
 #### UPDATEBALANCE (0x74)
 Update file balance.
 
+**SECURITY: This instruction can only be executed by the system program.** Regular programs attempting to call this will receive a security error.
+
 **Format:** `UPDATEBALANCE`
 
 **Operands:** None
@@ -627,6 +629,11 @@ Update file balance.
 **Stack:** `[file_id, delta] → []`
 
 **Cost:** 80
+
+**Errors:**
+- Security error if called by non-system program
+- Type error if operands are not FileID and i64
+- Runtime error if resulting balance would be negative
 
 ---
 
@@ -854,12 +861,48 @@ QuanticScript uses a stack-based execution model:
 1. Load bytecode
 2. Initialize stack and memory
 3. Set program counter to entry point
-4. While budget > 0:
+4. While budget > 0 and PC < bytecode length:
    a. Fetch instruction at PC
    b. Deduct instruction cost from budget
    c. Execute instruction
    d. Update PC
+   e. Check safety limit (max 1000 steps)
 5. Return result or error
+```
+
+### Safety Limits
+
+The interpreter enforces a safety limit of 1000 execution steps to prevent infinite loops and ensure timely termination. If execution exceeds this limit, an error is returned:
+
+```
+execution exceeded safety limit of 1000 steps
+```
+
+This limit is independent of the compute budget and serves as a hard cap on execution time.
+
+### Debug Logging
+
+The interpreter supports optional debug logging for troubleshooting and development:
+
+```go
+interpreter := NewBytecodeInterpreter(bytecode, ctx, budget)
+interpreter.SetDebugLogger(func(format string, args ...interface{}) {
+    log.Printf(format, args...)
+})
+```
+
+Debug logs include:
+- Execution start/completion
+- Each instruction step with PC, opcode name, and call stack state
+- Error conditions with step number and PC location
+
+Example debug output:
+```
+Execute: Starting execution, bytecode length=256
+Execute: step=1 PC=0 opcode=PUSH callStack=[]
+Execute: step=2 PC=10 opcode=CALL callStack=[]
+Execute: step=3 PC=50 opcode=UPDATEBALANCE callStack=[14]
+Execute: Error at step=3 PC=50: UPDATEBALANCE can only be called by the system program
 ```
 
 ### Error Conditions
@@ -870,6 +913,8 @@ QuanticScript uses a stack-based execution model:
 - **InvalidOpcodeError**: Unknown opcode
 - **InvalidOperandError**: Malformed operand
 - **AccessViolationError**: Unauthorized file access
+- **SafetyLimitError**: Execution exceeded 1000 steps
+- **SecurityError**: Privileged instruction called by unauthorized program
 
 ## Examples
 

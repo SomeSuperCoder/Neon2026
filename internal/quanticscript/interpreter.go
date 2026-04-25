@@ -6,6 +6,9 @@ import (
 	"github.com/poh-blockchain/internal/filestore"
 )
 
+// DebugLogger is a function type for debug logging
+type DebugLogger func(format string, args ...interface{})
+
 // BytecodeInterpreter executes QuanticScript bytecode with cost metering
 // This implements Requirements 2.1, 2.2, 2.3, 2.4, 2.5
 type BytecodeInterpreter struct {
@@ -17,6 +20,7 @@ type BytecodeInterpreter struct {
 	bytecode       []byte           // Program bytecode
 	callStack      []int            // Call stack for function returns
 	invokeDepth    int              // Current cross-program invocation depth
+	debugLog       DebugLogger      // Optional debug logger
 }
 
 // NewBytecodeInterpreter creates a new interpreter instance
@@ -47,13 +51,43 @@ func NewBytecodeInterpreterWithDepth(bytecode []byte, ctx ExecutionContext, comp
 	}
 }
 
+// SetDebugLogger sets a debug logger for the interpreter
+func (bi *BytecodeInterpreter) SetDebugLogger(logger DebugLogger) {
+	bi.debugLog = logger
+}
+
+func (bi *BytecodeInterpreter) log(format string, args ...interface{}) {
+	if bi.debugLog != nil {
+		bi.debugLog(format, args...)
+	}
+}
+
 // Execute runs the bytecode until completion or error
 func (bi *BytecodeInterpreter) Execute() error {
+	bi.log("Execute: Starting execution, bytecode length=%d", len(bi.bytecode))
+	stepCount := 0
 	for bi.programCounter < len(bi.bytecode) {
-		if err := bi.executeInstruction(); err != nil {
+		stepCount++
+		pc := bi.programCounter
+		opcode := Opcode(bi.bytecode[pc])
+		opName := "UNKNOWN"
+		if name, ok := OpcodeNames[opcode]; ok {
+			opName = name
+		}
+		bi.log("Execute: step=%d PC=%d opcode=%s callStack=%v", stepCount, pc, opName, bi.callStack)
+
+		err := bi.executeInstruction()
+		if err != nil {
+			bi.log("Execute: Error at step=%d PC=%d: %v", stepCount, pc, err)
 			return err
 		}
+
+		if stepCount > 1000 {
+			bi.log("Execute: SAFETY LIMIT - exceeded 1000 steps, breaking")
+			return fmt.Errorf("execution exceeded safety limit of 1000 steps")
+		}
 	}
+	bi.log("Execute: Completed successfully after %d steps", stepCount)
 	return nil
 }
 
@@ -1026,7 +1060,19 @@ func (bi *BytecodeInterpreter) execGetBalance() error {
 }
 
 // execUpdateBalance updates a file's balance
+// SECURITY: Only the system program can call this instruction
 func (bi *BytecodeInterpreter) execUpdateBalance() error {
+	// Check if the calling program is the system program
+	currentProgramID := bi.ctx.GetProgramID()
+
+	// System program ID is all zeros except last byte is 0x01
+	var systemProgramID filestore.FileID
+	systemProgramID[31] = 0x01
+
+	if currentProgramID != systemProgramID {
+		return fmt.Errorf("UPDATEBALANCE can only be called by the system program")
+	}
+
 	// Pop delta from stack
 	deltaValue, err := bi.pop()
 	if err != nil {

@@ -57,6 +57,8 @@ if (balance < 1000) {
 
 Update the balance of a file/account.
 
+**SECURITY: This function can only be called by the system program.** Regular programs must use `invoke` to call the system program's Transfer instruction to move balances between accounts.
+
 ```typescript
 function updateBalance(fileId: i64, delta: i64): void
 ```
@@ -67,16 +69,24 @@ function updateBalance(fileId: i64, delta: i64): void
 
 **Cost:** 80
 
-**Example:**
+**Example (System Program Only):**
 ```typescript
-// Deduct 100 from source
+// This only works inside the system program
 updateBalance(sourceId, -100);
-
-// Add 100 to destination
 updateBalance(destId, 100);
 ```
 
-**Note:** This function will fail if the resulting balance would be negative.
+**For Regular Programs:**
+```typescript
+// Regular programs must invoke the system program to transfer balances
+let systemProgramId: i64 = 0x01;  // System program ID
+let transferData: bytes = encodeTransfer(amount);
+invoke(systemProgramId, transferData, 10000);
+```
+
+**Note:** This function will fail if:
+- Called by a non-system program (security error)
+- The resulting balance would be negative
 
 ---
 

@@ -1,9 +1,9 @@
 // Token Transfer Program
 // Demonstrates blockchain operations, file access, and balance management
 // 
-// NOTE: This example demonstrates the intended standard library API.
-// Some functions (getBalance, updateBalance, etc.) are part of the planned
-// standard library and may not be fully implemented yet.
+// NOTE: Balance transfers must be done by invoking the system program.
+// Only the system program can call updateBalance directly.
+// This example shows the INCORRECT approach for educational purposes.
 
 export function entry(ctx: InstructionContext): i64 {
     // Parse instruction data to get transfer parameters
@@ -34,10 +34,29 @@ export function entry(ctx: InstructionContext): i64 {
     // Get destination balance
     let destBalance: i64 = getBalance(destId);
     
-    // Perform the transfer
-    updateBalance(sourceId, -amount);
-    updateBalance(destId, amount);
+    // CORRECT APPROACH: Invoke the system program to perform the transfer
+    let systemProgramId: i64 = 0x01;  // System program ID
+    
+    // Encode transfer instruction: [instruction_type=1, amount (8 bytes)]
+    let transferData: bytes = encodeTransfer(amount);
+    
+    // Invoke system program with compute budget
+    let result: i64 = invoke(systemProgramId, transferData, 10000);
+    
+    if (result != 0) {
+        return -3;  // Error: transfer failed
+    }
     
     // Return success
     return 0;
+}
+
+// Helper to encode transfer instruction for system program
+function encodeTransfer(amount: i64): bytes {
+    // Simplified - real implementation would properly encode
+    // Format: [instruction_type=1][amount as 8-byte little-endian]
+    let data: bytes = allocateBytes(9);
+    // data[0] = 1;  // Transfer instruction
+    // Encode amount...
+    return data;
 }
