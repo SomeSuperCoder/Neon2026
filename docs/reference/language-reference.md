@@ -30,6 +30,10 @@ QuanticScript is a statically-typed, deterministic programming language designed
 QuanticScript uses TypeScript-like syntax with some restrictions to ensure determinism:
 
 ```typescript
+// Module-level constant declarations
+const MAX_VALUE: i64 = 1000;
+const ERROR_CODE: i64 = -1;
+
 // Variable declaration
 let x: i64 = 42;
 
@@ -117,12 +121,22 @@ counter = 10;
 
 ### Constants
 
-Constants are declared using the `const` keyword (currently treated as immutable variables):
+Constants are declared using the `const` keyword and can be defined at both module level and function level:
 
 ```typescript
+// Module-level constants (top-level declarations)
 const MAX_SUPPLY: i64 = 1000000;
 const PROGRAM_VERSION: i64 = 1;
+const ERROR_INVALID: i64 = -1;
+
+// Function-level constants
+function calculate(): i64 {
+    const LOCAL_MULTIPLIER: i64 = 100;
+    return LOCAL_MULTIPLIER * 2;
+}
 ```
+
+Constants must be initialized at declaration and cannot be reassigned.
 
 ### Scope
 

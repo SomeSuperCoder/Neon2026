@@ -214,6 +214,41 @@ ALICE_ADDR=$(cat data/alice.json | grep address | cut -d'"' -f4)
 ./poh-blockchain query --address $BOB_ADDR
 ```
 
+## Storage Cost Calculator
+
+Calculate the storage cost for any file before deploying it to the blockchain:
+
+```bash
+go run calculate_storage_cost.go <file_path>
+```
+
+**Example:**
+```bash
+go run calculate_storage_cost.go programs/token/token.qsb
+```
+
+**Output:**
+```
+File: programs/token/token.qsb
+Size: 2048 bytes
+Storage Cost: 2000 Neon units
+```
+
+This utility helps you estimate the Neon balance required to store program bytecode or data on-chain. The cost calculation uses an exponential growth formula:
+
+```
+cost = base_cost_per_kb * size_in_kb * (1.1 ^ size_in_mb)
+```
+
+Where:
+- `base_cost_per_kb = 1000` Neon units
+- Size is rounded up to the nearest KB
+
+**Use cases:**
+- Estimate storage costs before deploying smart contracts
+- Calculate required balance for token program deployment
+- Verify storage rent requirements for large data files
+
 ## Data Directory
 
 All blockchain data is stored in the `data/` directory by default:

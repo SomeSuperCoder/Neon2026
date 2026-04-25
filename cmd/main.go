@@ -16,6 +16,7 @@ import (
 	"github.com/poh-blockchain/internal/blockchain"
 	"github.com/poh-blockchain/internal/consensus"
 	"github.com/poh-blockchain/internal/filestore"
+	"github.com/poh-blockchain/internal/genesis"
 	"github.com/poh-blockchain/internal/network"
 	"github.com/poh-blockchain/internal/poh"
 	"github.com/poh-blockchain/internal/processor"
@@ -25,6 +26,7 @@ import (
 	"github.com/poh-blockchain/internal/system"
 	"github.com/poh-blockchain/internal/transaction"
 	"github.com/poh-blockchain/internal/verification"
+	"github.com/poh-blockchain/programs"
 )
 
 func main() {
@@ -778,7 +780,8 @@ func ensureSystemProgram(fs *filestore.FileStore) {
 	}
 }
 
-// initFileStore initializes a file store and ensures system program exists
+// initFileStore initializes a file store, ensures the legacy system program
+// stub exists, and loads the built-in QuanticScript programs at genesis.
 func initFileStore(dbPath string) (*filestore.FileStore, error) {
 	// Ensure the directory exists
 	dir := "."
@@ -793,7 +796,16 @@ func initFileStore(dbPath string) (*filestore.FileStore, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	ensureSystemProgram(fs)
+
+	// Load built-in QuanticScript programs (System_Program and Token_Program).
+	// This is idempotent — already-loaded programs are skipped.
+	log.Println("Loading built-in programs...")
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		log.Printf("Warning: failed to load built-in programs: %v", err)
+	}
+
 	return fs, nil
 }
 

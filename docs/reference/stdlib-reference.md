@@ -237,6 +237,36 @@ let derivedKey: PublicKey = derivePublicKey(seed);
 
 Functions for working with arrays and data structures.
 
+### len
+
+Get the length of a byte array or array.
+
+```typescript
+function len(data: bytes): i64
+```
+
+**Parameters:**
+- `data`: Byte array
+
+**Returns:** Number of bytes
+
+**Cost:** 2
+
+**Example:**
+```typescript
+let data: bytes = [1, 2, 3, 4, 5];
+let length: i64 = len(data);  // 5
+
+let instrData: bytes = getInstructionData();
+if (len(instrData) < 32) {
+    return -1;  // Insufficient data
+}
+```
+
+**Note:** This is the preferred function for getting the length of byte arrays. For typed arrays, use `arrayLength`.
+
+---
+
 ### arrayLength
 
 Get the length of an array.

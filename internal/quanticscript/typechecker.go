@@ -73,6 +73,7 @@ func (tc *TypeChecker) registerBuiltinFunctions() {
 	// Collection operations
 	tc.registerFunction("arrayNew", []*TypeAnnotation{}, &TypeAnnotation{Name: "array"})
 	tc.registerFunction("arrayLength", []*TypeAnnotation{{Name: "array"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("len", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "i64"}) // Alias for getting bytes/array length
 	tc.registerFunction("arrayGet", []*TypeAnnotation{{Name: "array"}, {Name: "i64"}}, &TypeAnnotation{Name: "any"})
 	tc.registerFunction("arraySet", []*TypeAnnotation{{Name: "array"}, {Name: "i64"}, {Name: "any"}}, &TypeAnnotation{Name: "void"})
 	tc.registerFunction("arrayPush", []*TypeAnnotation{{Name: "array"}, {Name: "any"}}, &TypeAnnotation{Name: "void"})
@@ -217,10 +218,12 @@ func (tc *TypeChecker) lookupFunction(name string) *FunctionType {
 
 // CheckProgram type checks the entire program
 func (tc *TypeChecker) CheckProgram(program *Program) {
-	// First pass: declare all functions
+	// First pass: declare all functions and constants
 	for _, decl := range program.Declarations {
 		if fn, ok := decl.(*FunctionDecl); ok {
 			tc.declareFunctionSignature(fn)
+		} else if constDecl, ok := decl.(*ConstDecl); ok {
+			tc.checkConstDecl(constDecl)
 		}
 	}
 
@@ -230,6 +233,27 @@ func (tc *TypeChecker) CheckProgram(program *Program) {
 			tc.checkFunctionDecl(fn)
 		}
 	}
+}
+
+// checkConstDecl checks a constant declaration
+func (tc *TypeChecker) checkConstDecl(constDecl *ConstDecl) {
+	// Check the value expression
+	valueType := tc.checkExpression(constDecl.Value)
+
+	// If type annotation is provided, verify it matches
+	if constDecl.Type != nil && valueType != nil {
+		if valueType.Name != constDecl.Type.Name {
+			tc.addError(constDecl.Location, "const '%s' type mismatch: expected %s, got %s",
+				constDecl.Name, constDecl.Type.Name, valueType.Name)
+		}
+	}
+
+	// Declare the constant in the current scope
+	typeInfo := &TypeInfo{
+		Type:    valueType,
+		IsConst: true,
+	}
+	tc.declareVariable(constDecl.Name, typeInfo)
 }
 
 // declareFunctionSignature declares a function signature

@@ -648,9 +648,91 @@ for (let i: i64 = 0; i < 10; i = i + 1) {
 // Cost depends on implementation
 ```
 
+## Storage Cost Model
+
+In addition to compute costs, the blockchain enforces storage costs for on-chain data. Files require Neon balance proportional to their data size using an exponential growth formula.
+
+### Storage Cost Formula
+
+```
+cost = base_cost_per_kb * size_in_kb * (1.1 ^ size_in_mb)
+```
+
+Where:
+- `base_cost_per_kb = 1000` Neon units
+- Size is rounded up to the nearest KB
+- Exponential factor grows with file size to discourage state bloat
+
+### Storage Cost Calculator
+
+Use the storage cost calculator utility to estimate costs before deployment:
+
+```bash
+go run calculate_storage_cost.go <file_path>
+```
+
+**Example:**
+```bash
+go run calculate_storage_cost.go programs/token/token.qsb
+```
+
+**Output:**
+```
+File: programs/token/token.qsb
+Size: 2048 bytes
+Storage Cost: 2000 Neon units
+```
+
+### Storage Cost Examples
+
+| File Size | Size (KB) | Size (MB) | Multiplier | Cost (Neon) |
+|-----------|-----------|-----------|------------|-------------|
+| 512 bytes | 1 KB | 0.0005 MB | 1.00005 | 1,000 |
+| 1 KB | 1 KB | 0.001 MB | 1.0001 | 1,000 |
+| 10 KB | 10 KB | 0.01 MB | 1.001 | 10,010 |
+| 100 KB | 100 KB | 0.1 MB | 1.01 | 101,000 |
+| 1 MB | 1024 KB | 1 MB | 1.1 | 1,126,400 |
+| 10 MB | 10240 KB | 10 MB | 2.59 | 26,542,080 |
+
+### Storage Rent Enforcement
+
+The FileStore validates storage costs at multiple points:
+
+1. **File Creation**: Balance must cover initial data size
+2. **Balance Decrease**: Remaining balance must still cover data size
+3. **Data Size Increase**: Balance must cover new data size
+
+**Example validation:**
+```typescript
+// Creating a file with 2 KB of data
+let dataSize: i64 = 2048;
+let storageCost: i64 = calculateStorageCost(dataSize);  // ~2000 Neon
+let requiredBalance: i64 = storageCost;
+
+// File creation will fail if balance < requiredBalance
+```
+
+### Optimizing Storage Costs
+
+1. **Minimize data size**: Store only essential data on-chain
+2. **Use efficient serialization**: Compact binary formats over JSON
+3. **Compress data**: Use compression for large data structures
+4. **Off-chain storage**: Store large data off-chain, only hashes on-chain
+5. **Close unused accounts**: Reclaim Neon by closing empty accounts
+
+**Example:**
+```typescript
+// Inefficient: Store full string
+let data: string = "This is a very long description...";  // 100+ bytes
+
+// Efficient: Store hash reference
+let dataHash: bytes = sha256(data);  // 32 bytes
+```
+
 ## Next Steps
 
 - [Language Reference](language-reference.md) - Language syntax
 - [Standard Library Reference](stdlib-reference.md) - Built-in functions
 - [Inline Assembly Guide](inline-assembly.md) - Low-level optimization
+- [CLI Usage Guide](../guides/cli-usage.md) - Storage cost calculator
 - [Examples](../examples/README.md) - Practical examples

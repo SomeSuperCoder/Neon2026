@@ -169,6 +169,95 @@ go test -v ./internal -run TestLedgerPersistenceAndRecovery
 
 ---
 
+## QuanticScript Tests
+
+Run QuanticScript language and bytecode tests:
+
+```bash
+# All QuanticScript tests
+go test -v ./internal/quanticscript
+
+# Specific test categories
+go test -v ./internal/quanticscript -run TestLexer
+go test -v ./internal/quanticscript -run TestParser
+go test -v ./internal/quanticscript -run TestTypeChecker
+go test -v ./internal/quanticscript -run TestCodeGen
+go test -v ./internal/quanticscript -run TestInterpreter
+go test -v ./internal/quanticscript -run TestBytecodeHelpers
+go test -v ./internal/quanticscript -run TestArithmeticOperations
+```
+
+**Test Coverage**:
+1. Lexer tokenization and source location tracking
+2. Parser AST construction and error handling
+3. Type checker inference and validation
+4. Code generator bytecode emission
+5. Interpreter bytecode execution
+6. Bytecode helper functions for test construction
+7. Arithmetic operations: ADD, SUB, MUL, DIV, MOD for i64 and u64 (`arithmetic_test.go`)
+8. Comparison operations: EQ, LT, GT, LTE, GTE for numbers; logical AND, OR, NOT; operator precedence (`comparison_test.go`)
+9. Blockchain state operations: GETFILE, UPDATEFILE, GETBALANCE, GETSIGNER, HASSIGNER, GETINSTRDATA (`comprehensive_test.go`)
+10. Cross-program invocation: basic invocation, depth tracking, permission enforcement, compute budget deduction (`cross_program_test.go`)
+11. String operations: STRCONCAT with non-empty strings, empty first/second string, and two empty strings (`comprehensive_test.go`)
+12. Cryptographic hashing: SHA256 with known input ("hello"), deterministic output verification, and empty input (`comprehensive_test.go`)
+13. Function calls: basic CALL/RET with return address handling, and multi-value stack verification after call returns (`comprehensive_test.go`)
+
+### Bytecode Test Helpers
+
+The `comprehensive_test.go` file provides helper functions for building bytecode in tests:
+
+- `buildPushI64(value)` - Create PUSH instruction for i64
+- `buildPushU64(value)` - Create PUSH instruction for u64
+- `buildPushBool(value)` - Create PUSH instruction for bool
+- `buildPushString(value)` - Create PUSH instruction for string
+- `buildPushBytes(value)` - Create PUSH instruction for bytes
+- `buildJump(offset)` - Create JMP instruction with offset
+- `buildJumpIf(offset)` - Create JMPIF instruction with offset
+- `buildLoad(offset)` - Create LOAD instruction for memory access
+- `buildStore(offset)` - Create STORE instruction for memory access
+- `buildCall(offset)` - Create CALL instruction for function calls
+
+These helpers simplify bytecode construction for comprehensive interpreter tests covering control flow, data structures, arithmetic, blockchain state, cross-program invocation, string operations, cryptographic operations, and function calls.
+
+### Cross-Program Invocation Tests (`cross_program_test.go`)
+
+`InvokableMockContext` extends `MockExecutionContext` with full CPI support:
+
+- `RegisterProgram(id, handler)` - registers a mock program and declares it as invocable
+- `InvokeProgram(id, data, budget, depth)` - dispatches to registered handler, records history
+- `GetDeclaredPrograms()` - returns the list of declared program IDs
+- `GetInvocationHistory()` - returns all recorded `InvocationRecord` entries
+
+Test functions:
+- `TestCrossProgramBasicInvocation` - result passing, data forwarding, invocation history recording
+- `TestCrossProgramDepthTracking` - depth increments, nested calls, `MaxInvokeDepth` enforcement
+- `TestCrossProgramPermissions` - undeclared program rejection, budget deduction, insufficient budget error, error propagation
+
+### Bytecode Verification Tests (`bytecode_verification_test.go`)
+
+Verifies the compiled bytecode for both builtin programs against requirements 3.3, 3.4, 3.5.
+
+```bash
+go test -v ./internal/quanticscript -run TestBytecodeVerification
+go test -v ./internal/quanticscript -run TestComputeBudget
+go test -v ./internal/quanticscript -run TestDeterminism
+go test -v ./internal/quanticscript -run TestPerformance
+```
+
+Test functions:
+- `TestBytecodeVerification_SystemProgram` - validates header magic/version, disassembly contains CALL/RET/cost annotations
+- `TestBytecodeVerification_TokenProgram` - same structural checks for Token_Program
+- `TestBytecodeVerification_TokenLargerThanSystem` - asserts Token_Program bytecode is >= System_Program (more handlers)
+- `TestBytecodeVerification_DisassemblyRoundTrip` - disassembles then re-assembles both programs and compares byte-for-byte
+- `TestBytecodeVerification_InstructionCosts` - asserts every instruction line in the disassembly has a `cost:` annotation
+- `TestComputeBudget_SystemProgram` - executes System_Program and verifies non-zero, bounded budget consumption (<10,000 units)
+- `TestComputeBudget_TokenProgram` - executes Token_Program and verifies non-zero budget consumption
+- `TestDeterminism_SystemProgram` - runs System_Program 10 times and asserts identical budget and stack state each run
+- `TestDeterminism_TokenProgram` - same determinism check for Token_Program
+- `TestPerformance_ProgramExecution` - runs each program 100 times and asserts average execution under 1ms
+
+---
+
 ## Verification Commands
 
 ### Check Chain Heights

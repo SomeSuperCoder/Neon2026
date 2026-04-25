@@ -9,6 +9,7 @@ type Node interface {
 // Visitor pattern for AST traversal
 type Visitor interface {
 	VisitProgram(*Program) interface{}
+	VisitConstDecl(*ConstDecl) interface{}
 	VisitFunctionDecl(*FunctionDecl) interface{}
 	VisitParameter(*Parameter) interface{}
 	VisitBlockStmt(*BlockStmt) interface{}
@@ -52,6 +53,17 @@ type ImportDecl struct {
 }
 
 func (i *ImportDecl) Loc() SourceLocation { return i.Location }
+
+// ConstDecl represents a constant declaration
+type ConstDecl struct {
+	Location SourceLocation
+	Name     string
+	Type     *TypeAnnotation
+	Value    Expression
+}
+
+func (c *ConstDecl) Loc() SourceLocation          { return c.Location }
+func (c *ConstDecl) Accept(v Visitor) interface{} { return v.VisitConstDecl(c) }
 
 // FunctionDecl represents a function declaration
 type FunctionDecl struct {

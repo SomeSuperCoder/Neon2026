@@ -137,6 +137,21 @@ go run cmd/main.go help
 
 See [docs/guides/cli-usage.md](docs/guides/cli-usage.md) for detailed CLI documentation.
 
+### Storage Cost Calculator
+
+Calculate the storage cost for any file before deploying it to the blockchain:
+
+```bash
+go run calculate_storage_cost.go <file_path>
+```
+
+**Example:**
+```bash
+go run calculate_storage_cost.go programs/token/token.qsb
+```
+
+This utility helps estimate the Neon balance required to store program bytecode or data on-chain using the exponential storage cost formula. See [docs/reference/cost-model.md](docs/reference/cost-model.md) for details on storage costs.
+
 ### Quick Demo with tmux
 
 The easiest way to see the blockchain in action is to use the demo script, which starts a leader and multiple replicas in tmux panes:
@@ -546,6 +561,9 @@ go test -cover ./...
 
 # Run only integration tests
 go test -v ./internal -run Integration
+
+# Run QuanticScript tests
+go test -v ./internal/quanticscript
 ```
 
 ### Integration Tests
@@ -569,6 +587,27 @@ Three main integration tests are included in `internal/integration_test.go`:
    - Creates blockchain, closes database, then reopens
    - Verifies all blocks are correctly recovered
    - Validates chain integrity after recovery
+
+### QuanticScript Tests
+
+The QuanticScript language implementation includes comprehensive unit tests in `internal/quanticscript/`:
+
+- **Lexer Tests** (`lexer_test.go`) - Tokenization and source location tracking
+- **Parser Tests** (`parser_test.go`) - AST construction and error handling
+- **Type Checker Tests** (`typechecker_test.go`) - Type inference and validation
+- **Code Generator Tests** (`codegen_test.go`) - Bytecode emission and optimization
+- **Interpreter Tests** (`interpreter_test.go`) - Bytecode execution and stack operations
+- **Assembler Tests** (`assembler_test.go`) - Assembly to bytecode conversion
+- **Disassembler Tests** (`disassembler_test.go`) - Bytecode to assembly conversion
+- **Standard Library Tests** (`stdlib_test.go`) - Built-in functions and modules
+- **Comprehensive Tests** (`comprehensive_test.go`) - End-to-end language features
+
+The comprehensive test file includes bytecode helper functions for building test cases:
+- `buildPushI64`, `buildPushU64`, `buildPushBool` - Push value instructions
+- `buildPushString`, `buildPushBytes` - Push complex types
+- `buildJump`, `buildJumpIf` - Control flow instructions
+
+These helpers simplify testing of control flow, data structures, arithmetic operations, blockchain state access, cross-program invocation, string operations, cryptographic functions, and function calls.
 
 ### File-Based State Integration Tests
 

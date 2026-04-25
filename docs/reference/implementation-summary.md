@@ -6,7 +6,26 @@ A complete Proof of History (PoH) blockchain implementation with comprehensive B
 
 ## Core Features
 
-### 1. PoH Blockchain Implementation
+### 1. Genesis Program Loader (`internal/genesis`)
+
+The genesis package bootstraps the blockchain's built-in programs on first startup.
+
+- **`LoadBuiltinPrograms(fs *filestore.FileStore) error`** — idempotent loader called once before the first transaction is processed. Embeds compiled bytecode for both programs directly in the binary via `//go:embed`.
+- **System_Program** — loaded at well-known FileID `0x00...01`
+- **Token_Program** — loaded at well-known FileID `0x00...02`
+- **Runtime** — reserved FileID `0x00...00` (used as `TxManager` for genesis files)
+- Each program file has `Executable: true` and a balance covering its storage rent plus a 1000-unit buffer.
+- If a program file already exists the loader skips it, making it safe to call on every restart.
+
+#### Well-known Program IDs
+
+| Name | FileID |
+|------|--------|
+| Runtime | `0x0000...0000` |
+| System_Program | `0x0000...0001` |
+| Token_Program | `0x0000...0002` |
+
+### 2. PoH Blockchain Implementation
 - **PoH Clock**: Sequential SHA-256 hashing for verifiable time
 - **Block Producer**: Creates blocks with minimum 64 ticks (800,000 hashes)
 - **Network Layer**: TCP-based P2P communication

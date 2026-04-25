@@ -381,6 +381,16 @@ func (bi *BytecodeInterpreter) execPush() error {
 			value = NewBytes(data)
 		}
 
+	case TypeFileID, TypePublicKey, TypeTxID:
+		// Fixed 32-byte values
+		if bi.programCounter+32 > len(bi.bytecode) {
+			return fmt.Errorf("unexpected end of bytecode reading 32-byte value")
+		}
+		data := make([]byte, 32)
+		copy(data, bi.bytecode[bi.programCounter:bi.programCounter+32])
+		bi.programCounter += 32
+		value = Value{Type: valueType, Data: data}
+
 	default:
 		return fmt.Errorf("unsupported value type for PUSH: %v", valueType)
 	}
@@ -461,6 +471,26 @@ func (bi *BytecodeInterpreter) execStore() error {
 // GetComputeBudget returns the remaining compute budget
 func (bi *BytecodeInterpreter) GetComputeBudget() int64 {
 	return bi.computeBudget
+}
+
+// valueToFileID extracts a FileID from a Value of TypeFileID
+func valueToFileID(v Value) (filestore.FileID, error) {
+	data, ok := v.Data.([]byte)
+	if !ok {
+		return filestore.FileID{}, fmt.Errorf("invalid FileID data type")
+	}
+	return filestore.FileIDFromBytes(data)
+}
+
+// valueToPublicKey extracts a [32]byte public key from a Value of TypePublicKey
+func valueToPublicKey(v Value) ([32]byte, error) {
+	data, ok := v.Data.([]byte)
+	if !ok {
+		return [32]byte{}, fmt.Errorf("invalid PublicKey data type")
+	}
+	var key [32]byte
+	copy(key[:], data)
+	return key, nil
 }
 
 // Arithmetic operations
@@ -940,8 +970,7 @@ func (bi *BytecodeInterpreter) execGetFile() error {
 		return fmt.Errorf("GETFILE requires FileID, got %v", fileIDValue.Type)
 	}
 
-	fileIDBytes, _ := fileIDValue.AsBytes()
-	fileID, err := filestore.FileIDFromBytes(fileIDBytes)
+	fileID, err := valueToFileID(fileIDValue)
 	if err != nil {
 		return fmt.Errorf("invalid FileID: %w", err)
 	}
@@ -968,8 +997,7 @@ func (bi *BytecodeInterpreter) execGetFileMut() error {
 		return fmt.Errorf("GETFILEMUT requires FileID, got %v", fileIDValue.Type)
 	}
 
-	fileIDBytes, _ := fileIDValue.AsBytes()
-	fileID, err := filestore.FileIDFromBytes(fileIDBytes)
+	fileID, err := valueToFileID(fileIDValue)
 	if err != nil {
 		return fmt.Errorf("invalid FileID: %w", err)
 	}
@@ -1006,8 +1034,7 @@ func (bi *BytecodeInterpreter) execUpdateFile() error {
 		return fmt.Errorf("UPDATEFILE requires FileID, got %v", fileIDValue.Type)
 	}
 
-	fileIDBytes, _ := fileIDValue.AsBytes()
-	fileID, err := filestore.FileIDFromBytes(fileIDBytes)
+	fileID, err := valueToFileID(fileIDValue)
 	if err != nil {
 		return fmt.Errorf("invalid FileID: %w", err)
 	}
@@ -1042,7 +1069,10 @@ func (bi *BytecodeInterpreter) execGetBalance() error {
 	// Accept both FileID and i64 types for the file ID parameter
 	var fileID filestore.FileID
 	if fileIDValue.Type == TypeFileID {
-		fileIDBytes, _ := fileIDValue.AsBytes()
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID data")
+		}
 		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
 		if err != nil {
 			return fmt.Errorf("invalid FileID: %w", err)
@@ -1106,7 +1136,10 @@ func (bi *BytecodeInterpreter) execUpdateBalance() error {
 	// Accept both FileID and i64 types for the file ID parameter
 	var fileID filestore.FileID
 	if fileIDValue.Type == TypeFileID {
-		fileIDBytes, _ := fileIDValue.AsBytes()
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID data")
+		}
 		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
 		if err != nil {
 			return fmt.Errorf("invalid FileID: %w", err)
@@ -1182,7 +1215,10 @@ func (bi *BytecodeInterpreter) execHasSigner() error {
 		return fmt.Errorf("HASSIGNER requires PublicKey, got %v", pubkeyValue.Type)
 	}
 
-	pubkeyBytes, _ := pubkeyValue.AsBytes()
+	pubkeyBytes, ok := pubkeyValue.Data.([]byte)
+	if !ok {
+		return fmt.Errorf("invalid PublicKey data")
+	}
 
 	// Convert to transaction.PublicKey
 	var pubkey [32]byte
@@ -1272,7 +1308,7 @@ func (bi *BytecodeInterpreter) execVerifySig() error {
 		return fmt.Errorf("VERIFYSIG requires PublicKey, got %v", pubkeyValue.Type)
 	}
 
-	pubkeyBytes, _ := pubkeyValue.AsBytes()
+	pubkeyBytes, _ := pubkeyValue.Data.([]byte)
 	msgBytes, _ := msgValue.AsBytes()
 	sigBytes, _ := sigValue.AsBytes()
 
@@ -1454,8 +1490,7 @@ func (bi *BytecodeInterpreter) execInvoke() error {
 		return fmt.Errorf("INVOKE requires FileID for program ID, got %v", programIDValue.Type)
 	}
 
-	programIDBytes, _ := programIDValue.AsBytes()
-	programID, err := filestore.FileIDFromBytes(programIDBytes)
+	programID, err := valueToFileID(programIDValue)
 	if err != nil {
 		return fmt.Errorf("invalid program ID: %w", err)
 	}

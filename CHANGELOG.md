@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Safety limit of 1000 execution steps to prevent infinite loops (2026-04-25)
 - Parser infinite loop fix documentation in `docs/reference/parser-infinite-loop-fix.md` (2026-04-25)
 - Support for i64 file identifiers in `UPDATEBALANCE` instruction (2026-04-25)
+- `len()` builtin function for getting byte array length in QuanticScript (2026-04-25)
 
 ### Changed
 - `execUpdateBalance()` now validates caller is system program before execution

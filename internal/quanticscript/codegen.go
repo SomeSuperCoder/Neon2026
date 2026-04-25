@@ -9,8 +9,9 @@ import (
 type CodeGenerator struct {
 	bytecode       []byte
 	errors         []error
-	functions      map[string]int // function name -> bytecode offset
-	localVars      map[string]int // variable name -> local memory offset
+	functions      map[string]int   // function name -> bytecode offset
+	constants      map[string]int64 // constant name -> value (for i64 constants)
+	localVars      map[string]int   // variable name -> local memory offset
 	nextLocalSlot  int
 	breakLabels    []int        // stack of break target offsets (for loops)
 	continueLabels []int        // stack of continue target offsets (for loops)
@@ -30,6 +31,7 @@ func NewCodeGenerator() *CodeGenerator {
 		bytecode:  make([]byte, 0),
 		errors:    make([]error, 0),
 		functions: make(map[string]int),
+		constants: make(map[string]int64),
 		localVars: make(map[string]int),
 		patchList: make([]patchEntry, 0),
 	}
@@ -37,6 +39,13 @@ func NewCodeGenerator() *CodeGenerator {
 
 // Generate generates bytecode from a program AST
 func (cg *CodeGenerator) Generate(program *Program) ([]byte, error) {
+	// First pass: process constant declarations
+	for _, decl := range program.Declarations {
+		if constDecl, ok := decl.(*ConstDecl); ok {
+			cg.processConstDecl(constDecl)
+		}
+	}
+
 	// Find the entry function
 	var entryFunc *FunctionDecl
 	for _, decl := range program.Declarations {
@@ -55,7 +64,7 @@ func (cg *CodeGenerator) Generate(program *Program) ([]byte, error) {
 	// Generate entry wrapper at offset 0
 	cg.generateEntryWrapper(entryFunc)
 
-	// First pass: collect function offsets
+	// Second pass: collect function offsets
 	for _, decl := range program.Declarations {
 		if fn, ok := decl.(*FunctionDecl); ok {
 			cg.functions[fn.Name] = len(cg.bytecode)
@@ -63,7 +72,7 @@ func (cg *CodeGenerator) Generate(program *Program) ([]byte, error) {
 		}
 	}
 
-	// Second pass: patch function calls
+	// Third pass: patch function calls
 	if err := cg.patchReferences(); err != nil {
 		return nil, err
 	}
@@ -73,6 +82,25 @@ func (cg *CodeGenerator) Generate(program *Program) ([]byte, error) {
 	}
 
 	return cg.bytecode, nil
+}
+
+// processConstDecl processes a constant declaration
+func (cg *CodeGenerator) processConstDecl(constDecl *ConstDecl) {
+	// For now, only support integer constants
+	if intLit, ok := constDecl.Value.(*IntLiteral); ok {
+		val, err := strconv.ParseInt(intLit.Value, 0, 64)
+		if err != nil {
+			cg.addError(constDecl.Location, "invalid integer constant: %v", err)
+			return
+		}
+		cg.constants[constDecl.Name] = val
+	} else if _, ok := constDecl.Value.(*ArrayExpr); ok {
+		// For array constants (like SYSTEM_PROGRAM_ID), we'll handle them specially
+		// Store a marker value to indicate it's an array constant
+		cg.constants[constDecl.Name] = -1 // Special marker for array constants
+	} else {
+		cg.addError(constDecl.Location, "only integer and array constants are supported")
+	}
 }
 
 // Errors returns the list of code generation errors
@@ -736,6 +764,16 @@ func (cg *CodeGenerator) generateCallExpr(expr *CallExpr) {
 
 // generateIdentExpr generates bytecode for an identifier
 func (cg *CodeGenerator) generateIdentExpr(expr *IdentExpr) {
+	// Check if it's a constant first
+	if val, ok := cg.constants[expr.Name]; ok {
+		// Push constant value
+		cg.emitOpcode(OpPush)
+		cg.emit(byte(TypeI64))
+		cg.emitI64(val)
+		return
+	}
+
+	// Check if it's a local variable
 	slot, ok := cg.localVars[expr.Name]
 	if !ok {
 		cg.addError(expr.Location, "undefined variable '%s'", expr.Name)
@@ -871,6 +909,7 @@ func (cg *CodeGenerator) isBuiltinFunction(name string) bool {
 		// Collection operations
 		"arrayNew":    true,
 		"arrayLength": true,
+		"len":         true, // Alias for arrayLength
 		"arrayGet":    true,
 		"arraySet":    true,
 		"arrayPush":   true,
@@ -955,7 +994,7 @@ func (cg *CodeGenerator) emitBuiltinCall(name string, loc SourceLocation) {
 	// Collection operations
 	case "arrayNew":
 		cg.emitOpcode(OpArrayNew)
-	case "arrayLength":
+	case "arrayLength", "len":
 		cg.emitOpcode(OpArrayLen)
 	case "arrayGet":
 		cg.emitOpcode(OpArrayGet)

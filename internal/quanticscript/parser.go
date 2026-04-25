@@ -129,12 +129,51 @@ func (p *Parser) parseDeclaration() Node {
 	}
 
 	switch p.current.Type {
+	case TOKEN_CONST:
+		return p.parseConstDecl()
 	case TOKEN_FUNCTION:
 		return p.parseFunctionDecl(isExport)
 	default:
 		p.addError("unexpected token %s at top level", p.current.Type)
 		return nil
 	}
+}
+
+// parseConstDecl parses a const declaration
+func (p *Parser) parseConstDecl() *ConstDecl {
+	loc := p.current.Location
+	p.nextToken() // consume 'const'
+
+	if p.current.Type != TOKEN_IDENT {
+		p.addError("expected constant name")
+		return nil
+	}
+
+	constDecl := &ConstDecl{
+		Location: loc,
+		Name:     p.current.Literal,
+	}
+	p.nextToken()
+
+	// Parse type annotation
+	if p.current.Type == TOKEN_COLON {
+		p.nextToken()
+		constDecl.Type = p.parseTypeAnnotation()
+	}
+
+	// Parse initializer
+	if p.current.Type == TOKEN_ASSIGN {
+		p.nextToken()
+		constDecl.Value = p.parseExpression()
+	} else {
+		p.addError("const declaration must have an initializer")
+		return nil
+	}
+
+	// Expect semicolon
+	p.expect(TOKEN_SEMICOLON)
+
+	return constDecl
 }
 
 // parseFunctionDecl parses a function declaration
