@@ -394,3 +394,49 @@ func (bi *BytecodeInterpreter) execBytesToI64LE() error {
 
 	return bi.push(NewI64(val))
 }
+
+// SetRegistry sets the instruction dispatch registry for this interpreter.
+// Programs that use the DISPATCH opcode must have a registry set.
+func (bi *BytecodeInterpreter) SetRegistry(registry map[int]InstructionDef) {
+	bi.registry = registry
+}
+
+// execDispatch implements the DISPATCH opcode.
+// Stack in:  [instrData (bytes)]
+// Stack out: [handler (string), arg0, arg1, ..., argN]  (args in schema order, handler on top)
+// On error:  returns a Go error (no state modification).
+func (bi *BytecodeInterpreter) execDispatch() error {
+	instrDataValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+	if instrDataValue.Type != TypeBytes {
+		return fmt.Errorf("DISPATCH requires bytes on stack, got %v", instrDataValue.Type)
+	}
+	data, _ := instrDataValue.AsBytes()
+
+	if bi.registry == nil {
+		return fmt.Errorf("DISPATCH: no instruction registry set for this program")
+	}
+
+	def, args, err := Dispatch(data, bi.registry)
+	if err != nil {
+		return fmt.Errorf("DISPATCH: %w", err)
+	}
+
+	// Deduct per-arg cost (2 per arg) in addition to the base cost already charged
+	perArgCost := InstructionCost(2 * len(def.Args))
+	if err := bi.deductCost(perArgCost); err != nil {
+		return err
+	}
+
+	// Push args in schema order (first arg deepest, last arg on top before handler)
+	for _, argDef := range def.Args {
+		if err := bi.push(args[argDef.Name]); err != nil {
+			return err
+		}
+	}
+
+	// Push handler name on top so assembly can branch on it
+	return bi.push(NewString(def.Handler))
+}

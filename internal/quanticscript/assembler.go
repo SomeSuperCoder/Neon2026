@@ -185,6 +185,8 @@ func (a *Assembler) parseInstruction(line string, lineNum int) error {
 		return a.parseNoOperands(operands, lineNum)
 	case OpStrConcat, OpStrSubstring, OpStrLen, OpStrToBytes, OpStrFromBytes:
 		return a.parseNoOperands(operands, lineNum)
+	case OpDispatch:
+		return a.parseNoOperands(operands, lineNum)
 	default:
 		return fmt.Errorf("unhandled opcode: %v", opcode)
 	}

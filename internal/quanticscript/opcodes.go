@@ -140,6 +140,11 @@ const (
 	OpBytesToI64LE Opcode = 0xE0 // Decode TypeBytes (8 bytes) as little-endian i64
 )
 
+// Dispatch Operations
+const (
+	OpDispatch Opcode = 0xF0 // DISPATCH: pop raw instruction bytes, look up registry, push parsed args + handler name
+)
+
 // OpcodeNames maps opcodes to their human-readable names
 var OpcodeNames = map[Opcode]string{
 	// Stack Operations
@@ -248,4 +253,7 @@ var OpcodeNames = map[Opcode]string{
 
 	// Conversion Operations
 	OpBytesToI64LE: "BYTESTOI64LE",
+
+	// Dispatch Operations
+	OpDispatch: "DISPATCH",
 }

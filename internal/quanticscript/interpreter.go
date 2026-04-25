@@ -12,15 +12,16 @@ type DebugLogger func(format string, args ...interface{})
 // BytecodeInterpreter executes QuanticScript bytecode with cost metering
 // This implements Requirements 2.1, 2.2, 2.3, 2.4, 2.5
 type BytecodeInterpreter struct {
-	stack          []Value          // Execution stack for operands
-	memory         []Value          // Local memory for variables
-	programCounter int              // Current instruction pointer
-	computeBudget  int64            // Remaining compute units
-	ctx            ExecutionContext // Execution context for blockchain operations
-	bytecode       []byte           // Program bytecode
-	callStack      []int            // Call stack for function returns
-	invokeDepth    int              // Current cross-program invocation depth
-	debugLog       DebugLogger      // Optional debug logger
+	stack          []Value                // Execution stack for operands
+	memory         []Value                // Local memory for variables
+	programCounter int                    // Current instruction pointer
+	computeBudget  int64                  // Remaining compute units
+	ctx            ExecutionContext       // Execution context for blockchain operations
+	bytecode       []byte                 // Program bytecode
+	callStack      []int                  // Call stack for function returns
+	invokeDepth    int                    // Current cross-program invocation depth
+	debugLog       DebugLogger            // Optional debug logger
+	registry       map[int]InstructionDef // Instruction dispatch registry (nil = no dispatch)
 }
 
 // NewBytecodeInterpreter creates a new interpreter instance
@@ -265,6 +266,10 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 	// Conversion operations
 	case OpBytesToI64LE:
 		return bi.execBytesToI64LE()
+
+	// Dispatch operations
+	case OpDispatch:
+		return bi.execDispatch()
 
 	default:
 		return fmt.Errorf("unknown opcode: 0x%02x", opcode)

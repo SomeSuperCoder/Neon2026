@@ -108,6 +108,9 @@ var CostTable = map[Opcode]InstructionCost{
 	OpMathMax: 2,
 	OpMathAbs: 2,
 	OpMathPow: 10, // Higher cost due to potential computation
+
+	// Dispatch Operations (base 10 + 2 per arg, charged at runtime)
+	OpDispatch: 10,
 }
 
 // GetInstructionCost returns the computational cost for a given opcode

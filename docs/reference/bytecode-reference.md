@@ -728,6 +728,80 @@ Derive public key from seed.
 
 **Cost:** 80
 
+### Instruction Dispatch
+
+#### DISPATCH (0xF0)
+
+Decode raw instruction bytes using the program's registered `InstructionDef` registry, then push all parsed args onto the stack.
+
+**Format:** `DISPATCH`
+
+**Operands:** None
+
+**Stack:** `[raw_bytes] → [arg0, arg1, ..., argN, handler_name]`
+
+**Cost:** 10 + (2 × number of args)
+
+**Behavior:**
+1. Pops raw instruction bytes from the stack
+2. Reads `bytes[0]` as the instruction type code
+3. Looks up the matching `InstructionDef` in the program's registry
+4. Validates that `len(bytes)` covers all arg offsets defined in the schema
+5. Parses each arg (i64 LE, u64 LE, bytes slice, bool) and pushes them in schema order
+6. Pushes the handler label name as a string on top
+
+**Errors:**
+- Returns `ERROR_INVALID_INSTRUCTION` if the type code has no registered `InstructionDef`
+- Returns `ERROR_INVALID_INSTRUCTION` if instruction data is shorter than required by the arg schema
+- No state is modified on error
+
+**Example:**
+```assembly
+entry:
+    GETINSTRDATA        ; push raw bytes
+    DISPATCH            ; decode → push (owner, balance, "handle_create_account")
+    JMPTABLE            ; branch to handler label from stack
+
+handle_create_account:
+    ; stack: [owner: bytes, balance: i64]
+    HASSIGNER
+    JMPIF auth_ok
+    PUSH i64 0x1004     ; ERROR_UNAUTHORIZED_SIGNER
+    RET
+auth_ok:
+    CREATEFILE
+    PUSH i64 0
+    RET
+```
+
+**Registered Registries:**
+
+System_Program (`SystemProgramRegistry`):
+
+| Code | Name | Args |
+|------|------|------|
+| 0 | CREATE_ACCOUNT | owner(bytes@1,32), balance(i64@33) |
+| 1 | TRANSFER | from(bytes@1,32), to(bytes@33,32), amount(i64@65) |
+| 2 | ALLOCATE_SPACE | account(bytes@1,32), extra_balance(i64@33) |
+
+Token_Program (`TokenProgramRegistry`):
+
+| Code | Name | Args |
+|------|------|------|
+| 0 | INITIALIZE_MINT | decimals(u8@1), has_mint_auth(bool@2), mint_auth(bytes@3,32), has_freeze_auth(bool@35), freeze_auth(bytes@36,32) |
+| 1 | INITIALIZE_ACCOUNT | mint(bytes@1,32), owner(bytes@33,32) |
+| 2 | TRANSFER | from(bytes@1,32), to(bytes@33,32), amount(u64@65) |
+| 3 | MINT_TO | mint(bytes@1,32), dest(bytes@33,32), amount(u64@65) |
+| 4 | BURN | account(bytes@1,32), amount(u64@33) |
+| 5 | CLOSE_ACCOUNT | account(bytes@1,32), dest(bytes@33,32) |
+| 6 | FREEZE_ACCOUNT | account(bytes@1,32) |
+| 7 | THAW_ACCOUNT | account(bytes@1,32) |
+| 8 | APPROVE | account(bytes@1,32), delegate(bytes@33,32), amount(u64@65) |
+| 9 | REVOKE | account(bytes@1,32) |
+| 10 | CREATE_ASSOCIATED_TOKEN_ACCOUNT | owner(bytes@1,32), mint(bytes@33,32) |
+
+---
+
 ### Cross-Program Invocation
 
 #### INVOKE (0x90)
@@ -845,6 +919,7 @@ Query finalized instruction.
 | 0xA0 | QUERYBLOCK | Query | 100 |
 | 0xA1 | QUERYTX | Query | 80 |
 | 0xA2 | QUERYINSTR | Query | 80 |
+| 0xF0 | DISPATCH | Instruction Dispatch | 10 + 2×args |
 
 ## Execution Model
 
