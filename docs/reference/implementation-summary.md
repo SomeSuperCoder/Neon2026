@@ -2,22 +2,18 @@
 
 ## What Was Built
 
-A complete Proof of History (PoH) blockchain implementation with comprehensive Byzantine Fault Tolerance (BFT) testing capabilities.
+A complete Proof of History (PoH) blockchain implementation with QuanticScript smart contract language, Byzantine Fault Tolerance testing, and a file-based state model.
 
 ## Core Features
 
 ### 1. Genesis Program Loader (`internal/genesis`)
 
-The genesis package bootstraps the blockchain's built-in programs on first startup.
+Bootstraps the blockchain's built-in programs on first startup.
 
-- **`LoadBuiltinPrograms(fs *filestore.FileStore) error`** — idempotent loader called once before the first transaction is processed. Embeds compiled bytecode for both programs directly in the binary via `//go:embed`.
-- **System_Program** — loaded at well-known FileID `0x00...01`
-- **Token_Program** — loaded at well-known FileID `0x00...02`
-- **Runtime** — reserved FileID `0x00...00` (used as `TxManager` for genesis files)
-- Each program file has `Executable: true` and a balance covering its storage rent plus a 1000-unit buffer.
-- If a program file already exists the loader skips it, making it safe to call on every restart.
-
-#### Well-known Program IDs
+- `LoadBuiltinPrograms(fs, systemBytecode, tokenBytecode)` — idempotent, called before first transaction
+- System_Program loaded at FileID `0x00...01`
+- Token_Program loaded at FileID `0x00...02`
+- Runtime reserved at FileID `0x00...00`
 
 | Name | FileID |
 |------|--------|
@@ -25,72 +21,57 @@ The genesis package bootstraps the blockchain's built-in programs on first start
 | System_Program | `0x0000...0001` |
 | Token_Program | `0x0000...0002` |
 
-### 2. PoH Blockchain Implementation
-- **PoH Clock**: Sequential SHA-256 hashing for verifiable time
-- **Block Producer**: Creates blocks with minimum 64 ticks (800,000 hashes)
-- **Network Layer**: TCP-based P2P communication
-- **Consensus Manager**: Leader-based consensus with 400ms slots
-- **Ledger Storage**: SQLite-based persistent storage
-- **Verification Engine**: Complete chain integrity verification
+### 2. PoH Blockchain
 
-### 2. Malicious Node Capability
-- **Leader Malicious Behaviors**:
-  - Corrupt blocks with invalid hash counts (every 3rd block)
-  - Send blocks with wrong previous hash (every 5th block)
-  - Skip local storage of corrupted blocks
-  - Broadcast corrupted blocks to network
+- PoH Clock: sequential SHA-256 hashing for verifiable time
+- Block Producer: minimum 64 ticks (800,000 hashes) per block
+- Network Layer: TCP-based P2P communication
+- Consensus Manager: leader-based, 400ms slots
+- Ledger Storage: SQLite with full CRUD and chain recovery
+- Verification Engine: entry hash chain, block linkage, full chain verification
 
-- **Replica Malicious Behaviors**:
-  - Skip validation entirely (every 4th block)
-  - Ignore consensus failures (every 6th block)
-  - Ignore verification failures (every 6th block)
-  - Ignore linkage failures (every 6th block)
+### 3. File-Based State Model
 
-### 3. Demo Scripts
+Uniform abstraction for accounts, programs, and data (inspired by Solana's account model).
 
-#### Interactive Demos (with tmux)
-- **demo.sh**: Basic blockchain demo with configurable replicas
-- **demo-bft.sh**: BFT testing with honest and malicious nodes
-- **stop-demo.sh**: Stop any running demo
+- BadgerDB persistence with storage cost enforcement
+- AccessController for permission validation
+- Transaction Processor with atomic execution and rollback
+- ExecutionContext providing programs access to FileStore, signers, and instruction data
 
-#### Automated Testing (no tmux)
-- **demo-automated.sh**: Single test scenario with clear log prefixes
-- **test-launcher.sh**: Comprehensive test suite (8 scenarios)
-- **analyze-results.sh**: Results analysis tool
+### 4. QuanticScript Language
 
-### 4. Documentation
-- **docs/guides/quickstart.md**: 30-second introduction
-- **docs/guides/demo.md**: Complete tmux demo guide
-- **docs/testing/bft-testing.md**: In-depth BFT theory and testing
-- **docs/testing/automated-testing.md**: Automated testing guide for AI agents
-- **docs/testing/testing-summary.md**: Comprehensive reference
-- **README.md**: Updated with all features
+TypeScript-like smart contract language compiling to stack-based bytecode.
 
-## Key Capabilities
+Pipeline: `.qs` → Lexer → Parser → TypeChecker → CodeGen → `.qsb`
 
-### BFT Testing
-- Test networks with different honest/malicious ratios
-- Automatic BFT calculation (Honest > 2×Malicious)
-- Observe network behavior with and without BFT
-- Verify that honest nodes reject invalid blocks
-- Demonstrate consensus preservation
+- Full compiler pipeline (lexer, parser, type checker, code generator)
+- Bytecode interpreter with cost metering and safety limits
+- Assembler and disassembler
+- Cross-program invocation (INVOKE/INVOKERET, max 4 levels)
+- DISPATCH opcode for instruction routing
+- Standard library: string, math, crypto, blockchain, collections, invoke
+- Privileged opcodes: OpCreateFile, OpCreateFileWithID, OpDeleteFile, OpTransferBalance
+- Byte manipulation: OpSlice, OpBytesLen, OpBytesAppend, OpBytesToFileID, OpBytesToI64LE
 
-### Automated Testing
-- Run tests without manual tmux management
-- Clear log prefixes for easy parsing:
-  - `[LEADER]` - Leader node
-  - `[HONEST-N]` - Honest replicas
-  - `[MALICIOUS-N]` - Malicious replicas
-- Automatic results analysis
-- Markdown report generation
-- Database and log archival
+### 5. Built-in Programs (QuanticScript)
 
-### Test Scenarios
-1. Baseline (all honest)
-2. Strong BFT (4:1, 5:2, 6:2)
-3. Minimal BFT (3:1)
-4. Edge cases (2:1)
-5. No BFT (2:2, 1:2)
+**System_Program** (`programs/system/system.qs`):
+- CreateAccount, Transfer, AllocateSpace
+
+**Token_Program** (`programs/token/token.qs`):
+- InitializeMint, MintTo, InitializeAccount, CreateAssociatedTokenAccount
+- Transfer, Burn, CloseAccount, FreezeAccount, ThawAccount, Approve, Revoke
+
+### 6. Parallel Execution Analyzer (`internal/parallel`)
+
+Conflict detection for transaction scheduling — identifies read/write conflicts to enable safe parallel execution.
+
+### 7. BFT Testing
+
+- Malicious node behaviors (invalid hash counts, wrong previous hashes, skipped validation)
+- Demo scripts: `demo.sh`, `demo-bft.sh`, `demo-automated.sh`, `test-launcher.sh`
+- BFT formula: Honest > 2 × Malicious
 
 ## Usage Examples
 
@@ -98,156 +79,36 @@ The genesis package bootstraps the blockchain's built-in programs on first start
 ```bash
 ./demo.sh 3                    # 3 replicas with tmux
 ./demo-bft.sh 4 1              # 4 honest + 1 malicious
+./demo-automated.sh 3 1 15     # automated, 15 seconds
+./analyze-results.sh
 ```
 
-### Automated Testing
+### Node Operations
 ```bash
-./demo-automated.sh 3 1 15     # Single test, 15 seconds
-./analyze-results.sh           # Analyze results
-./test-launcher.sh 20          # Full suite, 20s per test
+go run cmd/main.go --type=leader --port=8000 --db=leader.db
+go run cmd/main.go --type=replica --port=8001 --peers=localhost:8000 --db=replica.db
 ```
 
-### Manual Node Control
+### QuanticScript Compiler
 ```bash
-# Start honest leader
-./bin/poh-node --type=leader --port=8000 --db=leader.db
-
-# Start honest replica
-./bin/poh-node --type=replica --port=8001 --peers=localhost:8000 --db=replica.db
-
-# Start malicious replica
-./bin/poh-node --type=replica --port=8002 --peers=localhost:8000 --db=malicious.db --malicious
+go run cmd/main.go qsc compile -i program.qs -o program.qsb
+go run cmd/main.go qsc disassemble -i program.qsb -o program.qsa
 ```
-
-## Test Results
-
-### With BFT (4 honest + 1 malicious)
-- ✓ Honest nodes maintain identical state
-- ✓ Invalid blocks rejected
-- ✓ Network consensus preserved
-- ✓ Malicious node isolated
-
-### Without BFT (2 honest + 2 malicious)
-- ✗ Honest nodes may diverge
-- ✗ Invalid blocks may be accepted
-- ✗ Network consensus compromised
-- ✗ Demonstrates need for BFT threshold
-
-## Technical Details
-
-### Block Production
-- Rate: ~2.5 blocks/second (400ms slots)
-- Size: Minimum 64 ticks per block
-- Hashes: 800,000 minimum per block
-- Validation: PoH sequence, Merkle root, linkage
-- Slot Tolerance: 100 slots (~40 seconds) for clock skew and network delays
-
-### Network
-- Protocol: TCP with length-prefixed messages
-- Serialization: JSON
-- Topology: Star (all replicas connect to leader)
-- Latency: <10ms on localhost
-
-### Storage
-- Database: SQLite
-- Tables: blocks, entries, transactions
-- Indexes: block_height, block_hash, slot
-- Persistence: Survives restarts
-
-## Files Created
-
-### Scripts
-- demo.sh
-- demo-bft.sh
-- demo-automated.sh
-- test-launcher.sh
-- analyze-results.sh
-- stop-demo.sh
-
-### Documentation
-- docs/guides/quickstart.md
-- docs/guides/demo.md
-- docs/testing/bft-testing.md
-- docs/testing/automated-testing.md
-- docs/testing/testing-summary.md
-- docs/reference/implementation-summary.md (this file)
-
-### Code
-- cmd/main.go (updated with --malicious flag)
-- internal/integration_test.go (3 integration tests)
 
 ## Integration Tests
 
-Three comprehensive integration tests:
+- `internal/integration_test.go` — block production, leader-replica communication, ledger persistence
+- `internal/e2e_transaction_test.go` — account lifecycle, multi-instruction atomicity, fee payment
+- `internal/access_control_integration_test.go` — permission enforcement, violation handling
+- `internal/builtin_programs_integration_test.go` — System_Program and Token_Program execution
+- `internal/state_integration_test.go` — file state transitions
+- `internal/storage_cost_integration_test.go` — storage rent enforcement
+- `internal/quanticscript/*_test.go` — comprehensive language tests
 
-1. **TestFullNodeBlockProductionAndVerification**
-   - Full node initialization
-   - Multiple block production
-   - Chain verification
+## Technical Details
 
-2. **TestLeaderReplicaCommunication**
-   - P2P communication
-   - Block broadcasting
-   - Replica validation
-
-3. **TestLedgerPersistenceAndRecovery**
-   - Database persistence
-   - Restart recovery
-   - Chain integrity after recovery
-
-All tests pass successfully.
-
-## BFT Theory Validation
-
-The implementation validates the Byzantine Generals Problem solution:
-
-**Formula**: `Honest > 2 × Malicious`
-
-**Proven through testing**:
-- 4 honest + 1 malicious = BFT ✓
-- 3 honest + 1 malicious = BFT ✓
-- 2 honest + 1 malicious = NO BFT ✗
-- 2 honest + 2 malicious = NO BFT ✗
-
-## Performance
-
-### Resource Usage
-- Memory: ~10-20MB per node
-- CPU: Moderate (PoH hashing)
-- Disk: Minimal (SQLite writes)
-- Network: Low (localhost TCP)
-
-### Scalability
-- Tested: Up to 9 replicas
-- Recommended: 5-7 nodes for demos
-- Production: Would need optimization
-
-## Future Enhancements
-
-Potential improvements:
-1. Leader election and rotation
-2. Slashing for malicious behavior
-3. Reputation system
-4. Network partition simulation
-5. Timing attacks
-6. Sybil attack simulation
-7. Eclipse attack simulation
-8. Consensus voting mechanism
-
-## Conclusion
-
-This implementation provides:
-- ✓ Complete PoH blockchain
-- ✓ Byzantine Fault Tolerance testing
-- ✓ Multiple demo modes (tmux and automated)
-- ✓ Comprehensive documentation
-- ✓ Integration tests
-- ✓ AI-friendly automated testing
-- ✓ Detailed analysis tools
-
-Perfect for:
-- Learning about PoH and BFT
-- Testing distributed systems
-- Demonstrating consensus algorithms
-- Educational purposes
-- Research and experimentation
+- Block rate: ~2.5 blocks/second (400ms slots)
+- Slot tolerance: 100 slots (~40 seconds) for clock skew
+- Network: TCP, JSON serialization, star topology
+- Storage: SQLite (ledger) + BadgerDB (file state)
+- Crypto: Ed25519 signatures, SHA-256 PoH and hashing

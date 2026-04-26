@@ -9,10 +9,10 @@ func_0:
     PUSH        i64 0 ; cost: 1
     GETBALANCE   ; cost: 30
     STORE       0 ; cost: 3
-    PUSH        i64 0 ; cost: 1
+    LOAD        0 ; cost: 3
     PUSH        i64 100 ; cost: 1
-    UPDATEBALANCE ; cost: 80
-    PUSH        i64 0 ; cost: 1
-    GETBALANCE   ; cost: 30
+    ADD          ; cost: 2
+    STORE       1 ; cost: 3
+    LOAD        1 ; cost: 3
     RET          ; cost: 2
     RET          ; cost: 2

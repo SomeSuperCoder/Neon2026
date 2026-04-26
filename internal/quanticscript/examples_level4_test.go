@@ -90,12 +90,12 @@ func TestLevel4FileOps(t *testing.T) {
 		t.Fatalf("Expected 1 value on stack, got %d", len(interpreter.stack))
 	}
 
-	result, err := interpreter.stack[0].AsU64()
+	result, err := interpreter.stack[0].AsI64()
 	if err != nil {
 		t.Fatalf("Failed to get result: %v", err)
 	}
 
-	expectedLen := uint64(len(testData))
+	expectedLen := int64(len(testData))
 	if result != expectedLen {
 		t.Errorf("Expected result %d, got %d", expectedLen, result)
 	}
@@ -131,7 +131,7 @@ func TestLevel4CryptoOps(t *testing.T) {
 		t.Fatalf("Expected 1 value on stack, got %d", len(interpreter.stack))
 	}
 
-	result, err := interpreter.stack[0].AsU64()
+	result, err := interpreter.stack[0].AsI64()
 	if err != nil {
 		t.Fatalf("Failed to get result: %v", err)
 	}

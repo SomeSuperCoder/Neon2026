@@ -1655,7 +1655,7 @@ func TestDataStructuresNested(t *testing.T) {
 			t.Fatalf("Expected 1 value on stack, got %d", len(interp.stack))
 		}
 
-		length, err := interp.stack[0].AsU64()
+		length, err := interp.stack[0].AsI64()
 		if err != nil {
 			t.Fatalf("Failed to get length: %v", err)
 		}
@@ -1906,51 +1906,43 @@ func TestDataStructuresNested(t *testing.T) {
 	})
 }
 
-// TestDataStructuresPassToFunction tests passing arrays and maps to functions
+// TestDataStructuresPassToFunction tests passing arrays and maps to functions via stack
 func TestDataStructuresPassToFunction(t *testing.T) {
 	t.Run("pass array to function", func(t *testing.T) {
-		// Create function that adds element to array
-		// Main: create array, pass to function, verify result
+		// Pattern: caller pushes array on stack, function pops it, modifies, pushes result back
 		var bytecode []byte
 
-		// Main program: create array with 2 elements
+		// Main program: create array with 2 elements, leave on stack
 		bytecode = append(bytecode, byte(OpArrayNew))
 		bytecode = append(bytecode, buildPushI64(10)...)
 		bytecode = append(bytecode, byte(OpArrayPush))
 		bytecode = append(bytecode, buildPushI64(20)...)
 		bytecode = append(bytecode, byte(OpArrayPush))
+		// Stack: [array]
 
-		// Store array in memory[0] (function will access it)
-		bytecode = append(bytecode, buildStore(0)...)
-
-		// Call function
+		// Call function (array is on stack, function will use it)
 		callPos := len(bytecode) + 1
 		bytecode = append(bytecode, buildCall(0)...) // Placeholder
 
-		// After function returns, result array is in memory[0]
-		// Get array length
-		bytecode = append(bytecode, buildLoad(0)...)
+		// After function returns, result array is on stack
 		bytecode = append(bytecode, byte(OpArrayLen))
 
 		// End main
 		bytecode = append(bytecode, byte(OpRet))
 
-		// Function: add element 30 to array
+		// Function: pop array, add element 30, push result
 		functionStart := len(bytecode)
 
-		// Load array from memory[0]
-		bytecode = append(bytecode, buildLoad(0)...)
-
-		// Push new element
-		bytecode = append(bytecode, buildPushI64(30)...)
-
-		// Push to array
-		bytecode = append(bytecode, byte(OpArrayPush))
-
-		// Store modified array back to memory[0]
+		// Store array from stack into mem[0]
 		bytecode = append(bytecode, buildStore(0)...)
 
-		// Return
+		// Load array, push new element, push to array
+		bytecode = append(bytecode, buildLoad(0)...)
+		bytecode = append(bytecode, buildPushI64(30)...)
+		bytecode = append(bytecode, byte(OpArrayPush))
+		// Stack: [modified_array]
+
+		// Return (modified array stays on stack)
 		bytecode = append(bytecode, byte(OpRet))
 
 		// Fix CALL offset
@@ -1969,7 +1961,7 @@ func TestDataStructuresPassToFunction(t *testing.T) {
 		}
 
 		// Verify array length is now 3
-		length, err := interp.stack[0].AsU64()
+		length, err := interp.stack[0].AsI64()
 		if err != nil {
 			t.Fatalf("Failed to get length: %v", err)
 		}
@@ -1980,37 +1972,35 @@ func TestDataStructuresPassToFunction(t *testing.T) {
 	})
 
 	t.Run("pass map to function", func(t *testing.T) {
-		// Create function that modifies map
+		// Pattern: caller pushes map on stack, function modifies and returns it
 		var bytecode []byte
 
-		// Main program: create map
+		// Main program: create map {"count": 5}, leave on stack
 		bytecode = append(bytecode, byte(OpMapNew))
 		bytecode = append(bytecode, buildPushString("count")...)
 		bytecode = append(bytecode, buildPushI64(5)...)
 		bytecode = append(bytecode, byte(OpMapSet))
-
-		// Store map in memory[0]
-		bytecode = append(bytecode, buildStore(0)...)
+		// Stack: [map]
 
 		// Call function
 		callPos := len(bytecode) + 1
 		bytecode = append(bytecode, buildCall(0)...) // Placeholder
 
-		// After function returns, get "count" value
-		bytecode = append(bytecode, buildLoad(0)...)
+		// After function returns, get "count" value from returned map
 		bytecode = append(bytecode, buildPushString("count")...)
 		bytecode = append(bytecode, byte(OpMapGet))
 
 		// End main
 		bytecode = append(bytecode, byte(OpRet))
 
-		// Function: increment "count" by 10
+		// Function: pop map, increment "count" by 10, push result
 		functionStart := len(bytecode)
 
-		// Load map
-		bytecode = append(bytecode, buildLoad(0)...)
+		// Store map in mem[0]
+		bytecode = append(bytecode, buildStore(0)...)
 
 		// Get current count
+		bytecode = append(bytecode, buildLoad(0)...)
 		bytecode = append(bytecode, buildPushString("count")...)
 		bytecode = append(bytecode, byte(OpMapGet))
 
@@ -2018,19 +2008,15 @@ func TestDataStructuresPassToFunction(t *testing.T) {
 		bytecode = append(bytecode, buildPushI64(10)...)
 		bytecode = append(bytecode, byte(OpAdd))
 
-		// Store result temporarily
+		// Store new count in mem[1]
 		bytecode = append(bytecode, buildStore(1)...)
 
-		// Load map again
+		// Load map, set new count, push result
 		bytecode = append(bytecode, buildLoad(0)...)
-
-		// Set new count value
 		bytecode = append(bytecode, buildPushString("count")...)
 		bytecode = append(bytecode, buildLoad(1)...)
 		bytecode = append(bytecode, byte(OpMapSet))
-
-		// Store modified map back
-		bytecode = append(bytecode, buildStore(0)...)
+		// Stack: [modified_map]
 
 		// Return
 		bytecode = append(bytecode, byte(OpRet))
@@ -2062,44 +2048,40 @@ func TestDataStructuresPassToFunction(t *testing.T) {
 	})
 
 	t.Run("verify reference semantics", func(t *testing.T) {
-		// Pass array to function, modify it, verify changes persist
+		// Pass array to function via stack, function modifies and returns it
 		var bytecode []byte
 
-		// Main: create array [1, 2, 3]
+		// Main: create array [1, 2, 3], leave on stack
 		bytecode = append(bytecode, byte(OpArrayNew))
 		for i := int64(1); i <= 3; i++ {
 			bytecode = append(bytecode, buildPushI64(i)...)
 			bytecode = append(bytecode, byte(OpArrayPush))
 		}
-
-		// Store in memory[0]
-		bytecode = append(bytecode, buildStore(0)...)
+		// Stack: [array]
 
 		// Call function that modifies array
 		callPos := len(bytecode) + 1
 		bytecode = append(bytecode, buildCall(0)...) // Placeholder
 
-		// After function, get element at index 1 (should be modified)
-		bytecode = append(bytecode, buildLoad(0)...)
+		// After function, get element at index 1 from returned array
 		bytecode = append(bytecode, buildPushU64(1)...)
 		bytecode = append(bytecode, byte(OpArrayGet))
 
 		// End main
 		bytecode = append(bytecode, byte(OpRet))
 
-		// Function: modify array[1] to 999
+		// Function: pop array, set array[1] = 999, push result
 		functionStart := len(bytecode)
 
-		// Load array
-		bytecode = append(bytecode, buildLoad(0)...)
+		// Store array in mem[0]
+		bytecode = append(bytecode, buildStore(0)...)
 
-		// Set array[1] = 999
+		// Load array, set array[1] = 999
+		bytecode = append(bytecode, buildLoad(0)...)
 		bytecode = append(bytecode, buildPushU64(1)...)
 		bytecode = append(bytecode, buildPushI64(999)...)
 		bytecode = append(bytecode, byte(OpArraySet))
-
-		// Store modified array back
-		bytecode = append(bytecode, buildStore(0)...)
+		// Stack: [modified_array]
 
 		// Return
 		bytecode = append(bytecode, byte(OpRet))
@@ -2131,10 +2113,10 @@ func TestDataStructuresPassToFunction(t *testing.T) {
 	})
 
 	t.Run("pass nested structure to function", func(t *testing.T) {
-		// Pass array of maps to function, modify nested value
+		// Pass array of maps to function via stack, function modifies nested value
 		var bytecode []byte
 
-		// Main: create array with one map
+		// Main: create array with one map {"x": 10}, leave on stack
 		bytecode = append(bytecode, byte(OpArrayNew))
 
 		// Create map {"x": 10}
@@ -2145,16 +2127,13 @@ func TestDataStructuresPassToFunction(t *testing.T) {
 
 		// Push map to array
 		bytecode = append(bytecode, byte(OpArrayPush))
-
-		// Store in memory[0]
-		bytecode = append(bytecode, buildStore(0)...)
+		// Stack: [array]
 
 		// Call function
 		callPos := len(bytecode) + 1
 		bytecode = append(bytecode, buildCall(0)...) // Placeholder
 
-		// After function, access array[0]["x"]
-		bytecode = append(bytecode, buildLoad(0)...)
+		// After function, access returned_array[0]["x"]
 		bytecode = append(bytecode, buildPushU64(0)...)
 		bytecode = append(bytecode, byte(OpArrayGet))
 		bytecode = append(bytecode, buildPushString("x")...)
@@ -2163,13 +2142,14 @@ func TestDataStructuresPassToFunction(t *testing.T) {
 		// End main
 		bytecode = append(bytecode, byte(OpRet))
 
-		// Function: modify array[0]["x"] to 50
+		// Function: pop array, modify array[0]["x"] to 50, push result
 		functionStart := len(bytecode)
 
-		// Load array
-		bytecode = append(bytecode, buildLoad(0)...)
+		// Store array in mem[0]
+		bytecode = append(bytecode, buildStore(0)...)
 
 		// Get map at index 0
+		bytecode = append(bytecode, buildLoad(0)...)
 		bytecode = append(bytecode, buildPushU64(0)...)
 		bytecode = append(bytecode, byte(OpArrayGet))
 
@@ -2178,19 +2158,15 @@ func TestDataStructuresPassToFunction(t *testing.T) {
 		bytecode = append(bytecode, buildPushI64(50)...)
 		bytecode = append(bytecode, byte(OpMapSet))
 
-		// Store modified map temporarily
+		// Store modified map in mem[1]
 		bytecode = append(bytecode, buildStore(1)...)
 
-		// Load array
+		// Load array, set array[0] to modified map
 		bytecode = append(bytecode, buildLoad(0)...)
-
-		// Set array[0] to modified map
 		bytecode = append(bytecode, buildPushU64(0)...)
 		bytecode = append(bytecode, buildLoad(1)...)
 		bytecode = append(bytecode, byte(OpArraySet))
-
-		// Store modified array back
-		bytecode = append(bytecode, buildStore(0)...)
+		// Stack: [modified_array]
 
 		// Return
 		bytecode = append(bytecode, byte(OpRet))
@@ -3627,37 +3603,21 @@ func TestFunctionBasicCall(t *testing.T) {
 // TestFunctionRecursion tests recursive function calls, depth tracking, and overflow protection
 func TestFunctionRecursion(t *testing.T) {
 	t.Run("factorial(5) = 120", func(t *testing.T) {
-		// Implements:
-		//   func factorial(n) {
-		//     if n <= 1 { return 1 }
-		//     return n * factorial(n-1)
-		//   }
-		//   result = factorial(5)  // 120
-		//
-		// Bytecode layout:
-		//   [main]  STORE n=5 -> mem[0], CALL factorial, RET
-		//   [fact]  LOAD mem[0], PUSH 1, LTE, NOT, JMPIF base_case
-		//           LOAD mem[0], PUSH 1, SUB, STORE mem[0]
-		//           CALL fact (recursive)
-		//           LOAD mem[0], PUSH 1, ADD, STORE mem[0]  <- restore n
-		//           MUL
-		//           RET
-		//   [base]  PUSH 1, RET
-		//
-		// NOTE: Because memory is shared (single interpreter), we use the stack
-		// to save/restore n across recursive calls.
-		//
-		// Simpler approach: pass n via stack, function reads from stack top.
-		// factorial(n):
-		//   n is in mem[0] when called
-		//   if n <= 1: return 1
-		//   save n, set mem[0] = n-1, call factorial, restore n, multiply
+		// Implements factorial via stack-based argument passing:
+		//   func factorial(n):  // n is on stack when called
+		//     pop n -> mem[0]
+		//     if n <= 1: push 1, return
+		//     push n (save for multiply)
+		//     push n-1
+		//     call factorial
+		//     mul (n * factorial(n-1))
+		//     return
+		//   main: push 5, call factorial, ret
 
 		var bytecode []byte
 
-		// Main: set n=5, call factorial
+		// Main: push n=5, call factorial
 		bytecode = append(bytecode, buildPushI64(5)...)
-		bytecode = append(bytecode, buildStore(0)...)
 
 		mainCallPos := len(bytecode) + 1
 		bytecode = append(bytecode, buildCall(0)...) // placeholder
@@ -3666,17 +3626,18 @@ func TestFunctionRecursion(t *testing.T) {
 		// factorial function starts here
 		factStart := len(bytecode)
 
-		// Load n from mem[0]
+		// Pop n from stack into mem[0]
+		bytecode = append(bytecode, buildStore(0)...)
+
+		// Load n, push 1, n <= 1?
 		bytecode = append(bytecode, buildLoad(0)...)
-		// Push 1 for comparison
 		bytecode = append(bytecode, buildPushI64(1)...)
-		// n <= 1?
 		bytecode = append(bytecode, byte(OpLte))
 		// NOT: if NOT(n<=1), skip base case
 		bytecode = append(bytecode, byte(OpNot))
 
 		skipBasePos := len(bytecode)
-		bytecode = append(bytecode, buildJumpIf(0)...) // placeholder -> skip to recursive case
+		bytecode = append(bytecode, buildJumpIf(0)...) // placeholder -> recursive case
 
 		// Base case: push 1, return
 		bytecode = append(bytecode, buildPushI64(1)...)
@@ -3685,15 +3646,15 @@ func TestFunctionRecursion(t *testing.T) {
 		// Recursive case starts here
 		recursiveStart := len(bytecode)
 
-		// Save n onto stack (for multiply after recursive call)
+		// Save n on stack for multiply after recursive call
 		bytecode = append(bytecode, buildLoad(0)...)
-		// Compute n-1, store in mem[0] for recursive call
+
+		// Push n-1 for recursive call argument
 		bytecode = append(bytecode, buildLoad(0)...)
 		bytecode = append(bytecode, buildPushI64(1)...)
 		bytecode = append(bytecode, byte(OpSub))
-		bytecode = append(bytecode, buildStore(0)...)
 
-		// Recursive call
+		// Recursive call (n-1 is on stack as argument)
 		recCallPos := len(bytecode) + 1
 		bytecode = append(bytecode, buildCall(0)...) // placeholder -> factStart
 

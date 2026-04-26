@@ -187,6 +187,24 @@ func (a *Assembler) parseInstruction(line string, lineNum int) error {
 		return a.parseNoOperands(operands, lineNum)
 	case OpDispatch:
 		return a.parseNoOperands(operands, lineNum)
+	// Collection Operations
+	case OpArrayNew, OpArrayLen, OpArrayGet, OpArraySet, OpArrayPush, OpArrayPop:
+		return a.parseNoOperands(operands, lineNum)
+	case OpArrayMap, OpArrayFilter, OpArrayReduce, OpArraySort:
+		return a.parseNoOperands(operands, lineNum)
+	case OpMapNew, OpMapGet, OpMapSet, OpMapHas, OpMapDel:
+		return a.parseNoOperands(operands, lineNum)
+	case OpSetNew, OpSetAdd, OpSetHas, OpSetDel:
+		return a.parseNoOperands(operands, lineNum)
+	// Math Operations
+	case OpMathMin, OpMathMax, OpMathAbs, OpMathPow:
+		return a.parseNoOperands(operands, lineNum)
+	// Conversion Operations
+	case OpSlice, OpBytesToFileID:
+		return a.parseNoOperands(operands, lineNum)
+	// Transfer operation
+	case OpTransfer:
+		return a.parseNoOperands(operands, lineNum)
 	default:
 		return fmt.Errorf("unhandled opcode: %v", opcode)
 	}

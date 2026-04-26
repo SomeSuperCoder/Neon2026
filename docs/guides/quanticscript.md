@@ -154,7 +154,8 @@ QuanticScript supports:
 - **Boolean**: `bool`
 - **Bytes**: `bytes`
 - **String**: `string`
-- **Arrays**: `T[]`
+- **FileID**: `FileID` (32-byte file identifier)
+- **PublicKey**: `PublicKey` (32-byte Ed25519 public key)
 
 ### Basic Syntax
 
@@ -206,13 +207,27 @@ export function optimized(x: i64): i64 {
 ### Blockchain Operations
 
 ```typescript
-// Get and update balances
-let balance: i64 = getBalance(accountId);
-updateBalance(accountId, amount);
+// Get a file from the FileStore
+let file = getFile(fileID);
 
-// Access instruction data
+// Update file data
+updateFile(fileID, newData);
+
+// Check if a public key signed the transaction
+let authorized: bool = hasSigner(pubkey);
+
+// Get instruction data
 let data: bytes = getInstructionData();
-let programId: i64 = getProgramId();
+
+// Hash data with SHA-256
+let hash: bytes = sha256(data);
+
+// Create and delete files (system program only)
+let newFileID: bytes = createFile(data, balance, txManager);
+deleteFile(fileID);
+
+// Transfer balance between files (system program only)
+transferBalance(fromFileID, toFileID, amount);
 ```
 
 ## Key Features

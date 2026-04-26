@@ -37,7 +37,7 @@ This project implements a verifiable delay function using sequential SHA-256 has
 
 ## Requirements
 
-- Go 1.21 or higher
+- Go 1.23.0 or higher
 - tmux (for demo scripts)
 - SQLite3
 
@@ -60,27 +60,33 @@ go mod download
 ├── internal/
 │   ├── poh/               # PoH clock generator
 │   ├── blockchain/        # Core blockchain data structures and serialization
-│   │   ├── types.go       # Transaction, Entry, Block, BlockHeader definitions with versioning
-│   │   ├── serialization.go # JSON marshaling with hex encoding
-│   │   └── block_producer.go # Block production and transaction integration
 │   ├── network/           # P2P networking layer
-│   │   └── network_node.go # TCP-based node communication
 │   ├── consensus/         # Consensus protocol
-│   │   └── consensus_manager.go # Leader selection, slot timing, block validation
-│   ├── storage/           # Ledger persistence
-│   │   └── ledger.go      # SQLite-based blockchain storage with CRUD operations
-│   ├── verification/      # Chain verification
-│   │   └── verifier.go    # Entry, block, and full chain integrity verification
-│   ├── filestore/         # File-based state model
-│   │   ├── filestore.go   # File data structures, storage cost calculation
-│   │   └── filestore_test.go # Comprehensive unit tests
-│   ├── quanticscript/     # QuanticScript language (in development)
-│   │   ├── types.go       # Core type system and runtime values
-│   │   ├── opcodes.go     # Bytecode instruction opcodes
-│   │   ├── costs.go       # Instruction cost table
-│   │   └── bytecode.go    # Bytecode format specification
-│   ├── runtime/           # Program execution runtime
-│   └── system/            # System program for account management
+│   ├── storage/           # SQLite ledger persistence
+│   ├── verification/      # Chain integrity verification
+│   ├── filestore/         # File-based state model (BadgerDB)
+│   ├── transaction/       # Transaction and instruction types
+│   ├── access/            # Access control and permission validation
+│   ├── processor/         # Atomic transaction processing with rollback
+│   ├── runtime/           # Program execution runtime and builtin registry
+│   ├── system/            # Go-side system program
+│   ├── genesis/           # Genesis bootstrap (loads builtin programs)
+│   ├── parallel/          # Parallel execution conflict analysis
+│   └── quanticscript/     # QuanticScript language implementation
+│       ├── lexer.go        # Tokenization with source locations
+│       ├── parser.go       # AST construction
+│       ├── typechecker.go  # Type inference and validation
+│       ├── codegen.go      # AST to bytecode compilation
+│       ├── interpreter.go  # Bytecode execution
+│       ├── assembler.go    # Assembly to bytecode
+│       ├── disassembler.go # Bytecode to assembly
+│       ├── stdlib.go       # Standard library functions
+│       └── stdlib_programs.go # Builtin program helpers
+├── programs/               # Smart contract programs
+│   ├── system/             # System_Program (.qs, .qsa, .qsb)
+│   └── token/              # Token_Program (.qs, .qsa, .qsb)
+├── examples/               # Example QuanticScript programs
+├── docs/                   # Documentation
 ├── go.mod
 └── README.md
 ```
@@ -313,35 +319,41 @@ Press `Ctrl+C` or send `SIGINT`/`SIGTERM` to gracefully shutdown the node. The n
 
 ## Development Status
 
-This project is currently under active development. See `.kiro/specs/poh-blockchain/tasks.md` for the PoH blockchain implementation roadmap.
+This project is under active development. See `.kiro/specs/` for feature specifications and roadmaps.
 
-### QuanticScript Language (In Development)
+### In Development
 
-QuanticScript is a developer-friendly programming language designed specifically for blockchain smart contract execution. It combines TypeScript-like syntax with functional programming principles, deterministic execution guarantees, and a rich standard library.
+- **Delegated Proof of Stake (DPoS)** — validator registration, stake delegation, epoch scheduling, reward distribution, and slashing (see `.kiro/specs/delegated-proof-of-stake/`)
 
-**Key Features:**
-- TypeScript-like syntax with type annotations
-- Compiles to cost-metered bytecode
-- Inline assembly support for performance optimization
-- Cross-program invocation for composable applications
-- 100% deterministic execution in an unescapable sandbox
-- Rich standard library with crypto, blockchain, and query modules
-- Privilege-based security model with system program restrictions
+### Completed
 
-**Current Status:**
-- ✅ Core type system and value types (i8-i64, u8-u64, bool, bytes, string, FileID, PublicKey, TxID)
-- ✅ Bytecode instruction opcodes and cost table defined
-- ✅ Bytecode format specification with header and versioning
-- ✅ Bytecode interpreter with full instruction set support
-- ✅ Cross-program invocation with depth tracking and budget management (INVOKE/INVOKERET instructions)
-- ✅ Assembler for converting assembly text to bytecode
-- ✅ Disassembler for converting bytecode to assembly text
-- ✅ Lexer for tokenizing TypeScript-like syntax with source location tracking
-- ✅ Parser for building Abstract Syntax Trees (AST) from source code
-- ✅ AST node types for all language constructs
-- ✅ Type checker with type inference, validation, and determinism checks
-- ✅ Code generator for compiling AST to bytecode with inline assembly support
-- 📋 Standard library modules - planned
+- [x] Project initialization and Go module setup
+- [x] PoH Clock Generator
+- [x] Core blockchain data structures (Transaction, Entry, Block, BlockHeader with versioning)
+- [x] JSON serialization with hex encoding
+- [x] Block Producer with Merkle root calculation
+- [x] Network Layer — TCP P2P with block broadcasting
+- [x] Consensus Manager — leader-based, 400ms slots
+- [x] Ledger Storage — SQLite with full CRUD and chain recovery
+- [x] Verification Engine — entry hash chain, block linkage, full chain verification
+- [x] Main application and CLI — node flags, leader/replica logic, graceful shutdown
+- [x] Integration tests — block production, leader-replica communication, ledger persistence
+- [x] File-based state model — BadgerDB persistence, storage cost with exponential growth
+- [x] Transaction and Instruction structures — serialization, signature verification, fee calculation
+- [x] Access Control System — permission validation, access logging, concurrent safety
+- [x] Blockchain integration — StateRoot in BlockHeader, FileTransactions in Entry
+- [x] Transaction Processor — atomic execution with automatic rollback
+- [x] System Program (Go-side) — CreateAccount, Transfer, CloseAccount, AllocateData
+- [x] Runtime System — builtin program registry with compute limits
+- [x] Genesis Loader — idempotent bootstrap of System_Program and Token_Program at startup
+- [x] Parallel Execution Analyzer — conflict detection for transaction scheduling
+- [x] QuanticScript Lexer, Parser, Type Checker, Code Generator
+- [x] QuanticScript Interpreter with full instruction set and cost metering
+- [x] QuanticScript Assembler and Disassembler
+- [x] QuanticScript Standard Library (string, math, crypto, blockchain, collections, invoke)
+- [x] DISPATCH opcode and instruction registry for smart contract routing
+- [x] System_Program and Token_Program written in QuanticScript
+- [x] Cross-Program Invocation — INVOKE/INVOKERET with depth tracking (max 4 levels)
 
 **Token System:**
 
@@ -476,72 +488,7 @@ body, err := quanticscript.AssembleToBody(assemblySource)
 assembly, err := quanticscript.Disassemble(bytecode)
 ```
 
-See `.kiro/specs/quanticscript-language/` for detailed specifications:
-- `requirements.md`: Language requirements and acceptance criteria
-- `design.md`: Architecture and compilation pipeline
-- `tasks.md`: Implementation roadmap
-
-### File-Based State Model (Production Ready)
-
-The file-based state model enables smart contract functionality and account management. This architecture treats all on-chain state (user accounts, programs, data) as uniform file objects, inspired by Unix's "everything is a file" philosophy and Solana's account model.
-
-**Key Features:**
-- Uniform file abstraction for accounts, programs, and data
-- Explicit transaction access patterns for future parallel execution
-- Storage cost mechanics with exponential growth
-- Built-in System Program for account management
-- Runtime system for program execution with builtin registry
-- Access control with read/write permission validation
-- CLI tools for account creation, transfers, and queries
-
-**Completed Components:**
-- ✅ File data structures with BadgerDB persistence
-- ✅ Storage cost calculation and validation
-- ✅ Transaction and Instruction types with serialization
-- ✅ Fee calculation system
-- ✅ AccessController for permission validation and access logging
-- ✅ ExecutionContext for program execution with file access API
-- ✅ Runtime system with builtin program registry and validation
-- ✅ System Program with account management operations (CreateAccount, Transfer, CloseAccount, AllocateData)
-- ✅ Transaction Processor with atomic execution and automatic rollback
-- ✅ CLI commands for account management and transaction operations
-- ✅ End-to-end integration tests (12 tests covering transaction flow, access control, and storage cost enforcement)
-
-See `.kiro/specs/file-based-state/` for detailed specifications:
-- `requirements.md`: Functional requirements
-- `design.md`: Architecture and component design
-- `tasks.md`: Implementation progress
-- `IMPLEMENTATION-STATUS.md`: Current status and test coverage
-
-### Completed
-
-- [x] Project initialization and Go module setup
-- [x] PoH Clock Generator - Full implementation with thread-safe operations
-- [x] Core blockchain data structures - Transaction, Entry, Block, and BlockHeader types with version support for backwards compatibility
-- [x] JSON serialization - Custom marshaling/unmarshaling with hex encoding for byte slices
-- [x] Block Producer - Transaction integration, entry production, and block generation with Merkle root calculation
-- [x] Network Layer - P2P communication with TCP, block broadcasting/receiving, message framing
-- [x] Consensus Manager - Leader-based consensus with slot timing, block validation, and 400ms slot duration
-- [x] Ledger Storage - SQLite-based persistent storage with full CRUD operations and blockchain state recovery
-- [x] Verification Engine - Complete chain integrity verification with entry hash chain validation, block verification, block linkage checking, and full chain verification from genesis
-
-### Completed (Continued)
-
-- [x] Main application and CLI - Full node initialization with command-line flags, leader/replica logic, graceful shutdown handling
-- [x] Integration tests - Complete end-to-end testing including full node block production, leader-replica communication, and ledger persistence/recovery
-- [x] File-based state model foundation - File data structures, storage cost calculation with exponential growth, BadgerDB persistence
-- [x] Transaction and Instruction structures - Complete implementation with JSON serialization, signature verification, and fee calculation
-- [x] Access Control System - Full AccessController implementation with permission validation, access logging, and concurrent safety
-- [x] Blockchain integration - StateRoot field added to BlockHeader for file state verification, Entry structure supports FileTransactions
-- [x] Transaction Processor - Complete implementation with atomic execution, automatic rollback, and fee management
-- [x] System Program - Built-in program for account management (CreateAccount, Transfer, CloseAccount, AllocateData)
-- [x] Runtime System - Builtin program registry with execution validation and compute limits
-- [x] End-to-End Integration Tests - 8 comprehensive tests covering transaction flow and access control validation
-- [x] QuanticScript Lexer - Complete tokenization with source location tracking and TypeScript-like syntax support
-- [x] QuanticScript Parser - Full AST construction with expression parsing, control flow, and inline assembly support
-- [x] QuanticScript Type Checker - Type inference, validation, determinism checks, and assembly type safety
-- [x] QuanticScript Code Generator - AST to bytecode compilation with inline assembly, control flow, and two-pass reference resolution
-- [x] QuanticScript Cross-Program Invocation - INVOKE/INVOKERET instructions with depth tracking (max 4 levels), budget management, and program validation
+See `.kiro/specs/` for detailed specifications on each subsystem.
 
 ## Testing
 

@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parser infinite loop fix documentation in `docs/reference/parser-infinite-loop-fix.md` (2026-04-25)
 - Support for i64 file identifiers in `UPDATEBALANCE` instruction (2026-04-25)
 - `len()` builtin function for getting byte array length in QuanticScript (2026-04-25)
+- Genesis loader (`internal/genesis`) — idempotent bootstrap of System_Program and Token_Program at node startup
+- Parallel execution analyzer (`internal/parallel`) — conflict detection for transaction scheduling
+- QuanticScript standard library complete: string, math, crypto, blockchain, collections, invoke modules
+- `DISPATCH` opcode and instruction registry for smart contract routing
+- Privileged opcodes: `OpCreateFile`, `OpCreateFileWithID`, `OpDeleteFile`, `OpTransferBalance`
+- `OpSlice`, `OpBytesLen`, `OpBytesAppend`, `OpBytesToFileID` byte manipulation opcodes
+- `OpBytesToI64LE` for little-endian decoding of instruction data
+- System_Program written in QuanticScript (`programs/system/system.qs`)
+- Token_Program written in QuanticScript (`programs/token/token.qs`) with 11 instruction handlers
+- Serialization helpers for MintAccount and TokenAccount in `stdlib_programs.go`
+- Instruction data parsing utilities: `ParseInstructionU8/U64/I64/FileID/PublicKey/Bool`
+- Delegated Proof of Stake (DPoS) spec added to `.kiro/specs/delegated-proof-of-stake/`
 
 ### Changed
 - `execUpdateBalance()` now validates caller is system program before execution
