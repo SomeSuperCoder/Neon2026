@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/poh-blockchain/internal/filestore"
-	"github.com/poh-blockchain/internal/genesis"
 )
 
 // TestLevel4BalanceOps tests the balance operations example
@@ -24,7 +23,13 @@ func TestLevel4BalanceOps(t *testing.T) {
 
 	// Create mock context with a file that has balance
 	ctx := NewMockExecutionContext()
-	ctx.programID = genesis.SystemProgramID // Set to system program so updateBalance works
+	// SystemProgramID = 0x00...01
+	ctx.programID = filestore.FileID{
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 1,
+	}
 	fileID := filestore.FileID{}
 	ctx.files[fileID] = &filestore.File{
 		ID:      fileID,
