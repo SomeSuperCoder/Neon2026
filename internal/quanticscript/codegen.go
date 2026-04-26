@@ -912,8 +912,11 @@ func (cg *CodeGenerator) isBuiltinFunction(name string) bool {
 		"getFile":            true,
 		"getFileMut":         true,
 		"updateFile":         true,
+		"createFile":         true,
+		"deleteFile":         true,
 		// Cryptographic operations
 		"sha256":          true,
+		"hashBytes":       true,
 		"verifySignature": true,
 		"derivePublicKey": true,
 		// Cross-program invocation
@@ -968,6 +971,8 @@ func (cg *CodeGenerator) isVoidBuiltinFunction(name string) bool {
 		"updateBalance": true,
 		"updateFile":    true,
 		"transfer":      true,
+		"createFile":    true,
+		"deleteFile":    true,
 		"log":           true,
 	}
 	return voidBuiltins[name]
@@ -997,9 +1002,15 @@ func (cg *CodeGenerator) emitBuiltinCall(name string, loc SourceLocation) {
 		cg.emitOpcode(OpGetFileMut)
 	case "updateFile":
 		cg.emitOpcode(OpUpdateFile)
+	case "createFile":
+		cg.emitOpcode(OpCreateFile)
+	case "deleteFile":
+		cg.emitOpcode(OpDeleteFile)
 	// Cryptographic operations
 	case "sha256":
 		cg.emitOpcode(OpSha256)
+	case "hashBytes":
+		cg.emitOpcode(OpHashBytes)
 	case "verifySignature":
 		cg.emitOpcode(OpVerifySig)
 	case "derivePublicKey":

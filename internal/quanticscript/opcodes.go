@@ -74,6 +74,8 @@ const (
 	OpGetInstrData                       // Get instruction data
 	OpGetProgramID                       // Get current program ID
 	OpTransfer                           // Transfer balance between files
+	OpCreateFile                         // Create new file in FileStore
+	OpDeleteFile                         // Delete file from FileStore
 )
 
 // Cross-Program Invocation
@@ -87,6 +89,7 @@ const (
 	OpSha256       Opcode = iota + 0x90 // SHA-256 hash
 	OpVerifySig                         // Verify Ed25519 signature
 	OpDerivePubKey                      // Derive public key
+	OpHashBytes                         // Generic hash function (alias for SHA256)
 )
 
 // Query Operations (Finalized Data)
@@ -211,6 +214,8 @@ var OpcodeNames = map[Opcode]string{
 	OpGetInstrData:  "GETINSTRDATA",
 	OpGetProgramID:  "GETPROGRAMID",
 	OpTransfer:      "TRANSFER",
+	OpCreateFile:    "CREATEFILE",
+	OpDeleteFile:    "DELETEFILE",
 
 	// Cross-Program Invocation
 	OpInvoke:    "INVOKE",
@@ -220,6 +225,7 @@ var OpcodeNames = map[Opcode]string{
 	OpSha256:       "SHA256",
 	OpVerifySig:    "VERIFYSIG",
 	OpDerivePubKey: "DERIVEPUBKEY",
+	OpHashBytes:    "HASHBYTES",
 
 	// Query Operations
 	OpQueryBlock: "QUERYBLOCK",

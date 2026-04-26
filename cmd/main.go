@@ -781,10 +781,10 @@ func initFileStore(dbPath string) (*filestore.FileStore, error) {
 		return nil, err
 	}
 
-	// Load built-in QuanticScript programs (System_Program and Token_Program).
+	// Load built-in QuanticScript programs (System_Program, Token_Program, and Staking_Program).
 	// This is idempotent — already-loaded programs are skipped.
 	log.Println("Loading built-in programs...")
-	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, programs.StakingProgram); err != nil {
 		log.Printf("Warning: failed to load built-in programs: %v", err)
 	}
 

@@ -40,7 +40,7 @@ func TestReadPermissionEnforcement(t *testing.T) {
 	rt := runtime.NewRuntime()
 
 	// Load built-in programs via genesis
-	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
@@ -162,7 +162,7 @@ func TestWritePermissionEnforcement(t *testing.T) {
 	rt := runtime.NewRuntime()
 
 	// Load built-in programs via genesis
-	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
@@ -285,7 +285,7 @@ func TestUndeclaredFileAccessDetection(t *testing.T) {
 	rt := runtime.NewRuntime()
 
 	// Load built-in programs via genesis
-	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
@@ -430,7 +430,7 @@ func TestPermissionViolationHandling(t *testing.T) {
 	rt := runtime.NewRuntime()
 
 	// Load built-in programs via genesis
-	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 

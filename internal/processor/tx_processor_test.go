@@ -221,7 +221,7 @@ func TestExecuteInstruction(t *testing.T) {
 	rt := runtime.NewRuntime()
 
 	// Load built-in programs via genesis
-	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 
@@ -313,7 +313,7 @@ func TestProcessTransaction(t *testing.T) {
 	rt := runtime.NewRuntime()
 
 	// Load built-in programs via genesis
-	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 		t.Fatalf("Failed to load builtin programs: %v", err)
 	}
 

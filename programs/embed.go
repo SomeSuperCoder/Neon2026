@@ -15,3 +15,8 @@ var SystemProgram []byte
 //
 //go:embed token/token.qsb
 var TokenProgram []byte
+
+// StakingProgram is the compiled bytecode for the Staking_Program.
+//
+//go:embed staking/staking.qsb
+var StakingProgram []byte

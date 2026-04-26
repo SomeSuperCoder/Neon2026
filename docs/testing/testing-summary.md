@@ -160,12 +160,20 @@ go test -v ./internal
 go test -v ./internal -run TestFullNodeBlockProductionAndVerification
 go test -v ./internal -run TestLeaderReplicaCommunication
 go test -v ./internal -run TestLedgerPersistenceAndRecovery
+
+# Genesis and DPoS tests
+go test -v ./internal/genesis
+go test -v ./internal/genesis -run TestInitializeDPoSGenesis
+go test -v ./internal/genesis -run TestLoadBuiltinPrograms
 ```
 
 **Test Coverage**:
 1. Full node initialization and block production
 2. Leader-replica communication and block propagation
 3. Ledger persistence and recovery after restart
+4. DPoS genesis initialization with validator records
+5. Epoch state and reward pool file creation
+6. Builtin program loading (System, Token, Staking)
 
 ---
 
@@ -255,6 +263,42 @@ Test functions:
 - `TestDeterminism_SystemProgram` - runs System_Program 10 times and asserts identical budget and stack state each run
 - `TestDeterminism_TokenProgram` - same determinism check for Token_Program
 - `TestPerformance_ProgramExecution` - runs each program 100 times and asserts average execution under 1ms
+
+---
+
+## DPoS Genesis Tests (`internal/genesis/programs_test.go`)
+
+Tests for Delegated Proof of Stake genesis initialization and builtin program loading.
+
+```bash
+# All genesis tests
+go test -v ./internal/genesis
+
+# Specific test categories
+go test -v ./internal/genesis -run TestInitializeDPoSGenesis
+go test -v ./internal/genesis -run TestLoadBuiltinPrograms
+go test -v ./internal/genesis -run TestEpochStateFileStructure
+go test -v ./internal/genesis -run TestRewardPoolFileStructure
+```
+
+**Test Coverage**:
+1. DPoS genesis initialization with multiple validators
+2. Validator record creation and serialization
+3. Epoch state file structure and deserialization
+4. Reward pool file structure and deserialization
+5. Builtin program loading (System, Token, Staking)
+6. Idempotent initialization (skip if already initialized)
+7. Error handling (zero validators, serialization failures)
+8. Storage cost allocation for genesis files
+
+**Test Functions**:
+- `TestInitializeDPoSGenesis` - full genesis initialization with 3 validators, verifies all files created correctly
+- `TestInitializeDPoSGenesisZeroValidators` - rejects genesis config with zero validators
+- `TestInitializeDPoSGenesisIdempotent` - verifies second initialization call is skipped
+- `TestLoadBuiltinProgramsWithStaking` - loads System, Token, and Staking programs
+- `TestLoadBuiltinProgramsWithoutStaking` - loads only System and Token programs (nil staking bytecode)
+- `TestEpochStateFileStructure` - verifies Epoch State File properties and deserialization
+- `TestRewardPoolFileStructure` - verifies Reward Pool File properties and deserialization
 
 ---
 

@@ -52,14 +52,17 @@ func (tc *TypeChecker) registerBuiltinFunctions() {
 	tc.registerFunction("getInstructionData", []*TypeAnnotation{}, &TypeAnnotation{Name: "bytes"})
 	tc.registerFunction("getProgramId", []*TypeAnnotation{}, &TypeAnnotation{Name: "i64"})
 	tc.registerFunction("getProgramID", []*TypeAnnotation{}, &TypeAnnotation{Name: "FileID"})
-	tc.registerFunction("hasSigner", []*TypeAnnotation{{Name: "PublicKey"}}, &TypeAnnotation{Name: "bool"})
+	tc.registerFunction("hasSigner", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "bool"})
 	tc.registerFunction("getSigner", []*TypeAnnotation{{Name: "u64"}}, &TypeAnnotation{Name: "PublicKey"})
-	tc.registerFunction("getFile", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "bytes"})
-	tc.registerFunction("getFileMut", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("getFile", []*TypeAnnotation{{Name: "FileID"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("getFileMut", []*TypeAnnotation{{Name: "FileID"}}, &TypeAnnotation{Name: "bytes"})
 	tc.registerFunction("updateFile", []*TypeAnnotation{{Name: "i64"}, {Name: "bytes"}}, &TypeAnnotation{Name: "void"})
+	tc.registerFunction("createFile", []*TypeAnnotation{{Name: "FileID"}, {Name: "bytes"}, {Name: "i64"}}, &TypeAnnotation{Name: "void"})
+	tc.registerFunction("deleteFile", []*TypeAnnotation{{Name: "FileID"}}, &TypeAnnotation{Name: "void"})
 
 	// Cryptographic operations
 	tc.registerFunction("sha256", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("hashBytes", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "bytes"})
 	tc.registerFunction("verifySignature", []*TypeAnnotation{{Name: "PublicKey"}, {Name: "bytes"}, {Name: "bytes"}}, &TypeAnnotation{Name: "bool"})
 	tc.registerFunction("derivePublicKey", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "PublicKey"})
 

@@ -8,11 +8,13 @@ A complete Proof of History (PoH) blockchain implementation with QuanticScript s
 
 ### 1. Genesis Program Loader (`internal/genesis`)
 
-Bootstraps the blockchain's built-in programs on first startup.
+Bootstraps the blockchain's built-in programs and DPoS state on first startup.
 
-- `LoadBuiltinPrograms(fs, systemBytecode, tokenBytecode)` — idempotent, called before first transaction
+- `LoadBuiltinPrograms(fs, systemBytecode, tokenBytecode, stakingBytecode)` — idempotent, called before first transaction
+- `InitializeDPoSGenesis(fs, config)` — initializes DPoS state (Epoch State, Reward Pool, Validator Records)
 - System_Program loaded at FileID `0x00...01`
 - Token_Program loaded at FileID `0x00...02`
+- Staking_Program loaded at FileID `0x00...03` (optional)
 - Runtime reserved at FileID `0x00...00`
 
 | Name | FileID |
@@ -20,6 +22,9 @@ Bootstraps the blockchain's built-in programs on first startup.
 | Runtime | `0x0000...0000` |
 | System_Program | `0x0000...0001` |
 | Token_Program | `0x0000...0002` |
+| Staking_Program | `0x0000...0003` |
+| Epoch State | `0x0000...0004` |
+| Reward Pool | `0x0000...0005` |
 
 ### 2. PoH Blockchain
 
@@ -103,6 +108,7 @@ go run cmd/main.go qsc disassemble -i program.qsb -o program.qsa
 - `internal/builtin_programs_integration_test.go` — System_Program and Token_Program execution
 - `internal/state_integration_test.go` — file state transitions
 - `internal/storage_cost_integration_test.go` — storage rent enforcement
+- `internal/genesis/programs_test.go` — DPoS genesis initialization, validator records, epoch state, reward pool
 - `internal/quanticscript/*_test.go` — comprehensive language tests
 
 ## Technical Details

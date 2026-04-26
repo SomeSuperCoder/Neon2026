@@ -35,7 +35,7 @@ func setupBuiltinEnv(t *testing.T) (*filestore.FileStore, *runtime.Runtime, *pro
 	}
 	t.Cleanup(func() { fs.Close() })
 
-	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 		t.Fatalf("LoadBuiltinPrograms: %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestGenesisIdempotent(t *testing.T) {
 	fs, _, _ := setupBuiltinEnv(t)
 
 	// Second call must not error
-	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+	if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 		t.Fatalf("second LoadBuiltinPrograms call failed: %v", err)
 	}
 

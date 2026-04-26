@@ -200,6 +200,10 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 		return bi.execUpdateBalance()
 	case OpTransfer:
 		return bi.execTransfer()
+	case OpCreateFile:
+		return bi.execCreateFile()
+	case OpDeleteFile:
+		return bi.execDeleteFile()
 	case OpGetSigner:
 		return bi.execGetSigner()
 	case OpHasSigner:
@@ -218,6 +222,8 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 	// Cryptographic operations
 	case OpSha256:
 		return bi.execSha256()
+	case OpHashBytes:
+		return bi.execSha256() // hashBytes is an alias for SHA256
 	case OpVerifySig:
 		return bi.execVerifySig()
 	case OpDerivePubKey:
@@ -1893,4 +1899,134 @@ func (bi *BytecodeInterpreter) execInvokeRet() error {
 // GetInvokeDepth returns the current cross-program invocation depth
 func (bi *BytecodeInterpreter) GetInvokeDepth() int {
 	return bi.invokeDepth
+}
+
+// execCreateFile creates a new file in the FileStore
+// Stack: [fileID (FileID/bytes), data (bytes), balance (i64)] -> []
+func (bi *BytecodeInterpreter) execCreateFile() error {
+	// Pop balance from stack
+	balanceValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if balanceValue.Type != TypeI64 {
+		return fmt.Errorf("CREATEFILE requires i64 for balance, got %v", balanceValue.Type)
+	}
+
+	balance, _ := balanceValue.AsI64()
+
+	// Validate balance is non-negative
+	if balance < 0 {
+		return fmt.Errorf("CREATEFILE balance must be non-negative, got %d", balance)
+	}
+
+	// Pop data from stack
+	dataValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if dataValue.Type != TypeBytes {
+		return fmt.Errorf("CREATEFILE requires bytes for data, got %v", dataValue.Type)
+	}
+
+	data, ok := dataValue.Data.([]byte)
+	if !ok {
+		return fmt.Errorf("invalid data bytes")
+	}
+
+	// Pop fileID from stack
+	fileIDValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	fileID, err := valueToFileID(fileIDValue)
+	if err != nil {
+		// Try bytes conversion
+		if fileIDValue.Type == TypeBytes {
+			fileIDBytes, ok := fileIDValue.Data.([]byte)
+			if !ok {
+				return fmt.Errorf("invalid fileID data")
+			}
+			fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+			if err != nil {
+				return fmt.Errorf("invalid fileID: %w", err)
+			}
+		} else {
+			return fmt.Errorf("CREATEFILE requires FileID or bytes for fileID, got %v", fileIDValue.Type)
+		}
+	}
+
+	// Get current program ID as the owner
+	programID := bi.ctx.GetProgramID()
+
+	// Create the file
+	newFile := &filestore.File{
+		ID:        fileID,
+		Data:      data,
+		Balance:   balance,
+		TxManager: programID,
+	}
+
+	// Store the file in the FileStore
+	if err := bi.ctx.UpdateFile(newFile); err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+
+	return nil
+}
+
+// execDeleteFile deletes a file from the FileStore
+// Stack: [fileID (FileID/bytes)] -> []
+func (bi *BytecodeInterpreter) execDeleteFile() error {
+	// Pop fileID from stack
+	fileIDValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	fileID, err := valueToFileID(fileIDValue)
+	if err != nil {
+		// Try bytes conversion
+		if fileIDValue.Type == TypeBytes {
+			fileIDBytes, ok := fileIDValue.Data.([]byte)
+			if !ok {
+				return fmt.Errorf("invalid fileID data")
+			}
+			fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+			if err != nil {
+				return fmt.Errorf("invalid fileID: %w", err)
+			}
+		} else {
+			return fmt.Errorf("DELETEFILE requires FileID or bytes for fileID, got %v", fileIDValue.Type)
+		}
+	}
+
+	// Get the file to verify ownership
+	file, err := bi.ctx.GetFileMut(fileID)
+	if err != nil {
+		return fmt.Errorf("failed to get file for deletion: %w", err)
+	}
+
+	// Ownership check: only the program that owns the file can delete it
+	currentProgramID := bi.ctx.GetProgramID()
+	if file.TxManager != currentProgramID {
+		return fmt.Errorf("DELETEFILE denied: program %s does not own file %s (owned by %s)",
+			currentProgramID.String(), fileID.String(), file.TxManager.String())
+	}
+
+	// Delete the file by setting it to nil (or use a DeleteFile method if available)
+	// For now, we'll create an empty file with zero balance to mark it as deleted
+	// This is a placeholder - the actual implementation should use a proper delete mechanism
+	file.Data = []byte{}
+	file.Balance = 0
+
+	// Update the file (marking it as deleted)
+	if err := bi.ctx.UpdateFile(file); err != nil {
+		return fmt.Errorf("failed to delete file: %w", err)
+	}
+
+	return nil
 }

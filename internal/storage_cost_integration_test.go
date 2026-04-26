@@ -169,7 +169,7 @@ func TestDataAllocationExceedingBalance(t *testing.T) {
 	t.Run("system program allocate data exceeding balance", func(t *testing.T) {
 		// Initialize runtime and processor
 		rt := runtime.NewRuntime()
-		if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 			t.Fatalf("Failed to load builtin programs: %v", err)
 		}
 
@@ -335,7 +335,7 @@ func TestBalanceReductionBelowStorageCost(t *testing.T) {
 	t.Run("transfer causing balance below storage cost", func(t *testing.T) {
 		// Initialize runtime and processor
 		rt := runtime.NewRuntime()
-		if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram); err != nil {
+		if err := genesis.LoadBuiltinPrograms(fs, programs.SystemProgram, programs.TokenProgram, nil); err != nil {
 			t.Fatalf("Failed to load builtin programs: %v", err)
 		}
 

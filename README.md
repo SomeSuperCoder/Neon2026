@@ -30,6 +30,7 @@ This project implements a verifiable delay function using sequential SHA-256 has
 - SQLite-based persistent ledger storage
 - Full chain verification and integrity checking
 - Transaction integration with cryptographic timestamping
+- **Delegated Proof of Stake (DPoS) genesis initialization**
 - **Byzantine Fault Tolerance testing with malicious nodes**
 - **Automated demo scripts with tmux visualization**
 - **AI-friendly automated testing tools (no tmux required)**
@@ -70,7 +71,7 @@ go mod download
 │   ├── processor/         # Atomic transaction processing with rollback
 │   ├── runtime/           # Program execution runtime and builtin registry
 │   ├── system/            # Go-side system program
-│   ├── genesis/           # Genesis bootstrap (loads builtin programs)
+│   ├── genesis/           # Genesis bootstrap (loads builtin programs, initializes DPoS)
 │   ├── parallel/          # Parallel execution conflict analysis
 │   └── quanticscript/     # QuanticScript language implementation
 │       ├── lexer.go        # Tokenization with source locations
@@ -84,7 +85,8 @@ go mod download
 │       └── stdlib_programs.go # Builtin program helpers
 ├── programs/               # Smart contract programs
 │   ├── system/             # System_Program (.qs, .qsa, .qsb)
-│   └── token/              # Token_Program (.qs, .qsa, .qsb)
+│   ├── token/              # Token_Program (.qs, .qsa, .qsb)
+│   └── staking/            # Staking_Program (.qs, .qsa, .qsb)
 ├── examples/               # Example QuanticScript programs
 ├── docs/                   # Documentation
 ├── go.mod
