@@ -11,6 +11,9 @@ A Proof of History (PoH) blockchain implementation inspired by Solana's architec
 # Test Byzantine Fault Tolerance (with tmux)
 ./demo-bft.sh 3 1
 
+# Test Delegated Proof of Stake (DPoS)
+./demo-dpos.sh 3 30
+
 # Automated testing (no tmux, AI-friendly)
 ./demo-automated.sh 3 1 15
 ./analyze-results.sh
@@ -633,6 +636,8 @@ Complete documentation is available in the [docs/](docs/) directory:
 ### Getting Started
 - **[Quick Start Guide](docs/guides/quickstart.md)** - Get up and running in 30 seconds
 - **[Demo Guide](docs/guides/demo.md)** - Interactive demos with tmux
+- **[DPoS Demo Guide](docs/guides/dpos-demo.md)** - Delegated Proof of Stake demonstration
+- **[Validator TUI Guide](docs/guides/validator-tui.md)** - Terminal dashboard for validators
 - **[CLI Usage Guide](docs/guides/cli-usage.md)** - Command-line interface reference
 - **[QuanticScript Guide](docs/guides/quanticscript.md)** - Smart contract language overview
 

@@ -113,19 +113,19 @@
   - _Requirements: 7.1, 7.3, 7.4, 7.5, 7.6, 7.7_
   - ✅ COMPLETED: Full dashboard rendering with Bubble Tea framework, lipgloss styling, 1-second refresh, keyboard controls
 
-- [-] 6. Implement the DPoS demo script
-- [-] 6.1 Create `demo-dpos.sh` with genesis start and block production phase
+- [x] 6. Implement the DPoS demo script
+- [x] 6.1 Create `demo-dpos.sh` with genesis start and block production phase
   - Accept `<num_validators> <duration_seconds>` args; start N validator nodes from genesis config
   - Log each block with slot, validator pubkey, block hash to `logs/dpos-demo-<timestamp>.json`
   - There must be only one demo that does it all, there must not be more than one demo file to avoid confusion
   - _Requirements: 11.1, 11.2_
 
-- [ ] 6.2 Add delegation, epoch boundary, and reward distribution phases to `demo-dpos.sh`
+- [x] 6.2 Add delegation, epoch boundary, and reward distribution phases to `demo-dpos.sh`
   - Submit one `DelegateStake` tx per validator; wait for epoch boundary; log Validator Schedule and stakes
   - Log each validator's and delegator's reward amount in electrons
   - _Requirements: 11.3, 11.4_
 
-- [ ] 6.3 Add slashing phase and summary output to `demo-dpos.sh`
+- [x] 6.3 Add slashing phase and summary output to `demo-dpos.sh`
   - Submit `ReportDoubleSign` against one validator; log slashing event, reduced stake, deactivation status
   - Print human-readable summary table to stdout; exit 0 on full success, non-zero on failure
   - Ensure log format is compatible with `analyze-results.sh`

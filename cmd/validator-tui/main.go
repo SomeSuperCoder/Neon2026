@@ -613,9 +613,13 @@ func ensureStateDirectory(statePath string) error {
 	}
 	defer fs.Close()
 
-	// Load builtin programs (system and token only, no staking for empty state)
-	// Note: We pass nil for staking bytecode since this is just an empty state initialization
-	if err := genesis.LoadBuiltinPrograms(fs, []byte{}, []byte{}, nil); err != nil {
+	// Load builtin programs with minimal bytecode
+	// Note: We use minimal bytecode for system and token programs
+	// The staking program is not loaded in this minimal initialization
+	systemBytecode := []byte{0x00, 0x01} // Minimal valid bytecode
+	tokenBytecode := []byte{0x00, 0x01}  // Minimal valid bytecode
+
+	if err := genesis.LoadBuiltinPrograms(fs, systemBytecode, tokenBytecode, nil); err != nil {
 		return fmt.Errorf("failed to load builtin programs: %w", err)
 	}
 
