@@ -755,13 +755,13 @@ func publicKeyToFileID(pubkey transaction.PublicKey) filestore.FileID {
 }
 
 // encodeTransferInstruction encodes a transfer instruction payload:
-// byte[0] = 0x01 (Transfer), byte[1-8] = amount LE, byte[9-40] = from FileID, byte[41-72] = to FileID.
+// byte[0] = 0x01 (Transfer), byte[1-32] = from FileID, byte[33-64] = to FileID, byte[65-72] = amount LE.
 func encodeTransferInstruction(amount int64, from, to filestore.FileID) []byte {
 	data := make([]byte, 73)
 	data[0] = 1 // Transfer
-	binary.LittleEndian.PutUint64(data[1:9], uint64(amount))
-	copy(data[9:41], from[:])
-	copy(data[41:73], to[:])
+	copy(data[1:33], from[:])
+	copy(data[33:65], to[:])
+	binary.LittleEndian.PutUint64(data[65:73], uint64(amount))
 	return data
 }
 

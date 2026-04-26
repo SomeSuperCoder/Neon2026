@@ -15,13 +15,13 @@ import (
 )
 
 // encodeTransferInstruction encodes a transfer instruction payload.
-// Format: [type(1), amount_le(8), from_fileID(32), to_fileID(32)] = 73 bytes
+// Format: [type(1), from_fileID(32), to_fileID(32), amount_le(8)] = 73 bytes
 func encodeTransferInstruction(amount int64, from, to filestore.FileID) []byte {
 	data := make([]byte, 73)
 	data[0] = 1 // Transfer opcode
-	binary.LittleEndian.PutUint64(data[1:9], uint64(amount))
-	copy(data[9:41], from[:])
-	copy(data[41:73], to[:])
+	copy(data[1:33], from[:])
+	copy(data[33:65], to[:])
+	binary.LittleEndian.PutUint64(data[65:73], uint64(amount))
 	return data
 }
 

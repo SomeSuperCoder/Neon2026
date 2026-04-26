@@ -22,18 +22,18 @@ func (bi *BytecodeInterpreter) execArrayLen() error {
 		return err
 	}
 
-	var length uint64
+	var length int64
 	if arrValue.Type == TypeArray {
 		arr, _ := arrValue.AsArray()
-		length = uint64(len(arr))
+		length = int64(len(arr))
 	} else if arrValue.Type == TypeBytes {
 		bytes, _ := arrValue.AsBytes()
-		length = uint64(len(bytes))
+		length = int64(len(bytes))
 	} else {
 		return fmt.Errorf("ARRAYLEN requires array or bytes, got %v", arrValue.Type)
 	}
 
-	return bi.push(NewU64(length))
+	return bi.push(NewI64(length))
 }
 
 // execArrayGet gets an element from an array by index

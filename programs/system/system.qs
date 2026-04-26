@@ -23,14 +23,16 @@ const INSTR_ALLOCATE_SPACE: i64 = 2;
 export function entry(): i64 {
     let instrData: bytes = getInstructionData();
     
-    // Check if instruction data is empty
-    if (len(instrData) == 0) {
+    // Check if instruction data has at least 8 bytes for type parsing
+    if (len(instrData) < 8) {
         return ERROR_INVALID_INSTRUCTION;
     }
     
-    // Get instruction type (first byte)
-    let firstByte: bytes = slice(instrData, 0, 1);
-    let instrType: i64 = bytesToI64LE(firstByte);
+    // Get instruction type from first 8 bytes (first byte is the type, rest are padding/data)
+    let typeBytes: bytes = slice(instrData, 0, 8);
+    let instrType: i64 = bytesToI64LE(typeBytes);
+    // Mask to get only the first byte (0-255)
+    instrType = instrType & 255;
     
     // Dispatch based on instruction type
     if (instrType == INSTR_CREATE_ACCOUNT) {

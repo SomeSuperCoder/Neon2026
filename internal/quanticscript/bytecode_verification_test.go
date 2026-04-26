@@ -37,8 +37,8 @@ func TestBytecodeVerification_SystemProgram(t *testing.T) {
 	if !strings.Contains(disasm, "GETINSTRDATA") {
 		t.Error("Expected GETINSTRDATA instruction in System_Program")
 	}
-	if !strings.Contains(disasm, "UPDATEBALANCE") {
-		t.Error("Expected UPDATEBALANCE instruction in System_Program")
+	if !strings.Contains(disasm, "TRANSFER") {
+		t.Error("Expected TRANSFER instruction in System_Program")
 	}
 	if !strings.Contains(disasm, "RET") {
 		t.Error("Expected RET instruction in System_Program")

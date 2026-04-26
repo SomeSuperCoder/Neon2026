@@ -842,9 +842,6 @@ func TestControlFlowEarlyReturn(t *testing.T) {
 	// Push argument onto stack
 	bytecode = append(bytecode, buildPushI64(5)...)
 
-	// Store argument in memory[0] for function to access
-	bytecode = append(bytecode, buildStore(0)...)
-
 	// Call the function - we'll fix the offset after building the function
 	callOffsetPos := len(bytecode) + 1           // Position where offset is stored (after OpCall byte)
 	bytecode = append(bytecode, buildCall(0)...) // Placeholder offset
@@ -855,6 +852,9 @@ func TestControlFlowEarlyReturn(t *testing.T) {
 
 	// Function starts here - record the absolute position
 	functionStart := len(bytecode)
+
+	// Function prologue: pop argument from stack and store in local memory[0]
+	bytecode = append(bytecode, buildStore(0)...)
 
 	// Check if x < 0
 	bytecode = append(bytecode, buildLoad(0)...)
@@ -931,7 +931,6 @@ func TestControlFlowEarlyReturn(t *testing.T) {
 		// Rebuild bytecode with -3 as argument
 		var bytecode2 []byte
 		bytecode2 = append(bytecode2, buildPushI64(-3)...)
-		bytecode2 = append(bytecode2, buildStore(0)...)
 
 		callOffsetPos2 := len(bytecode2) + 1
 		bytecode2 = append(bytecode2, buildCall(0)...)
@@ -971,7 +970,6 @@ func TestControlFlowEarlyReturn(t *testing.T) {
 		// Rebuild bytecode with 0 as argument
 		var bytecode3 []byte
 		bytecode3 = append(bytecode3, buildPushI64(0)...)
-		bytecode3 = append(bytecode3, buildStore(0)...)
 
 		callOffsetPos3 := len(bytecode3) + 1
 		bytecode3 = append(bytecode3, buildCall(0)...)
@@ -1046,7 +1044,7 @@ func TestDataStructuresArray(t *testing.T) {
 			t.Fatalf("Expected 1 value on stack, got %d", len(interp.stack))
 		}
 
-		length, err := interp.stack[0].AsU64()
+		length, err := interp.stack[0].AsI64()
 		if err != nil {
 			t.Fatalf("Failed to get length: %v", err)
 		}

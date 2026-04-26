@@ -163,6 +163,20 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 	case OpNot:
 		return bi.execNot()
 
+	// Bitwise operations
+	case OpBand:
+		return bi.execBand()
+	case OpBor:
+		return bi.execBor()
+	case OpBxor:
+		return bi.execBxor()
+	case OpBnot:
+		return bi.execBnot()
+	case OpShl:
+		return bi.execShl()
+	case OpShr:
+		return bi.execShr()
+
 	// Control flow
 	case OpJmp:
 		return bi.execJmp()
@@ -870,6 +884,123 @@ func (bi *BytecodeInterpreter) execNot() error {
 
 	aVal, _ := a.AsBool()
 	return bi.push(NewBool(!aVal))
+}
+
+// Bitwise operations
+
+// execBand performs bitwise AND
+func (bi *BytecodeInterpreter) execBand() error {
+	b, err := bi.pop()
+	if err != nil {
+		return err
+	}
+	a, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if a.Type != TypeI64 || b.Type != TypeI64 {
+		return fmt.Errorf("type mismatch in BAND: expected i64, got %v and %v", a.Type, b.Type)
+	}
+
+	aVal, _ := a.AsI64()
+	bVal, _ := b.AsI64()
+	return bi.push(NewI64(aVal & bVal))
+}
+
+// execBor performs bitwise OR
+func (bi *BytecodeInterpreter) execBor() error {
+	b, err := bi.pop()
+	if err != nil {
+		return err
+	}
+	a, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if a.Type != TypeI64 || b.Type != TypeI64 {
+		return fmt.Errorf("type mismatch in BOR: expected i64, got %v and %v", a.Type, b.Type)
+	}
+
+	aVal, _ := a.AsI64()
+	bVal, _ := b.AsI64()
+	return bi.push(NewI64(aVal | bVal))
+}
+
+// execBxor performs bitwise XOR
+func (bi *BytecodeInterpreter) execBxor() error {
+	b, err := bi.pop()
+	if err != nil {
+		return err
+	}
+	a, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if a.Type != TypeI64 || b.Type != TypeI64 {
+		return fmt.Errorf("type mismatch in BXOR: expected i64, got %v and %v", a.Type, b.Type)
+	}
+
+	aVal, _ := a.AsI64()
+	bVal, _ := b.AsI64()
+	return bi.push(NewI64(aVal ^ bVal))
+}
+
+// execBnot performs bitwise NOT
+func (bi *BytecodeInterpreter) execBnot() error {
+	a, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if a.Type != TypeI64 {
+		return fmt.Errorf("type mismatch in BNOT: expected i64, got %v", a.Type)
+	}
+
+	aVal, _ := a.AsI64()
+	return bi.push(NewI64(^aVal))
+}
+
+// execShl performs bitwise shift left
+func (bi *BytecodeInterpreter) execShl() error {
+	b, err := bi.pop()
+	if err != nil {
+		return err
+	}
+	a, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if a.Type != TypeI64 || b.Type != TypeI64 {
+		return fmt.Errorf("type mismatch in SHL: expected i64, got %v and %v", a.Type, b.Type)
+	}
+
+	aVal, _ := a.AsI64()
+	bVal, _ := b.AsI64()
+	return bi.push(NewI64(aVal << uint(bVal)))
+}
+
+// execShr performs bitwise shift right
+func (bi *BytecodeInterpreter) execShr() error {
+	b, err := bi.pop()
+	if err != nil {
+		return err
+	}
+	a, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if a.Type != TypeI64 || b.Type != TypeI64 {
+		return fmt.Errorf("type mismatch in SHR: expected i64, got %v and %v", a.Type, b.Type)
+	}
+
+	aVal, _ := a.AsI64()
+	bVal, _ := b.AsI64()
+	return bi.push(NewI64(aVal >> uint(bVal)))
 }
 
 // Control flow operations
