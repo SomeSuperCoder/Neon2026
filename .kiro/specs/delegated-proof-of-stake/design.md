@@ -1,320 +1,327 @@
-# Design Document — Delegated Proof of Stake
+# Design Document — Delegated Proof of Stake (DPoS)
 
 ## Overview
 
-This document describes the technical design for adding Delegated Proof of Stake (DPoS) consensus to the PoH Blockchain. The implementation introduces three major components:
+This document describes the design for adding Delegated Proof of Stake (DPoS) consensus to the PoH Blockchain. The feature introduces:
 
-1. **Staking Program** — a QuanticScript smart contract (`programs/staking/staking.qs`) compiled to bytecode and loaded into the FileStore at genesis, following the exact same pattern as the System and Token programs. All staking logic executes through the existing bytecode interpreter.
-2. **DPoS ConsensusManager** — an extension of the existing `ConsensusManager` that replaces the static `LEADER` node type with a dynamic, stake-weighted validator schedule computed at each epoch boundary.
-3. **Validator TUI App** — a standalone terminal dashboard binary (`cmd/validator-tui/main.go`) that reads live state from the FileStore and renders validator metrics.
+1. A **Staking Program** — a QuanticScript smart contract compiled to bytecode, loaded at the well-known `StakingProgramID` (`0x...03`), that handles validator registration, stake delegation, reward distribution, and slashing.
+2. **ConsensusManager extensions** — stake-weighted validator scheduling, epoch boundary processing, and missed-block tracking.
+3. **Genesis bootstrap** — epoch 0 initialization from a static genesis validator set, with no prior delegation required.
+4. A **Validator TUI App** — a standalone Go binary that reads the FileStore directly and renders a live terminal dashboard.
+5. A **DPoS demo script** — `demo-dpos.sh`, an automated end-to-end lifecycle script compatible with the existing `analyze-results.sh` tooling.
 
-The design deliberately reuses every existing abstraction: `FileStore`, `Runtime`, `ExecutionContext`, `AccessController`, `TxProcessor`, `NetworkNode`, and the QuanticScript compiler pipeline. No existing interfaces are broken.
+The design follows the same patterns established by the System Program and Token Program: QuanticScript source at `programs/staking/staking.qs`, compiled to `.qsa` and `.qsb`, loaded via `internal/genesis/programs.go`, and executed through the existing `Runtime` bytecode interpreter.
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Node Process                             │
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────────────────────────────┐  │
-│  │  PoH Clock   │───▶│         DPoS ConsensusManager        │  │
-│  └──────────────┘    │  - epoch tracking                    │  │
-│                      │  - ValidatorSchedule (slot→pubkey)   │  │
-│  ┌──────────────┐    │  - IsLeader(slot) via schedule       │  │
-│  │ NetworkNode  │◀───│  - epoch boundary processing         │  │
-│  └──────────────┘    └──────────────┬───────────────────────┘  │
-│                                     │ reads/writes              │
-│  ┌──────────────┐    ┌──────────────▼───────────────────────┐  │
-│  │ TxProcessor  │───▶│            FileStore                 │  │
-│  └──────┬───────┘    │  ValidatorRecord files               │  │
-│         │            │  StakeAccount files                  │  │
-│  ┌──────▼───────┐    │  EpochState file                     │  │
-│  │   Runtime    │    │  RewardPool file                     │  │
-│  │  ┌─────────┐ │    └──────────────────────────────────────┘  │
-│  │  │ System  │ │                                               │
-│  │  │ Program │ │                                               │
-│  │  ├─────────┤ │                                               │
-│  │  │ Staking │ │                                               │
-│  │  │ Program │ │                                               │
-│  │  └─────────┘ │                                               │
-│  └──────────────┘                                               │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph "On-Chain (FileStore)"
+        VP[Validator Record File\n0x...staking_pubkey_hash]
+        SA[Stake Account File\n0x...delegator+validator_hash]
+        EP[Epoch State File\n0x...04]
+        RP[Reward Pool File\n0x...05]
+        SP[Staking Program File\n0x...03]
+    end
 
-┌─────────────────────────────────────────────────────────────────┐
-│                   Validator TUI App (separate binary)           │
-│   reads FileStore directly (read-only BadgerDB open)            │
-│   renders epoch/slot/validator table every 1000ms               │
-└─────────────────────────────────────────────────────────────────┘
+    subgraph "Runtime Layer"
+        RT[Runtime]
+        QS[QuanticScript Interpreter]
+        SP --> QS
+        RT --> QS
+    end
+
+    subgraph "Consensus Layer"
+        CM[ConsensusManager]
+        CM -->|reads epoch state| EP
+        CM -->|updates validator records| VP
+        CM -->|triggers reward distribution| RT
+    end
+
+    subgraph "Genesis"
+        GEN[LoadBuiltinPrograms\ngenesis/programs.go]
+        GEN -->|creates| SP
+        GEN -->|creates| EP
+        GEN -->|creates| RP
+        GEN -->|creates| VP
+    end
+
+    subgraph "TUI App (cmd/validator-tui)"
+        TUI[Validator TUI]
+        TUI -->|reads directly| VP
+        TUI -->|reads directly| SA
+        TUI -->|reads directly| EP
+        TUI -->|reads directly| RP
+    end
+
+    TX[Transaction / Instruction] --> RT
 ```
+
+### Key Design Decisions
+
+**Decision 1 — Staking Program as QuanticScript, not native Go.**
+Requirement 6 mandates the Staking Program be a QuanticScript contract. This keeps all on-chain logic auditable, upgradeable, and executed through the same interpreter path as all other programs. The tradeoff is that complex operations (e.g., iterating all Stake Accounts for reward distribution) require the QuanticScript interpreter to support file enumeration builtins. We accept this and extend the stdlib as needed rather than adding a native Go bypass.
+
+**Decision 2 — Epoch boundary processing triggered by ConsensusManager, not a cron.**
+The ConsensusManager already owns slot timing. It will detect epoch boundaries (slot % epochLength == 0) and submit a synthetic `DistributeRewards` instruction to the Staking Program via the Runtime. This keeps epoch logic on-chain and testable.
+
+**Decision 3 — Separate staked amount and rent reserve in file data payload.**
+Requirement 10 explicitly prohibits using the File's top-level `Balance` field to represent staked tokens. The `Balance` field is set to exactly `CalculateStorageCost(dataSize)` at creation time. All staked amounts live in the file's `Data` payload. This prevents storage cost deductions from silently consuming staked funds.
+
+**Decision 4 — Validator Schedule stored in Epoch State File.**
+The schedule is a deterministic, stake-weighted assignment computed at each epoch boundary and persisted in the Epoch State File. The seed is the last block hash of the previous epoch, ensuring determinism across restarts.
+
+**Decision 5 — TUI reads FileStore directly (no RPC).**
+The TUI is a read-only monitoring tool. Reading BadgerDB directly (with the `--state` flag) avoids the need for an RPC layer and keeps the TUI dependency-light. The FileStore's `GetAllFileIDs` + prefix-based file type detection is sufficient.
 
 ---
 
 ## Components and Interfaces
 
-### 1. `programs/staking/staking.qs` — Staking Program (QuanticScript)
+### 1. Staking Program (`programs/staking/staking.qs`)
 
-The Staking Program is a QuanticScript source file compiled to bytecode, identical in structure to `programs/token/token.qs`. It is **not** a Go `BuiltinProgram` — it executes through the existing `BytecodeInterpreter`.
+A QuanticScript contract following the same structure as `programs/system/system.qs`.
+
+**Instruction dispatch (entry byte → handler):**
+
+| Byte | Instruction          | Handler                    |
+|------|----------------------|----------------------------|
+| 0    | RegisterValidator    | `handleRegisterValidator`  |
+| 1    | DeregisterValidator  | `handleDeregisterValidator`|
+| 2    | DelegateStake        | `handleDelegateStake`      |
+| 3    | UndelegateStake      | `handleUndelegateStake`    |
+| 4    | WithdrawStake        | `handleWithdrawStake`      |
+| 5    | DistributeRewards    | `handleDistributeRewards`  |
+| 6    | ReportDoubleSign     | `handleReportDoubleSign`   |
+
+**Error codes (staking-specific, range `0x3000–0x3FFF`):**
 
 ```
-programs/staking/
-├── staking.qs    ← source (authored)
-├── staking.qsa   ← assembly (compiler output)
-└── staking.qsb   ← bytecode (compiler output, loaded at genesis)
+ERROR_INVALID_INSTRUCTION     = 0x3FFF
+ERROR_ALREADY_REGISTERED      = 0x3001
+ERROR_NOT_REGISTERED          = 0x3002
+ERROR_INVALID_COMMISSION      = 0x3003
+ERROR_INSUFFICIENT_BALANCE    = 0x3004
+ERROR_VALIDATOR_INACTIVE      = 0x3005
+ERROR_COOLDOWN_ACTIVE         = 0x3006
+ERROR_INSUFFICIENT_RENT       = 0x3007
+ERROR_ZERO_VALIDATORS         = 0x3008
+ERROR_INVALID_DOUBLE_SIGN     = 0x3009
 ```
 
-**Entry point and dispatch** (mirrors `system.qs` / `token.qs` pattern):
+### 2. Go Serialization Helpers (`internal/quanticscript/stdlib_staking.go`)
 
-```qs
-// Instruction type constants
-const REGISTER_VALIDATOR:   i64 = 0;
-const DEREGISTER_VALIDATOR: i64 = 1;
-const DELEGATE_STAKE:       i64 = 2;
-const UNDELEGATE_STAKE:     i64 = 3;
-const WITHDRAW_STAKE:       i64 = 4;
-const DISTRIBUTE_REWARDS:   i64 = 5;
-const REPORT_DOUBLE_SIGN:   i64 = 6;
+New file alongside `stdlib_programs.go` providing Go-side serialization/deserialization for:
+- `ValidatorRecord` — pubkey (32), commission (8), totalStake (8), status (1), blocksProduced (8), missedBlocks (8), slashedThisEpoch (1)
+- `StakeAccount` — delegatorPubkey (32), validatorFileID (32), stakedAmount (8), activationEpoch (8), status (1), deactivationEpoch (8)
+- `EpochState` — epochNumber (8), epochStartSlot (8), validatorSchedule (variable), missedBlockCounters (variable)
+- `RewardPool` — balance (8)
 
-const ERROR_INVALID_INSTRUCTION: i64 = 0x3FFF;
+These helpers are used by Go-side tests and the genesis bootstrap, not by the QuanticScript contract itself (which uses raw `slice`/`bytesToI64LE` operations).
 
-export function entry(): i64 {
-    let instrData: bytes = getInstructionData();
-    if (len(instrData) < 1) { return ERROR_INVALID_INSTRUCTION; }
-    let instrType: i64 = instrData[0];
-    if (instrType == REGISTER_VALIDATOR)   { return handleRegisterValidator(instrData); }
-    // ... etc
-    return ERROR_INVALID_INSTRUCTION;
-}
-```
+### 3. ConsensusManager Extensions (`internal/consensus/consensus_manager.go`)
 
-**On-chain state encoding**: All structured data (ValidatorRecord, StakeAccountData, EpochStateData) is encoded as packed binary in `File.Data` using the same little-endian `i64` / byte-array conventions used by the Token Program. No JSON — the QuanticScript interpreter works with `bytes`, not structured objects.
-
-**Builtins used** (all already available from Token Program):
-- `getInstructionData()`, `getFile()`, `getBalance()`, `hasSigner()`
-- `updateFile()`, `createFile()`, `transferBalance()`, `deleteFile()`
-- `len()`, `slice()`, `hashBytes()`
-
-### 2. `internal/staking/types.go` — Go-Side Data Structures (for ConsensusManager and TUI)
-
-The Go packages (`internal/staking`, `internal/consensus`, `cmd/validator-tui`) need to read and write the same binary state that the QuanticScript program produces. This package defines the Go structs and binary encode/decode functions that mirror the QuanticScript binary layout.
-
-```go
-type ValidatorStatus uint8
-const (
-    ValidatorInactive      ValidatorStatus = 0
-    ValidatorActive        ValidatorStatus = 1
-    ValidatorDeregistered  ValidatorStatus = 2
-    ValidatorSlashed       ValidatorStatus = 3
-)
-
-type ValidatorRecord struct {
-    PublicKey      [32]byte
-    Commission     uint8
-    TotalStake     int64
-    Status         ValidatorStatus
-    BlocksProduced int64
-    BlocksMissed   int64
-    SlashedEpoch   int64  // -1 if never slashed
-}
-
-type StakeStatus uint8
-const (
-    StakeActive       StakeStatus = 0
-    StakeDeactivating StakeStatus = 1
-)
-
-type StakeAccountData struct {
-    DelegatorKey      [32]byte
-    ValidatorFileID   filestore.FileID
-    StakedAmount      int64
-    ActivationEpoch   int64
-    DeactivationEpoch int64  // -1 if active
-    Status            StakeStatus
-}
-
-type EpochStateData struct {
-    CurrentEpoch   int64
-    EpochStartSlot int64
-    SlotsPerEpoch  int64
-    LastBlockHash  [32]byte
-    ScheduleLen    int64
-    // Schedule entries follow: each is [32]byte pubkey
-}
-
-type ScheduleEntry struct {
-    SlotOffset   int64
-    ValidatorKey [32]byte
-}
-```
-
-### 3. `internal/staking/genesis.go` — Genesis Bootstrap
-
-```go
-type GenesisValidator struct {
-    PublicKey  transaction.PublicKey
-    Stake      int64
-    Commission uint8
-}
-
-// InitializeGenesisStaking creates EpochState, RewardPool, and ValidatorRecord
-// files for all genesis validators, then computes the epoch-0 schedule.
-// Idempotent if EpochState already exists.
-func InitializeGenesisStaking(fs *filestore.FileStore, validators []GenesisValidator) error
-```
-
-Well-known singleton file IDs:
-
-```go
-var StakingProgramID = filestore.FileID{..., 0x03}  // 0x...03
-var EpochStateFileID = filestore.FileID{..., 0xE0}  // 0x...E0
-var RewardPoolFileID = filestore.FileID{..., 0xE1}  // 0x...E1
-```
-
-### 4. `internal/consensus` — DPoS ConsensusManager Extension
-
-The existing `ConsensusManager` is extended (not replaced):
+New fields and methods added to `ConsensusManager`:
 
 ```go
 type ConsensusManager struct {
-    // existing fields unchanged
-    nodeType         network.NodeType
-    slotDurationMs   int64
-    genesisTimestamp time.Time
-
-    // new DPoS fields
-    localPubKey   transaction.PublicKey
-    fileStore     *filestore.FileStore
-    epochState    *staking.EpochStateData
-    schedule      []staking.ScheduleEntry  // decoded from EpochStateData
-    slotsPerEpoch int64
+    // existing fields ...
+    epochLength       int64              // default 432000 slots
+    genesisValidators []GenesisValidator // from config
+    fileStore         *filestore.FileStore
+    runtime           *runtime.Runtime
+    currentEpoch      int64
+    validatorSchedule []filestore.FileID // slot → validator FileID
 }
 
-func (cm *ConsensusManager) IsLeader(slot int64) bool
-func (cm *ConsensusManager) GetScheduledValidator(slot int64) (transaction.PublicKey, error)
-func (cm *ConsensusManager) RecordMissedBlock(slot int64) error
-func (cm *ConsensusManager) CheckAndProcessEpochBoundary(slot int64, lastBlockHash []byte) error
+type GenesisValidator struct {
+    PublicKey   [32]byte
+    StakeAmount int64
+}
+
+// New methods:
+func (cm *ConsensusManager) GetCurrentEpoch() int64
+func (cm *ConsensusManager) IsEpochBoundary(slot int64) bool
+func (cm *ConsensusManager) ProcessEpochBoundary(slot int64) error
+func (cm *ConsensusManager) GetScheduledValidator(slot int64) filestore.FileID
+func (cm *ConsensusManager) RecordMissedBlock(slot int64, validatorID filestore.FileID) error
+func (cm *ConsensusManager) InitializeGenesis(config GenesisConfig) error
 ```
 
-### 5. `internal/staking/scheduler.go` — Schedule Computation
+### 4. Genesis Bootstrap Extensions (`internal/genesis/programs.go`)
+
+`LoadBuiltinPrograms` extended to accept staking bytecode and a `GenesisConfig`:
 
 ```go
-func ComputeSchedule(seed []byte, validators []ValidatorWithID, slotsPerEpoch int64) []ScheduleEntry
+func LoadBuiltinPrograms(fs *filestore.FileStore, systemBytecode, tokenBytecode, stakingBytecode []byte) error
+
+func InitializeDPoSGenesis(fs *filestore.FileStore, config GenesisConfig) error
 ```
 
-Weighted reservoir sampling, PRNG seeded with `SHA-256(seed)`.
+`InitializeDPoSGenesis` creates:
+- Staking Program File at `StakingProgramID` (`0x...03`)
+- Epoch State File at `EpochStateFileID` (`0x...04`)
+- Reward Pool File at `RewardPoolFileID` (`0x...05`)
+- One Validator Record File per genesis validator
 
-### 6. `internal/staking/rewards.go` — Reward Distribution
-
+Well-known IDs:
 ```go
-func DistributeEpochRewards(fs *filestore.FileStore, epochState *EpochStateData) error
-func ProcessEpochBoundary(fs *filestore.FileStore, lastBlockHash []byte) error
+StakingProgramID = FileID{..., 3}
+EpochStateFileID = FileID{..., 4}
+RewardPoolFileID = FileID{..., 5}
 ```
 
-### 7. `cmd/validator-tui/main.go` — Validator TUI App
+### 5. Validator TUI App (`cmd/validator-tui/main.go`)
 
-Standalone binary. Reads FileStore in read-only mode. Renders ANSI dashboard at 1000ms intervals.
+Standalone Go binary. Uses `internal/filestore` directly (read-only BadgerDB open). Renders with the `github.com/charmbracelet/bubbletea` or plain `termbox-go` library — whichever is already in `go.mod`. If neither is present, use ANSI escape codes with a simple refresh loop (no external dependency).
 
-```
-┌─ PoH Blockchain Validator Dashboard ──────────────────────────┐
-│ Epoch: 42   Slot: 18,123,456   Local: active   Validators: 7  │
-│ Local Stake: 5,000,000 electrons (5.00 Neon)                  │
-├───────────────────────────────────────────────────────────────┤
-│ Validator          │ Status   │ Stake (e)  │ Comm │ Blocks    │
-├────────────────────┼──────────┼────────────┼──────┼───────────┤
-│ 0xabcd1234...      │ active   │ 5,000,000  │  5%  │ 1,204     │
-│ [inactive] 0xef... │ inactive │   800,000  │ 10%  │     0     │
-│ [slashed]  0x12... │ slashed  │ 1,900,000  │  8%  │   312     │
-├───────────────────────────────────────────────────────────────┤
-│ Total Staked: 12,400,000 e  Pool: 48,200 e  Est. APY: 6.2%   │
-│ [q] quit                                                      │
-└───────────────────────────────────────────────────────────────┘
-```
+**Panels:**
+- Header: epoch, slot, local validator status, active validator count, local delegated stake
+- Validator table: pubkey (16 hex), status, total stake, commission %, blocks produced, with `[inactive]`/`[slashed]` prefixes
+- Summary footer: total staked electrons, Reward Pool balance, estimated APY
 
-### 8. `demo-dpos.sh` — Automated Demo Script
+Refresh interval: 1000 ms. Exit on `q` or `Ctrl+C`.
 
-Bash script at repo root. Starts N validator nodes, exercises the full DPoS lifecycle, emits structured JSON logs compatible with `analyze-results.sh`.
+### 6. Demo Script (`demo-dpos.sh`)
+
+Bash script accepting `<num_validators> <duration_seconds>`. Produces:
+- `logs/dpos-demo-<timestamp>.json` — structured JSON log
+- stdout summary table
+
+Lifecycle phases: genesis start → block production → delegation → epoch boundary → reward distribution → double-sign report → slashing verification.
+
+Exit code 0 on full success, non-zero on any phase failure. Log format compatible with `analyze-results.sh`.
 
 ---
 
 ## Data Models
 
-### File Layout in FileStore
+### ValidatorRecord (stored in File.Data)
 
-| File Purpose        | FileID                  | Executable | TxManager         | Balance (electrons)         | Data payload              |
-|---------------------|-------------------------|------------|-------------------|-----------------------------|---------------------------|
-| Staking Program     | `StakingProgramID`      | true       | `RuntimeProgramID`| `CalculateStorageCost(qsb)` | `staking.qsb` bytecode    |
-| Epoch State         | `EpochStateFileID`      | false      | `StakingProgramID`| `CalculateStorageCost(data)`| packed binary (see types) |
-| Reward Pool         | `RewardPoolFileID`      | false      | `StakingProgramID`| pool balance + storage cost | packed binary             |
-| Validator Record    | `SHA256(pubkey+"vr")`   | false      | `StakingProgramID`| `CalculateStorageCost(data)`| packed binary             |
-| Stake Account       | `SHA256(delegator+validator+nonce)` | false | `StakingProgramID` | `CalculateStorageCost(data)` | packed binary |
-
-**Key design decision**: `File.Balance` on Validator Records and Stake Accounts holds only the storage rent reserve. The actual staked electrons are stored exclusively in the JSON data payload (`ValidatorRecord.TotalStake` and `StakeAccountData.StakedAmount`). This satisfies Requirement 10 — the FileStore's `ValidateStorageCost` check never touches staked funds.
-
-The Reward Pool is the exception: its `File.Balance` holds the actual pool balance, because the pool is not a stake account and has no staked amount to protect.
-
-### Electron Denomination
-
-```go
-const (
-    ElectronsPerNeon          = int64(1_000_000)
-    MinActivationStake        = int64(1_000_000)  // 1 Neon
-    MinRentExemptBalance      = int64(1_000)       // 1,000 electrons
-    SlashingPenaltyBasisPoints = int64(500)        // 5%
-    CooldownEpochs            = int64(1)
-    DefaultSlotsPerEpoch      = int64(432_000)
-    DefaultSlotTimeoutMs      = int64(200)
-)
 ```
+Offset  Size  Field
+0       32    pubkey (Ed25519 public key)
+32      8     commission (i64 LE, 0–100)
+40      8     totalDelegatedStake (i64 LE, electrons)
+48      1     status (0=inactive, 1=active, 2=deregistered)
+49      8     blocksProducedThisEpoch (i64 LE)
+57      8     missedBlocksThisEpoch (i64 LE)
+65      1     slashedThisEpoch (0=false, 1=true)
+--- Total: 66 bytes ---
+```
+
+File.Balance = `CalculateStorageCost(66)` (rent reserve only).
+File.ID = `SHA-256("validator:" || pubkey)`.
+File.TxManager = `StakingProgramID`.
+
+### StakeAccount (stored in File.Data)
+
+```
+Offset  Size  Field
+0       32    delegatorPubkey (Ed25519 public key)
+32      32    validatorFileID (FileID of target Validator Record)
+64      8     stakedAmount (i64 LE, electrons)
+72      8     activationEpoch (i64 LE)
+80      1     status (0=active, 1=deactivating, 2=withdrawn)
+81      8     deactivationEpoch (i64 LE, 0 if not deactivating)
+--- Total: 89 bytes ---
+```
+
+File.Balance = `CalculateStorageCost(89)` (rent reserve only).
+File.ID = `SHA-256("stake:" || delegatorPubkey || validatorFileID)`.
+File.TxManager = `StakingProgramID`.
+
+### EpochState (stored in File.Data)
+
+```
+Offset  Size  Field
+0       8     epochNumber (i64 LE)
+8       8     epochStartSlot (i64 LE)
+16      8     totalSlotsInEpoch (i64 LE)
+24      8     validatorCount (i64 LE)
+32      N*32  validatorSchedule (N FileIDs, one per slot, N = totalSlotsInEpoch)
+32+N*32 8     missedBlockCount (i64 LE, per-validator, follows schedule)
+```
+
+For genesis (432,000 slots), the schedule section is 432,000 × 32 = ~13.8 MB. This is large; for the initial implementation the schedule will be stored as a compact weighted list (validator FileID + slot count) rather than a full per-slot array, and expanded in memory by the ConsensusManager.
+
+**Compact schedule format:**
+```
+Offset  Size  Field
+0       8     epochNumber (i64 LE)
+8       8     epochStartSlot (i64 LE)
+16      8     validatorCount (i64 LE, V)
+24      V*40  entries: [validatorFileID(32) | assignedSlots(8)]
+```
+
+File.ID = `EpochStateFileID` (`0x...04`).
+File.TxManager = `StakingProgramID`.
+
+### RewardPool (stored in File.Data)
+
+```
+Offset  Size  Field
+0       8     balance (i64 LE, electrons)
+8       8     lastDistributedEpoch (i64 LE)
+--- Total: 16 bytes ---
+```
+
+File.ID = `RewardPoolFileID` (`0x...05`).
+File.TxManager = `StakingProgramID`.
 
 ---
 
 ## Error Handling
 
-All Staking Program handlers return typed errors using `fmt.Errorf` with `%w` wrapping, consistent with the rest of the codebase. The `TxProcessor` rolls back all state on any instruction error (existing behavior, unchanged).
+### Staking Program (QuanticScript)
 
-Specific error conditions:
+All handlers return `i64` error codes. The `entry()` function propagates handler return values directly. The Runtime treats any non-zero return as a program error and rolls back the transaction (existing behavior via `tx_processor.go`).
 
-| Condition                              | Error message pattern                                      |
-|----------------------------------------|------------------------------------------------------------|
-| Commission out of range                | `"commission rate %d out of range [0,100]"`               |
-| Validator already registered           | `"validator %s already registered"`                       |
-| Validator not found                    | `"validator record not found: %s"`                        |
-| Insufficient balance for delegation    | `"insufficient balance: need %d electrons, have %d"`      |
-| Stake account in cooldown              | `"stake in cooldown until epoch %d, current epoch %d"`    |
-| Rent reserve violation                 | `"balance %d below storage cost %d for file %s"`          |
-| Double-sign signature invalid          | `"double-sign report: signature %d invalid"`              |
-| Genesis with zero validators           | `"genesis requires at least one validator"`               |
-| Unknown instruction type               | `"unknown staking instruction type: %d"`                  |
+| Scenario | Error Code |
+|---|---|
+| Unknown instruction byte | `ERROR_INVALID_INSTRUCTION (0x3FFF)` |
+| Commission out of 0–100 range | `ERROR_INVALID_COMMISSION (0x3003)` |
+| Validator already registered | `ERROR_ALREADY_REGISTERED (0x3001)` |
+| Validator not found | `ERROR_NOT_REGISTERED (0x3002)` |
+| Delegator balance insufficient | `ERROR_INSUFFICIENT_BALANCE (0x3004)` |
+| Target validator deregistered | `ERROR_VALIDATOR_INACTIVE (0x3005)` |
+| Cooldown period not elapsed | `ERROR_COOLDOWN_ACTIVE (0x3006)` |
+| File balance below storage cost | `ERROR_INSUFFICIENT_RENT (0x3007)` |
+| Double-sign proof invalid | `ERROR_INVALID_DOUBLE_SIGN (0x3009)` |
+
+### ConsensusManager
+
+- Epoch boundary processing errors are logged and the node continues (non-fatal). The missed-block counter is incremented for the affected slot.
+- If the Epoch State File is missing or corrupted on startup, the ConsensusManager logs a warning and re-initializes from slot 0 (Requirement 9.3).
+- If genesis config specifies zero validators, startup returns a fatal error (Requirement 9.6).
+
+### TUI App
+
+- FileStore open errors print to stderr and exit with code 1.
+- Missing or unrecognized file types are silently skipped during table rendering.
+- BadgerDB is opened in read-only mode to prevent accidental writes.
 
 ---
 
 ## Testing Strategy
 
-- **Unit tests** (`internal/staking/*_test.go`): test each instruction handler in isolation using an in-memory FileStore (temp BadgerDB dir). Cover happy path, all error conditions, and the storage-cost/stake separation invariant.
-- **Unit tests** (`internal/staking/scheduler_test.go`): verify determinism (same seed → same schedule), proportionality (higher stake → more slots), and edge cases (single validator, equal stakes).
-- **Integration tests** (`internal/staking_integration_test.go`): full lifecycle — genesis init → delegate → epoch boundary → rewards → undelegate → withdraw → slash.
-- **TUI smoke test**: not automated (terminal rendering); verified manually.
-- **Demo script** (`demo-dpos.sh`): serves as the end-to-end automated test, producing machine-parseable JSON output.
+### Unit Tests
 
----
+- `internal/quanticscript/stdlib_staking_test.go` — serialization round-trips for ValidatorRecord, StakeAccount, EpochState, RewardPool.
+- `internal/consensus/consensus_manager_test.go` — epoch boundary detection, schedule computation, missed-block recording.
+- `internal/genesis/programs_test.go` — genesis bootstrap creates correct files with correct balances.
 
-## Design Decisions and Rationale
+### Integration Tests
 
-1. **Staking Program as QuanticScript bytecode, not a Go BuiltinProgram**: Writing the Staking Program in QuanticScript means it executes through the same `BytecodeInterpreter` as all user programs, gets the same access control enforcement, and can be audited and upgraded without recompiling the node binary. It also validates the QuanticScript runtime against a complex real-world program.
+- `internal/staking_integration_test.go` — full lifecycle: register validator → delegate → epoch boundary → rewards → slash → withdraw. Uses an in-memory FileStore.
+- `internal/builtin_programs_integration_test.go` — extended to cover Staking Program instruction dispatch.
 
-2. **Packed binary encoding in `File.Data`, not JSON**: The QuanticScript interpreter works with `bytes` and integer operations, not structured objects. Packed little-endian binary (same convention as the Token Program) is the natural format. The Go-side `internal/staking/types.go` provides matching encode/decode functions so the ConsensusManager and TUI can read the same state.
+### QuanticScript Compiler Tests
 
-3. **Staked amount in data payload, not `File.Balance`**: The FileStore's `ValidateStorageCost` runs on every `UpdateFile` call and rejects files whose `Balance` is below storage cost. If staked electrons lived in `Balance`, any storage cost increase could silently invalidate a valid stake. Separating the two makes the invariant explicit and testable.
+- `internal/quanticscript/staking_program_test.go` — compiles `programs/staking/staking.qs` and verifies the bytecode executes each instruction type correctly against a mock ExecutionContext.
 
-4. **`StakingProgramID = 0x...03`**: `0x...01` is SystemProgram, `0x...02` is TokenProgram. The Staking Program takes the next sequential well-known ID.
+### Demo Script
 
-5. **Extending `ConsensusManager` rather than replacing it**: The existing slot timing, `WaitForSlotStart`, and `ValidateBlock` logic is correct and reusable. Only `IsLeader` and the epoch boundary hook need to change.
-
-6. **Deterministic schedule via seeded PRNG**: Using `SHA-256(lastBlockHash)` as the PRNG seed ensures all nodes independently compute the same schedule without coordination.
-
-7. **`EpochStateFileID` and `RewardPoolFileID` as well-known constants**: Singleton files with fixed IDs avoid the need for a registry or lookup table, consistent with how `SystemProgramID` and `StakingProgramID` work.
-
-8. **TUI reads FileStore directly in read-only mode**: BadgerDB supports multiple concurrent readers. This avoids adding an RPC layer just for the TUI and keeps the binary self-contained.
-
-9. **`demo-dpos.sh` emits JSON compatible with `analyze-results.sh`**: Reusing the existing analysis tooling reduces maintenance burden and lets operators compare DPoS demo results with existing BFT demo results side by side.
+- `demo-dpos.sh` serves as an end-to-end acceptance test. Exit code 0 = all phases passed.

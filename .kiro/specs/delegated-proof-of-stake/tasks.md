@@ -1,85 +1,133 @@
 # Implementation Plan
 
-- [ ] 1. Define Go-side staking types and binary encoding
-  - Create `internal/staking/types.go` with `ValidatorRecord`, `StakeAccountData`, `EpochStateData`, `ScheduleEntry`, `ValidatorStatus`, `StakeStatus`, and all electron/epoch constants (`ElectronsPerNeon`, `MinActivationStake`, `MinRentExemptBalance`, `SlashingPenaltyBasisPoints`, `CooldownEpochs`, `DefaultSlotsPerEpoch`, `DefaultSlotTimeoutMs`)
-  - Implement packed little-endian binary `Encode` / `Decode` functions for each type (matching the format the QuanticScript program will write)
-  - Define well-known file ID constants: `StakingProgramID` (`0x...03`), `EpochStateFileID` (`0x...E0`), `RewardPoolFileID` (`0x...E1`)
-  - _Requirements: 1.1, 2.1, 3.1, 4.1, 5.1, 10.1, 10.2_
+- [ ] 1. Add Go serialization helpers for DPoS data models
+  - Create `internal/quanticscript/stdlib_staking.go` with `SerializeValidatorRecord`, `DeserializeValidatorRecord`, `SerializeStakeAccount`, `DeserializeStakeAccount`, `SerializeEpochState`, `DeserializeEpochState`, `SerializeRewardPool`, `DeserializeRewardPool`
+  - Define well-known FileID constants: `StakingProgramID` (`0x...03`), `EpochStateFileID` (`0x...04`), `RewardPoolFileID` (`0x...05`) in `internal/genesis/programs.go`
+  - _Requirements: 6.1, 10.1, 10.2, 10.3_
 
-- [ ] 2. Write the Staking Program in QuanticScript — validator registration and deregistration
-  - Create `programs/staking/staking.qs` with the `entry()` export function, instruction type constants (`REGISTER_VALIDATOR=0`, `DEREGISTER_VALIDATOR=1`, …, `REPORT_DOUBLE_SIGN=6`), and error code constants (base `0x3000`)
-  - Implement `handleRegisterValidator`: parse commission byte, validate 0–100, derive Validator Record FileID via `hashBytes`, check no duplicate, call `createFile` with rent-only balance and packed ValidatorRecord data (status=inactive, zero stake)
-  - Implement `handleDeregisterValidator`: verify signer, decode ValidatorRecord, check zero total stake, call `deleteFile`
-  - Follow the same helper-function patterns (`parseI64LE`, `slice`, `append`) established in `system.qs` and `token.qs`
-  - _Requirements: 1.1, 1.2, 1.3, 1.5, 6.1, 6.3, 6.4, 10.2, 10.3_
+- [ ] 1.1 Write unit tests for serialization round-trips
+  - Create `internal/quanticscript/stdlib_staking_test.go` covering all four data model types
+  - _Requirements: 6.1, 10.1_
 
-- [ ] 3. Write the Staking Program in QuanticScript — stake delegation and withdrawal
-  - Implement `handleDelegateStake`: validate positive amount, check delegator balance ≥ amount + `MIN_RENT_EXEMPT`, verify validator not deregistered, call `createFile` for Stake Account with staked amount in data payload and rent-only balance, update ValidatorRecord TotalStake via `updateFile`
-  - Implement `handleUndelegateStake`: verify delegator ownership via `hasSigner`, decode StakeAccountData, set status to deactivating, record deactivation epoch, call `updateFile`
-  - Implement `handleWithdrawStake`: verify cooldown elapsed (current epoch ≥ deactivation epoch + 1), call `transferBalance` to return staked amount to delegator, call `deleteFile` on Stake Account, decrement ValidatorRecord TotalStake
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 10.1, 10.2, 10.4, 10.5_
+- [ ] 2. Implement the Staking Program in QuanticScript
+- [ ] 2.1 Write `programs/staking/staking.qs` — entry dispatch and validator registration handlers
+  - Implement `entry()` with byte-dispatch to all 7 instruction handlers
+  - Implement `handleRegisterValidator` and `handleDeregisterValidator`
+  - Use `createFile`/`deleteFile` builtins; set `File.Balance` to storage cost only (Req 10.2, 10.3)
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 6.1, 6.2, 6.3, 6.4, 10.2, 10.3_
 
-- [ ] 4. Write the Staking Program in QuanticScript — reward distribution and slashing
-  - Implement `handleDistributeRewards`: read RewardPool balance, iterate over all active ValidatorRecord files, calculate reward shares proportional to blocks produced, deduct commission, distribute remainder to Stake Accounts via `transferBalance`, retain fractional remainder in pool
-  - Implement `handleReportDoubleSign`: decode two 64-byte signatures and one 32-byte validator pubkey from instruction data, verify both signatures using `verifySig` builtin, apply 5% slash to ValidatorRecord TotalStake, transfer slashed amount to RewardPool via `transferBalance`, set status to inactive if stake falls below threshold
-  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2, 5.3, 5.4_
+- [ ] 2.2 Add stake delegation handlers to `programs/staking/staking.qs`
+  - Implement `handleDelegateStake`, `handleUndelegateStake`, `handleWithdrawStake`
+  - Enforce cooldown period (1 epoch), rent-reserve separation, and balance checks
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 10.1, 10.4, 10.5_
 
-- [ ] 5. Compile the Staking Program to bytecode
-  - Run `go run cmd/main.go qsc compile -i programs/staking/staking.qs -o programs/staking/staking.qsb` and resolve any compiler errors
-  - Run `go run cmd/main.go qsc disassemble -i programs/staking/staking.qsb -o programs/staking/staking.qsa` to produce the assembly artifact
-  - Verify the bytecode is valid by running the existing bytecode verification tests against the output
-  - _Requirements: 6.2_
+- [ ] 2.3 Add reward distribution handler to `programs/staking/staking.qs`
+  - Implement `handleDistributeRewards` — proportional reward split, commission deduction, fractional remainder retention
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 6. Register the Staking Program in genesis
-  - Update `internal/genesis/programs.go`: add `StakingProgramID` constant (`0x...03`), extend `LoadBuiltinPrograms` to accept and load `stakingBytecode []byte` alongside the existing system and token bytecodes
-  - Update `cmd/main.go` to embed `programs/staking/staking.qsb` via `//go:embed` and pass it to `LoadBuiltinPrograms` at node startup
+- [ ] 2.4 Add slashing handler to `programs/staking/staking.qs`
+  - Implement `handleReportDoubleSign` — verify both signatures, reduce stake by 5%, deactivate if below threshold, transfer slashed amount to Reward Pool
+  - _Requirements: 5.1, 5.2, 5.3, 5.4_
+
+- [ ] 2.5 Compile `staking.qs` to `staking.qsa` and `staking.qsb`
+  - Run `go run cmd/main.go qsc compile -i programs/staking/staking.qs -o programs/staking/staking.qsb`
+  - Verify no compiler errors; keep `.qs`, `.qsa`, `.qsb` in sync
+  - _Requirements: 6.2, 6.3_
+
+- [ ] 2.6 Write QuanticScript interpreter tests for each instruction type
+  - Create `internal/quanticscript/staking_program_test.go` exercising all 7 handlers against a mock ExecutionContext
+  - _Requirements: 6.3, 6.4, 6.5, 6.6_
+
+- [ ] 3. Extend genesis bootstrap to load the Staking Program and initialize DPoS state
+- [ ] 3.1 Update `internal/genesis/programs.go` — add `stakingBytecode` parameter to `LoadBuiltinPrograms`
+  - Load `staking.qsb` at `StakingProgramID` using the existing `loadProgram` helper
   - _Requirements: 6.5, 9.1_
 
-- [ ] 7. Implement the validator schedule computation
-  - Create `internal/staking/scheduler.go` with `ComputeSchedule(seed []byte, validators []ValidatorWithID, slotsPerEpoch int64) []ScheduleEntry`
-  - Use `SHA-256(seed)` as the deterministic PRNG seed for weighted reservoir sampling; assign slots proportionally to `validator.TotalStake / totalStake`
+- [ ] 3.2 Implement `InitializeDPoSGenesis` in `internal/genesis/programs.go`
+  - Create Epoch State File at `EpochStateFileID` with epoch 0 data
+  - Create Reward Pool File at `RewardPoolFileID` with zero balance
+  - Create one Validator Record File per genesis validator (status=active, pre-assigned stake, commission=0)
+  - Reject startup if genesis config has zero validators
+  - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.6_
+
+- [ ] 3.3 Update `programs/embed.go` to embed `programs/staking/staking.qsb`
+  - Add `//go:embed programs/staking/staking.qsb` directive alongside existing system/token embeds
+  - Pass staking bytecode through to `LoadBuiltinPrograms` in `cmd/main.go`
+  - _Requirements: 6.5_
+
+- [ ] 3.4 Write genesis integration tests
+  - Extend `internal/genesis/programs_test.go` to verify Staking Program, Epoch State, and Reward Pool files are created with correct balances and data
+  - _Requirements: 9.2, 9.3, 10.2, 10.3_
+
+- [ ] 4. Extend ConsensusManager with DPoS scheduling and epoch processing
+- [ ] 4.1 Add epoch fields and `GenesisConfig` to `internal/consensus/consensus_manager.go`
+  - Add `epochLength`, `fileStore`, `runtime`, `currentEpoch`, `validatorSchedule`, `genesisValidators` fields
+  - Define `GenesisConfig` and `GenesisValidator` structs
+  - Update `NewConsensusManager` to accept a `GenesisConfig`
+  - _Requirements: 3.3, 9.1_
+
+- [ ] 4.2 Implement `InitializeGenesis` on `ConsensusManager`
+  - Call `InitializeDPoSGenesis` if Epoch State File is absent; restore from file if present
+  - Log warning and re-initialize from slot 0 if Epoch State File is corrupted
+  - _Requirements: 9.2, 9.3, 9.4_
+
+- [ ] 4.3 Implement stake-weighted validator schedule computation
+  - Implement `computeValidatorSchedule(epochSeed []byte, validators []ValidatorEntry) []filestore.FileID`
+  - Use deterministic weighted-random algorithm seeded with last block hash of previous epoch
+  - Persist compact schedule to Epoch State File
   - _Requirements: 3.3, 9.4_
 
-- [ ] 8. Implement genesis bootstrap
-  - Create `internal/staking/genesis.go` with `InitializeGenesisStaking(fs *filestore.FileStore, validators []GenesisValidator) error`
-  - Create ValidatorRecord Files for all genesis validators with status `active` and pre-assigned stake, bypassing the normal activation threshold
-  - Create the EpochState File (epoch 0, slot 0) and RewardPool File (zero balance)
-  - Compute and persist the epoch-0 Validator Schedule using `ComputeSchedule`
-  - Make the function idempotent (skip if EpochState File already exists); reject empty validator list
-  - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6_
+- [ ] 4.4 Implement `IsLeader`, `GetScheduledValidator`, and slot-skip logic
+  - Replace static `IsLeader` with stake-weighted schedule lookup
+  - Implement 200 ms wait for scheduled validator; skip slot and record missed block on timeout
+  - _Requirements: 3.4, 3.5, 3.6_
 
-- [ ] 9. Implement epoch boundary processing and reward distribution (Go side)
-  - Create `internal/staking/rewards.go` with `DistributeEpochRewards(fs *filestore.FileStore, epochState *EpochStateData) error` that reads ValidatorRecord and StakeAccount files, computes shares, and updates balances directly in the FileStore
-  - Implement `ProcessEpochBoundary(fs *filestore.FileStore, lastBlockHash []byte) error` that activates/deactivates validators based on stake threshold, calls `DistributeEpochRewards`, computes the new schedule, and atomically updates the EpochState File
-  - _Requirements: 3.1, 3.2, 4.1, 4.2, 4.3, 4.4, 4.5, 8.1, 8.4_
+- [ ] 4.5 Implement `ProcessEpochBoundary` — activate/deactivate validators and trigger reward distribution
+  - At each epoch boundary: update Validator Record statuses based on stake threshold (1,000,000 electrons)
+  - Submit synthetic `DistributeRewards` instruction to Staking Program via Runtime
+  - Reset per-epoch block counters in Validator Records
+  - _Requirements: 3.1, 3.2, 4.1, 4.2_
 
-- [ ] 10. Extend ConsensusManager with DPoS schedule and epoch tracking
-  - Add `localPubKey`, `fileStore`, `epochState`, `schedule`, and `slotsPerEpoch` fields to `ConsensusManager`; update `NewConsensusManager` signature
-  - Rewrite `IsLeader(slot int64) bool` to look up the slot offset in the cached schedule
-  - Add `GetScheduledValidator`, `RecordMissedBlock`, and `CheckAndProcessEpochBoundary` methods
-  - Update node startup in `cmd/main.go` to pass the new parameters and call `InitializeGenesisStaking` before the main loop
-  - _Requirements: 3.3, 3.4, 3.5, 3.6, 8.2, 8.3, 8.4_
+- [ ] 4.6 Implement `RecordMissedBlock` — update missed-block counter in Validator Record and Epoch State File
+  - _Requirements: 3.6, 9.4_
 
-- [ ] 11. Build the Validator TUI application
-  - Create `cmd/validator-tui/main.go` as a standalone binary accepting `--state <path>` and `--pubkey <hex>` flags
-  - Open the FileStore in read-only mode; decode EpochStateData, RewardPool balance, and all ValidatorRecord files using the binary decoders from `internal/staking/types.go`
-  - Render the ANSI dashboard: header panel, validator table with `[inactive]`/`[slashed]` row prefixes, summary panel with total staked, pool balance, and estimated APY
-  - Refresh every 1000ms via `time.Ticker`; handle `q` keypress and `os.Interrupt` for clean exit
-  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7_
+- [ ] 4.7 Write ConsensusManager unit tests
+  - Test epoch boundary detection, schedule computation determinism, missed-block recording
+  - _Requirements: 3.3, 3.6, 9.2_
 
-- [ ] 12. Write the DPoS automated demo script
-  - Create `demo-dpos.sh` at the repo root accepting `<num_validators> <duration_seconds>` (min 2, max 9 validators)
-  - Generate a genesis config, start N node processes, wait for epoch 0 blocks, submit `DelegateStake` transactions, wait for epoch boundary, trigger reward distribution, submit `ReportDoubleSign`
-  - Emit structured JSON log entries to `logs/dpos-demo-<timestamp>.json` in the same format as `demo-automated.sh`; print human-readable summary to stdout; exit 0 on success
-  - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8_
+- [ ] 5. Implement the Validator TUI App
+- [ ] 5.1 Create `cmd/validator-tui/main.go` with `--state` flag and FileStore read-only open
+  - Parse `--state` flag; open BadgerDB in read-only mode
+  - Enumerate all FileIDs; classify files by prefix pattern (validator records, stake accounts, epoch state, reward pool)
+  - _Requirements: 7.2_
 
-- [ ] 13. Write unit tests for Go staking types and schedule computation
-  - Test `ValidatorRecord`, `StakeAccountData`, and `EpochStateData` binary encode/decode round-trips
-  - Test `ComputeSchedule` determinism (same seed → same schedule) and proportionality (higher stake → more slots)
-  - Test `InitializeGenesisStaking` idempotency and zero-validator rejection
-  - _Requirements: 1.1–1.5, 2.1–2.6, 9.1–9.6, 10.1–10.5_
+- [ ] 5.2 Implement terminal dashboard rendering with 1000 ms refresh loop
+  - Render header panel: epoch, slot, local validator status, active validator count, local delegated stake
+  - Render validator table with `[inactive]`/`[slashed]` row prefixes
+  - Render summary footer: total staked electrons, Reward Pool balance, estimated APY
+  - Handle `q` / `Ctrl+C` for clean exit
+  - _Requirements: 7.1, 7.3, 7.4, 7.5, 7.6, 7.7_
 
-- [ ] 14. Write integration test for the full DPoS lifecycle
-  - Create `internal/staking_integration_test.go`
-  - Cover: genesis init → compile and load staking.qsb → submit RegisterValidator tx → DelegateStake tx → epoch boundary → DistributeRewards → UndelegateStake → cooldown → WithdrawStake → ReportDoubleSign → validator deactivation
-  - _Requirements: 3.1, 3.2, 4.1–4.5, 5.1–5.4, 8.1–8.4, 9.1–9.6_
+- [ ] 6. Implement the DPoS demo script
+- [ ] 6.1 Create `demo-dpos.sh` with genesis start and block production phase
+  - Accept `<num_validators> <duration_seconds>` args; start N validator nodes from genesis config
+  - Log each block with slot, validator pubkey, block hash to `logs/dpos-demo-<timestamp>.json`
+  - _Requirements: 11.1, 11.2_
+
+- [ ] 6.2 Add delegation, epoch boundary, and reward distribution phases to `demo-dpos.sh`
+  - Submit one `DelegateStake` tx per validator; wait for epoch boundary; log Validator Schedule and stakes
+  - Log each validator's and delegator's reward amount in electrons
+  - _Requirements: 11.3, 11.4_
+
+- [ ] 6.3 Add slashing phase and summary output to `demo-dpos.sh`
+  - Submit `ReportDoubleSign` against one validator; log slashing event, reduced stake, deactivation status
+  - Print human-readable summary table to stdout; exit 0 on full success, non-zero on failure
+  - Ensure log format is compatible with `analyze-results.sh`
+  - _Requirements: 11.5, 11.6, 11.7, 11.8_
+
+- [ ] 7. Wire everything together in `cmd/main.go`
+  - Pass staking bytecode to `LoadBuiltinPrograms`
+  - Pass `GenesisConfig` to `NewConsensusManager`
+  - Register `validator-tui` subcommand (or build as separate binary)
+  - Ensure node startup calls `InitializeGenesis` before processing slots
+  - _Requirements: 6.5, 9.1, 9.2_
