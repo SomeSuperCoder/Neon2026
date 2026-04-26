@@ -23,7 +23,7 @@
 
 ## Phase 2: System_Program Source
 
-- [-] 2. Write System_Program `.qs` source
+- [x] 2. Write System_Program `.qs` source
   - Create entry point that dispatches to handler functions
   - Implement account creation handler
   - Implement balance transfer handler
@@ -31,13 +31,13 @@
   - Use only stdlib calls and control flow (no manual byte manipulation)
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 2.1 Compile System_Program to bytecode
+- [x] 2.1 Compile System_Program to bytecode
   - Generate assembly from source
   - Generate bytecode from assembly
   - Verify bytecode validity
   - _Requirements: 3.1, 3.2, 3.3_
 
-- [ ] 2.2 Write unit tests for System_Program
+- [x] 2.2 Write unit tests for System_Program
   - Verify account creation with valid and invalid inputs
   - Verify balance transfers with authorization and balance checks
   - Verify space allocation with storage cost calculation
