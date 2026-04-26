@@ -128,6 +128,11 @@ const (
 	OpStrFromBytes Opcode = 0xC7 // Convert bytes to string
 )
 
+// Debug Operations
+const (
+	OpLog Opcode = 0xC8 // Log value for debugging (high cost)
+)
+
 // Math Operations
 const (
 	OpMathMin Opcode = 0xD0 // Minimum of two values
@@ -248,6 +253,9 @@ var OpcodeNames = map[Opcode]string{
 	OpStrLen:       "STRLEN",
 	OpStrToBytes:   "STRTOBYTES",
 	OpStrFromBytes: "STRFROMBYTES",
+
+	// Debug Operations
+	OpLog: "LOG",
 
 	// Math Operations
 	OpMathMin: "MATHMIN",

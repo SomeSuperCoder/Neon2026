@@ -522,3 +522,44 @@ func (bi *BytecodeInterpreter) execBytesToFileID() error {
 
 	return bi.push(NewFileID(fileIDCopy))
 }
+
+// execLog logs a value for debugging purposes
+// Stack: [value] -> []
+// This is a high-cost operation (5000 units) to discourage use in production
+// The value is popped from the stack and logged (in a real implementation,
+// this would write to a debug log or emit an event)
+func (bi *BytecodeInterpreter) execLog() error {
+	// Pop value from stack
+	value, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	// Format the value as a string for logging
+	var logMsg string
+	switch value.Type {
+	case TypeI64:
+		v, _ := value.AsI64()
+		logMsg = fmt.Sprintf("LOG: i64(%d)", v)
+	case TypeU64:
+		v, _ := value.AsU64()
+		logMsg = fmt.Sprintf("LOG: u64(%d)", v)
+	case TypeString:
+		v, _ := value.AsString()
+		logMsg = fmt.Sprintf("LOG: string(%q)", v)
+	case TypeBytes:
+		v, _ := value.AsBytes()
+		logMsg = fmt.Sprintf("LOG: bytes(len=%d)", len(v))
+	case TypeBool:
+		v, _ := value.AsBool()
+		logMsg = fmt.Sprintf("LOG: bool(%v)", v)
+	default:
+		logMsg = fmt.Sprintf("LOG: %v", value.Type)
+	}
+
+	// In a real implementation, this would write to a debug log
+	// For now, we just consume the value (it's already popped)
+	_ = logMsg // Suppress unused variable warning
+
+	return nil
+}

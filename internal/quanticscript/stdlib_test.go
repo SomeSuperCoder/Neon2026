@@ -204,6 +204,70 @@ func TestMathOperations(t *testing.T) {
 	})
 }
 
+// TestLogFunction tests the log() debug function
+func TestLogFunction(t *testing.T) {
+	ctx := NewMockExecutionContext()
+
+	t.Run("log with string", func(t *testing.T) {
+		bytecode := []byte{
+			byte(OpPush), byte(TypeString), 5, 0, 0, 0, 0, 0, 0, 0, 'h', 'e', 'l', 'l', 'o',
+			byte(OpLog),
+			byte(OpRet),
+		}
+
+		interpreter := NewBytecodeInterpreter(bytecode, ctx, 10000)
+		err := interpreter.Execute()
+		if err != nil {
+			t.Fatalf("Execution failed: %v", err)
+		}
+
+		// log() should consume the value and return nothing
+		if len(interpreter.stack) != 0 {
+			t.Fatalf("Expected empty stack after log, got %d values", len(interpreter.stack))
+		}
+	})
+
+	t.Run("log with i64", func(t *testing.T) {
+		bytecode := []byte{
+			byte(OpPush), byte(TypeI64), 42, 0, 0, 0, 0, 0, 0, 0,
+			byte(OpLog),
+			byte(OpRet),
+		}
+
+		interpreter := NewBytecodeInterpreter(bytecode, ctx, 10000)
+		err := interpreter.Execute()
+		if err != nil {
+			t.Fatalf("Execution failed: %v", err)
+		}
+
+		if len(interpreter.stack) != 0 {
+			t.Fatalf("Expected empty stack after log, got %d values", len(interpreter.stack))
+		}
+	})
+
+	t.Run("log charges high cost", func(t *testing.T) {
+		bytecode := []byte{
+			byte(OpPush), byte(TypeString), 5, 0, 0, 0, 0, 0, 0, 0, 't', 'e', 's', 't', 's',
+			byte(OpLog),
+			byte(OpRet),
+		}
+
+		// Start with exactly 1000 units - should fail because log costs more
+		interpreter := NewBytecodeInterpreter(bytecode, ctx, 1000)
+		err := interpreter.Execute()
+		if err == nil {
+			t.Error("Expected execution to fail due to insufficient compute budget")
+		}
+
+		// With 10000 units, should succeed
+		interpreter = NewBytecodeInterpreter(bytecode, ctx, 10000)
+		err = interpreter.Execute()
+		if err != nil {
+			t.Fatalf("Execution failed with sufficient budget: %v", err)
+		}
+	})
+}
+
 // TestCollectionOperations tests the collections module functions
 func TestCollectionOperations(t *testing.T) {
 	ctx := NewMockExecutionContext()

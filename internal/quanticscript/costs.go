@@ -104,6 +104,9 @@ var CostTable = map[Opcode]InstructionCost{
 	OpStrToBytes:   2,
 	OpStrFromBytes: 2,
 
+	// Debug Operations (cost: 5000 - very high for debugging)
+	OpLog: 5000,
+
 	// Math Operations (cost: 2-10)
 	OpMathMin: 2,
 	OpMathMax: 2,

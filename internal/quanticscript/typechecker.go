@@ -88,6 +88,9 @@ func (tc *TypeChecker) registerBuiltinFunctions() {
 	tc.registerFunction("stringToBytes", []*TypeAnnotation{{Name: "string"}}, &TypeAnnotation{Name: "bytes"})
 	tc.registerFunction("bytesToString", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "string"})
 
+	// Debug operations
+	tc.registerFunction("log", []*TypeAnnotation{{Name: "any"}}, &TypeAnnotation{Name: "void"})
+
 	// Math operations
 	tc.registerFunction("min", []*TypeAnnotation{{Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "i64"})
 	tc.registerFunction("max", []*TypeAnnotation{{Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "i64"})

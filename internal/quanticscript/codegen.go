@@ -937,6 +937,8 @@ func (cg *CodeGenerator) isBuiltinFunction(name string) bool {
 		"abs":  true,
 		"pow":  true,
 		"sqrt": true,
+		// Debug operations
+		"log": true,
 		// Conversion operations
 		"slice":         true,
 		"bytesToI64LE":  true,
@@ -951,6 +953,7 @@ func (cg *CodeGenerator) isVoidBuiltinFunction(name string) bool {
 		"updateBalance": true,
 		"updateFile":    true,
 		"transfer":      true,
+		"log":           true,
 	}
 	return voidBuiltins[name]
 }
@@ -1042,6 +1045,9 @@ func (cg *CodeGenerator) emitBuiltinCall(name string, loc SourceLocation) {
 		cg.emitOpcode(OpStrToBytes)
 	case "bytesToString":
 		cg.emitOpcode(OpStrFromBytes)
+	// Debug operations
+	case "log":
+		cg.emitOpcode(OpLog)
 	// Math operations
 	case "min":
 		cg.emitOpcode(OpMathMin)

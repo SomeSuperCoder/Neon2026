@@ -275,6 +275,10 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 	case OpStrFromBytes:
 		return bi.execStrFromBytes()
 
+	// Debug operations
+	case OpLog:
+		return bi.execLog()
+
 	// Math operations
 	case OpMathMin:
 		return bi.execMathMin()
