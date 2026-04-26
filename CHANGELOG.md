@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Validator TUI dashboard (`cmd/validator-tui/main.go`) — real-time monitoring of validator and staking state
+  - Built with Bubble Tea framework and lipgloss for rich terminal UI
+  - Read-only FileStore access with BadgerDB
+  - File classification for validator records, stake accounts, epoch state, and reward pool
+  - Terminal dashboard with styled components and 1-second refresh interval
+  - Keyboard controls (q/Ctrl+C for exit)
+  - Displays epoch, slot, validator status, active validator count, and delegated stake
+  - Shows validator table with commission, blocks produced, missed blocks, and slashing status
+  - Summary footer with total staked electrons, reward pool balance, and estimated APY
+  - Automatic state directory creation and genesis initialization
+  - Comprehensive guide in `docs/guides/validator-tui.md`
 - Security restriction on `UPDATEBALANCE` instruction - can only be called by system program (2026-04-24)
 - Comprehensive security model documentation in `docs/reference/security-model.md`
 - System program privilege level with FileID `0x01`

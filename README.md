@@ -311,6 +311,54 @@ go run cmd/main.go --type=replica --port=8001 --peers=localhost:8000 --db=./repl
 go run cmd/main.go --type=replica --port=8002 --peers=localhost:8000 --db=./replica2.db
 ```
 
+### Validator TUI Dashboard
+
+Monitor validator and staking information in real-time with the validator TUI:
+
+```bash
+# Build the validator TUI
+go build -o validator-tui ./cmd/validator-tui/main.go
+
+# Run the TUI pointing to a FileStore database
+./validator-tui --state ./state.db
+```
+
+**Features:**
+- Built with Bubble Tea framework for rich terminal UI
+- Real-time epoch and slot information
+- Active validator count and status
+- Validator records with commission, blocks produced, and missed blocks
+- Stake account information
+- Reward pool balance and estimated APY
+- Slashing status indicators with color-coded display
+- 1-second refresh interval
+- Press 'q' or Ctrl+C to exit
+- Automatic state initialization if directory doesn't exist
+
+**Dashboard Layout:**
+```
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                         VALIDATOR TUI DASHBOARD                                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+Epoch: 0 | Slot: 0 | Local Validator: not_set | Active Validators: 0 | Local Stake: 0 electrons
+
+┌──────────────────┬──────────┬──────────────────┬────────┬────────┬──────┬────────┐
+│ Pubkey (16 hex)  │ Status   │ Total Stake      │ Comm % │ Blocks │ Miss │ Slashed│
+├──────────────────┼──────────┼──────────────────┼────────┼────────┼──────┼────────┤
+│ (validator rows)                                                                 │
+└──────────────────┴──────────┴──────────────────┴────────┴────────┴──────┴────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ Total Staked: 0 electrons | Reward Pool: 0 electrons | Est. APY: 0.00% │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+Press 'q' or Ctrl+C to exit
+Last refresh: 15:04:05
+```
+
+See [docs/guides/validator-tui.md](docs/guides/validator-tui.md) for detailed usage.
+
 ### Graceful Shutdown
 
 Press `Ctrl+C` or send `SIGINT`/`SIGTERM` to gracefully shutdown the node. The node will:

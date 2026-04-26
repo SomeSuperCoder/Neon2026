@@ -98,23 +98,26 @@
   - Test epoch boundary detection, schedule computation determinism, missed-block recording
   - _Requirements: 3.3, 3.6, 9.2_
 
-- [ ] 5. Implement the Validator TUI App
-- [ ] 5.1 Create `cmd/validator-tui/main.go` with `--state` flag and FileStore read-only open
+- [x] 5. Implement the Validator TUI App
+- [x] 5.1 Create `cmd/validator-tui/main.go` with `--state` flag and FileStore read-only open
   - Parse `--state` flag; open BadgerDB in read-only mode
   - Enumerate all FileIDs; classify files by prefix pattern (validator records, stake accounts, epoch state, reward pool)
   - _Requirements: 7.2_
+  - ✅ COMPLETED: Validator TUI binary builds successfully with read-only FileStore access
 
-- [ ] 5.2 Implement terminal dashboard rendering with 1000 ms refresh loop
+- [x] 5.2 Implement terminal dashboard rendering with 1000 ms refresh loop
   - Render header panel: epoch, slot, local validator status, active validator count, local delegated stake
   - Render validator table with `[inactive]`/`[slashed]` row prefixes
   - Render summary footer: total staked electrons, Reward Pool balance, estimated APY
   - Handle `q` / `Ctrl+C` for clean exit
   - _Requirements: 7.1, 7.3, 7.4, 7.5, 7.6, 7.7_
+  - ✅ COMPLETED: Full dashboard rendering with Bubble Tea framework, lipgloss styling, 1-second refresh, keyboard controls
 
-- [ ] 6. Implement the DPoS demo script
-- [ ] 6.1 Create `demo-dpos.sh` with genesis start and block production phase
+- [-] 6. Implement the DPoS demo script
+- [-] 6.1 Create `demo-dpos.sh` with genesis start and block production phase
   - Accept `<num_validators> <duration_seconds>` args; start N validator nodes from genesis config
   - Log each block with slot, validator pubkey, block hash to `logs/dpos-demo-<timestamp>.json`
+  - There must be only one demo that does it all, there must not be more than one demo file to avoid confusion
   - _Requirements: 11.1, 11.2_
 
 - [ ] 6.2 Add delegation, epoch boundary, and reward distribution phases to `demo-dpos.sh`
