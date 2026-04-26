@@ -156,6 +156,11 @@ func TestLevel3Examples(t *testing.T) {
 			bytecodeFile:   "../../examples/08_recursion.qsb",
 			expectedResult: 120, // factorial(5) = 5 * 4 * 3 * 2 * 1 = 120
 		},
+		{
+			name:           "09_fibonacci",
+			bytecodeFile:   "../../examples/09_fibonacci.qsb",
+			expectedResult: 55, // fibonacci(10) = 55
+		},
 	}
 
 	for _, tt := range tests {

@@ -9,6 +9,12 @@ import (
 // DebugLogger is a function type for debug logging
 type DebugLogger func(format string, args ...interface{})
 
+// StackFrame represents a function call frame with saved local memory
+type StackFrame struct {
+	returnAddr  int     // Return address (program counter)
+	savedMemory []Value // Saved local memory state
+}
+
 // BytecodeInterpreter executes QuanticScript bytecode with cost metering
 // This implements Requirements 2.1, 2.2, 2.3, 2.4, 2.5
 type BytecodeInterpreter struct {
@@ -18,7 +24,7 @@ type BytecodeInterpreter struct {
 	computeBudget  int64                  // Remaining compute units
 	ctx            ExecutionContext       // Execution context for blockchain operations
 	bytecode       []byte                 // Program bytecode
-	callStack      []int                  // Call stack for function returns
+	callStack      []StackFrame           // Call stack for function returns with saved memory
 	invokeDepth    int                    // Current cross-program invocation depth
 	debugLog       DebugLogger            // Optional debug logger
 	registry       map[int]InstructionDef // Instruction dispatch registry (nil = no dispatch)
@@ -33,7 +39,7 @@ func NewBytecodeInterpreter(bytecode []byte, ctx ExecutionContext, computeBudget
 		computeBudget:  computeBudget,
 		ctx:            ctx,
 		bytecode:       bytecode,
-		callStack:      make([]int, 0, 64),
+		callStack:      make([]StackFrame, 0, 64),
 		invokeDepth:    0,
 	}
 }
@@ -47,7 +53,7 @@ func NewBytecodeInterpreterWithDepth(bytecode []byte, ctx ExecutionContext, comp
 		computeBudget:  computeBudget,
 		ctx:            ctx,
 		bytecode:       bytecode,
-		callStack:      make([]int, 0, 64),
+		callStack:      make([]StackFrame, 0, 64),
 		invokeDepth:    invokeDepth,
 	}
 }
@@ -83,9 +89,9 @@ func (bi *BytecodeInterpreter) Execute() error {
 			return err
 		}
 
-		if stepCount > 1000 {
-			bi.log("Execute: SAFETY LIMIT - exceeded 1000 steps, breaking")
-			return fmt.Errorf("execution exceeded safety limit of 1000 steps")
+		if stepCount > 100000 {
+			bi.log("Execute: SAFETY LIMIT - exceeded 100000 steps, breaking")
+			return fmt.Errorf("execution exceeded safety limit of 100000 steps")
 		}
 	}
 	bi.log("Execute: Completed successfully after %d steps", stepCount)
@@ -931,13 +937,24 @@ func (bi *BytecodeInterpreter) execCall() error {
 		int32(bi.bytecode[bi.programCounter+3])<<24
 	bi.programCounter += 4
 
-	// Push return address onto call stack
-	bi.callStack = append(bi.callStack, bi.programCounter)
+	// Save current memory state
+	savedMemory := make([]Value, len(bi.memory))
+	copy(savedMemory, bi.memory)
+
+	// Push stack frame with return address and saved memory
+	frame := StackFrame{
+		returnAddr:  bi.programCounter,
+		savedMemory: savedMemory,
+	}
+	bi.callStack = append(bi.callStack, frame)
 
 	// Check call stack depth to prevent infinite recursion
 	if len(bi.callStack) > 64 {
 		return fmt.Errorf("call stack overflow: maximum depth exceeded")
 	}
+
+	// Clear memory for new function call
+	bi.memory = make([]Value, 256)
 
 	// Calculate new program counter
 	newPC := int(offset)
@@ -957,11 +974,15 @@ func (bi *BytecodeInterpreter) execRet() error {
 		return nil
 	}
 
-	// Pop return address from call stack
-	returnAddr := bi.callStack[len(bi.callStack)-1]
+	// Pop stack frame from call stack
+	frame := bi.callStack[len(bi.callStack)-1]
 	bi.callStack = bi.callStack[:len(bi.callStack)-1]
 
-	bi.programCounter = returnAddr
+	// Restore memory state
+	bi.memory = frame.savedMemory
+
+	// Restore program counter
+	bi.programCounter = frame.returnAddr
 	return nil
 }
 
