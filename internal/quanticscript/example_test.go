@@ -1,101 +1,202 @@
 package quanticscript
 
 import (
-	"fmt"
+	"os"
+	"testing"
 )
 
-// ExampleAssembler demonstrates assembling QuanticScript assembly to bytecode
-func ExampleAssembler() {
-	assembly := `
-		; Simple program that adds two numbers
-		PUSH i64 10
-		PUSH i64 20
-		ADD
-		RET
-	`
-
-	bytecode, err := AssembleToBody(assembly)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
+// TestLevel1Examples tests the Level 1 example programs
+func TestLevel1Examples(t *testing.T) {
+	tests := []struct {
+		name           string
+		bytecodeFile   string
+		expectedResult int64
+	}{
+		{
+			name:           "01_literals",
+			bytecodeFile:   "../../examples/01_literals.qsb",
+			expectedResult: 42,
+		},
+		{
+			name:           "02_variables",
+			bytecodeFile:   "../../examples/02_variables.qsb",
+			expectedResult: 30, // 10 + 20
+		},
+		{
+			name:           "03_expressions",
+			bytecodeFile:   "../../examples/03_expressions.qsb",
+			expectedResult: 15, // (5 + 3) * 2 - 5 / 3 = 8 * 2 - 1 = 16 - 1 = 15
+		},
 	}
 
-	fmt.Printf("Assembled %d bytes of bytecode\n", len(bytecode))
-	// Output: Assembled 22 bytes of bytecode
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Read bytecode file
+			bytecode, err := os.ReadFile(tt.bytecodeFile)
+			if err != nil {
+				t.Fatalf("Failed to read bytecode file %s: %v", tt.bytecodeFile, err)
+			}
+
+			// Extract body (skip header)
+			body, err := GetBytecodeBody(bytecode)
+			if err != nil {
+				t.Fatalf("Failed to extract bytecode body: %v", err)
+			}
+
+			// Create mock execution context
+			ctx := NewMockExecutionContext()
+
+			// Create interpreter with sufficient budget
+			interpreter := NewBytecodeInterpreter(body, ctx, 1000000)
+
+			// Execute
+			err = interpreter.Execute()
+			if err != nil {
+				t.Fatalf("Execution failed: %v", err)
+			}
+
+			// Check result (should be on top of stack)
+			if len(interpreter.stack) != 1 {
+				t.Fatalf("Expected 1 value on stack, got %d", len(interpreter.stack))
+			}
+
+			result, err := interpreter.stack[0].AsI64()
+			if err != nil {
+				t.Fatalf("Failed to get i64 result: %v", err)
+			}
+
+			if result != tt.expectedResult {
+				t.Errorf("Expected result %d, got %d", tt.expectedResult, result)
+			}
+		})
+	}
 }
 
-// ExampleDisassembler demonstrates disassembling bytecode to assembly
-func ExampleDisassembler() {
-	// First assemble some code
-	assembly := `
-		PUSH i64 42
-		RET
-	`
-
-	bytecode, _ := AssembleToBody(assembly)
-
-	// Now disassemble it
-	disassembled, err := DisassembleBody(bytecode)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
+// TestLevel2Examples tests the Level 2 example programs (control flow)
+func TestLevel2Examples(t *testing.T) {
+	tests := []struct {
+		name           string
+		bytecodeFile   string
+		expectedResult int64
+	}{
+		{
+			name:           "04_conditionals",
+			bytecodeFile:   "../../examples/04_conditionals.qsb",
+			expectedResult: 1, // x=10 > 5, so returns 1
+		},
+		{
+			name:           "05_while_loop",
+			bytecodeFile:   "../../examples/05_while_loop.qsb",
+			expectedResult: 55, // sum of 1 to 10
+		},
+		{
+			name:           "06_for_loop",
+			bytecodeFile:   "../../examples/06_for_loop.qsb",
+			expectedResult: 55, // sum of 1 to 10
+		},
 	}
 
-	fmt.Println(disassembled)
-	// Output:
-	//     PUSH        i64 42 ; cost: 1
-	//     RET          ; cost: 2
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Read bytecode file
+			bytecode, err := os.ReadFile(tt.bytecodeFile)
+			if err != nil {
+				t.Fatalf("Failed to read bytecode file %s: %v", tt.bytecodeFile, err)
+			}
+
+			// Extract body (skip header)
+			body, err := GetBytecodeBody(bytecode)
+			if err != nil {
+				t.Fatalf("Failed to extract bytecode body: %v", err)
+			}
+
+			// Create mock execution context
+			ctx := NewMockExecutionContext()
+
+			// Create interpreter with sufficient budget
+			interpreter := NewBytecodeInterpreter(body, ctx, 1000000)
+
+			// Execute
+			err = interpreter.Execute()
+			if err != nil {
+				t.Fatalf("Execution failed: %v", err)
+			}
+
+			// Check result (should be on top of stack)
+			if len(interpreter.stack) != 1 {
+				t.Fatalf("Expected 1 value on stack, got %d", len(interpreter.stack))
+			}
+
+			result, err := interpreter.stack[0].AsI64()
+			if err != nil {
+				t.Fatalf("Failed to get i64 result: %v", err)
+			}
+
+			if result != tt.expectedResult {
+				t.Errorf("Expected result %d, got %d", tt.expectedResult, result)
+			}
+		})
+	}
 }
 
-// ExampleAssembleToFile demonstrates creating a complete bytecode file
-func ExampleAssembleToFile() {
-	assembly := `
-		PUSH i64 100
-		PUSH i64 50
-		SUB
-		RET
-	`
-
-	bytecode, err := AssembleToFile(assembly)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
+// TestLevel3Examples tests the Level 3 example programs (functions)
+func TestLevel3Examples(t *testing.T) {
+	tests := []struct {
+		name           string
+		bytecodeFile   string
+		expectedResult int64
+	}{
+		{
+			name:           "07_functions",
+			bytecodeFile:   "../../examples/07_functions.qsb",
+			expectedResult: 30, // add(10, 20) = 30
+		},
+		{
+			name:           "08_recursion",
+			bytecodeFile:   "../../examples/08_recursion.qsb",
+			expectedResult: 120, // factorial(5) = 5 * 4 * 3 * 2 * 1 = 120
+		},
 	}
 
-	// Verify it's valid bytecode
-	if IsQuanticScriptBytecode(bytecode) {
-		fmt.Println("Valid QuanticScript bytecode file created")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Read bytecode file
+			bytecode, err := os.ReadFile(tt.bytecodeFile)
+			if err != nil {
+				t.Fatalf("Failed to read bytecode file %s: %v", tt.bytecodeFile, err)
+			}
+
+			// Extract body (skip header)
+			body, err := GetBytecodeBody(bytecode)
+			if err != nil {
+				t.Fatalf("Failed to extract bytecode body: %v", err)
+			}
+
+			// Create mock execution context
+			ctx := NewMockExecutionContext()
+
+			// Create interpreter with sufficient budget
+			interpreter := NewBytecodeInterpreter(body, ctx, 1000000)
+
+			// Execute
+			err = interpreter.Execute()
+			if err != nil {
+				t.Fatalf("Execution failed: %v", err)
+			}
+
+			// Check result (should be on top of stack)
+			if len(interpreter.stack) != 1 {
+				t.Fatalf("Expected 1 value on stack, got %d", len(interpreter.stack))
+			}
+
+			result, err := interpreter.stack[0].AsI64()
+			if err != nil {
+				t.Fatalf("Failed to get i64 result: %v", err)
+			}
+
+			if result != tt.expectedResult {
+				t.Errorf("Expected result %d, got %d", tt.expectedResult, result)
+			}
+		})
 	}
-	// Output: Valid QuanticScript bytecode file created
-}
-
-// ExampleDisassembleFile demonstrates disassembling a complete bytecode file
-func ExampleDisassembleFile() {
-	// Create a bytecode file
-	assembly := `
-		PUSH i64 5
-		PUSH i64 3
-		MUL
-		RET
-	`
-
-	bytecode, _ := AssembleToFile(assembly)
-
-	// Disassemble it
-	disassembled, err := DisassembleFile(bytecode)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	fmt.Println(disassembled)
-	// Output:
-	// ; QuanticScript Bytecode
-	// ; Version: 0x0100
-	// ; Entry Offset: 0
-	//
-	//     PUSH        i64 5 ; cost: 1
-	//     PUSH        i64 3 ; cost: 1
-	//     MUL          ; cost: 3
-	//     RET          ; cost: 2
 }

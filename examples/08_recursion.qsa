@@ -1,0 +1,34 @@
+; QuanticScript Bytecode
+; Version: 0x0100
+; Entry Offset: 0
+
+    CALL        func_0 ; cost: 5
+    RET          ; cost: 2
+
+func_3:
+    STORE       0 ; cost: 3
+    LOAD        0 ; cost: 3
+    PUSH        i64 1 ; cost: 1
+    LTE          ; cost: 2
+    JMPIF       label_1 ; cost: 2
+    JMP         label_2 ; cost: 2
+
+label_1:
+    PUSH        i64 1 ; cost: 1
+    RET          ; cost: 2
+
+label_2:
+    LOAD        0 ; cost: 3
+    LOAD        0 ; cost: 3
+    PUSH        i64 1 ; cost: 1
+    SUB          ; cost: 2
+    CALL        func_3 ; cost: 5
+    MUL          ; cost: 3
+    RET          ; cost: 2
+    RET          ; cost: 2
+
+func_0:
+    PUSH        i64 5 ; cost: 1
+    CALL        func_3 ; cost: 5
+    RET          ; cost: 2
+    RET          ; cost: 2

@@ -6,13 +6,21 @@
     RET          ; cost: 2
 
 func_0:
-    PUSH        i64 1000 ; cost: 1
+    PUSH        i64 5 ; cost: 1
+    STORE       0 ; cost: 3
+    PUSH        i64 3 ; cost: 1
     STORE       1 ; cost: 3
-    PUSH        i64 10 ; cost: 1
+    PUSH        i64 2 ; cost: 1
     STORE       2 ; cost: 3
+    LOAD        0 ; cost: 3
     LOAD        1 ; cost: 3
-    LOAD        2 ; cost: 3
     ADD          ; cost: 2
+    LOAD        2 ; cost: 3
+    MUL          ; cost: 3
+    LOAD        0 ; cost: 3
+    LOAD        1 ; cost: 3
+    DIV          ; cost: 4
+    SUB          ; cost: 2
     STORE       3 ; cost: 3
     LOAD        3 ; cost: 3
     RET          ; cost: 2
