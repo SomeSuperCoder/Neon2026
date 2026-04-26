@@ -23,7 +23,7 @@
   - Run the code via the interpreter and check if it works correctly for all cases
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 7.1, 7.2, 7.3_
 
-- [ ] 4. Create Level 4 examples (blockchain operations)
+- [x] 4. Create Level 4 examples (blockchain operations)
   - Create 09_balance_ops.qs with balance queries and updates
   - Create 10_file_ops.qs with file operations
   - Create 11_crypto_ops.qs with cryptographic operations

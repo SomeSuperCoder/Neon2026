@@ -52,9 +52,9 @@ func (tc *TypeChecker) registerBuiltinFunctions() {
 	tc.registerFunction("getProgramId", []*TypeAnnotation{}, &TypeAnnotation{Name: "i64"})
 	tc.registerFunction("hasSigner", []*TypeAnnotation{{Name: "PublicKey"}}, &TypeAnnotation{Name: "bool"})
 	tc.registerFunction("getSigner", []*TypeAnnotation{{Name: "u64"}}, &TypeAnnotation{Name: "PublicKey"})
-	tc.registerFunction("getFile", []*TypeAnnotation{{Name: "FileID"}}, &TypeAnnotation{Name: "bytes"})
-	tc.registerFunction("getFileMut", []*TypeAnnotation{{Name: "FileID"}}, &TypeAnnotation{Name: "bytes"})
-	tc.registerFunction("updateFile", []*TypeAnnotation{{Name: "FileID"}, {Name: "bytes"}}, &TypeAnnotation{Name: "void"})
+	tc.registerFunction("getFile", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("getFileMut", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("updateFile", []*TypeAnnotation{{Name: "i64"}, {Name: "bytes"}}, &TypeAnnotation{Name: "void"})
 
 	// Cryptographic operations
 	tc.registerFunction("sha256", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "bytes"})

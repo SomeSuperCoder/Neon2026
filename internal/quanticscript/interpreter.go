@@ -996,13 +996,40 @@ func (bi *BytecodeInterpreter) execGetFile() error {
 		return err
 	}
 
-	if fileIDValue.Type != TypeFileID {
-		return fmt.Errorf("GETFILE requires FileID, got %v", fileIDValue.Type)
-	}
-
-	fileID, err := valueToFileID(fileIDValue)
-	if err != nil {
-		return fmt.Errorf("invalid FileID: %w", err)
+	// Accept FileID, Bytes (32 bytes), and i64 types for the file ID parameter
+	var fileID filestore.FileID
+	if fileIDValue.Type == TypeFileID {
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID data")
+		}
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID: %w", err)
+		}
+	} else if fileIDValue.Type == TypeBytes {
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID bytes data")
+		}
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID from bytes: %w", err)
+		}
+	} else if fileIDValue.Type == TypeI64 {
+		// Convert i64 to FileID by placing the value in the last 8 bytes
+		i64Val, _ := fileIDValue.AsI64()
+		// Store as big-endian in the last 8 bytes of FileID
+		fileID[24] = byte(i64Val >> 56)
+		fileID[25] = byte(i64Val >> 48)
+		fileID[26] = byte(i64Val >> 40)
+		fileID[27] = byte(i64Val >> 32)
+		fileID[28] = byte(i64Val >> 24)
+		fileID[29] = byte(i64Val >> 16)
+		fileID[30] = byte(i64Val >> 8)
+		fileID[31] = byte(i64Val)
+	} else {
+		return fmt.Errorf("GETFILE requires FileID, bytes, or i64, got %v", fileIDValue.Type)
 	}
 
 	// Get file from context
@@ -1023,13 +1050,40 @@ func (bi *BytecodeInterpreter) execGetFileMut() error {
 		return err
 	}
 
-	if fileIDValue.Type != TypeFileID {
-		return fmt.Errorf("GETFILEMUT requires FileID, got %v", fileIDValue.Type)
-	}
-
-	fileID, err := valueToFileID(fileIDValue)
-	if err != nil {
-		return fmt.Errorf("invalid FileID: %w", err)
+	// Accept FileID, Bytes (32 bytes), and i64 types for the file ID parameter
+	var fileID filestore.FileID
+	if fileIDValue.Type == TypeFileID {
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID data")
+		}
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID: %w", err)
+		}
+	} else if fileIDValue.Type == TypeBytes {
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID bytes data")
+		}
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID from bytes: %w", err)
+		}
+	} else if fileIDValue.Type == TypeI64 {
+		// Convert i64 to FileID by placing the value in the last 8 bytes
+		i64Val, _ := fileIDValue.AsI64()
+		// Store as big-endian in the last 8 bytes of FileID
+		fileID[24] = byte(i64Val >> 56)
+		fileID[25] = byte(i64Val >> 48)
+		fileID[26] = byte(i64Val >> 40)
+		fileID[27] = byte(i64Val >> 32)
+		fileID[28] = byte(i64Val >> 24)
+		fileID[29] = byte(i64Val >> 16)
+		fileID[30] = byte(i64Val >> 8)
+		fileID[31] = byte(i64Val)
+	} else {
+		return fmt.Errorf("GETFILEMUT requires FileID, bytes, or i64, got %v", fileIDValue.Type)
 	}
 
 	// Get file from context (with write permission)
@@ -1060,13 +1114,40 @@ func (bi *BytecodeInterpreter) execUpdateFile() error {
 		return err
 	}
 
-	if fileIDValue.Type != TypeFileID {
-		return fmt.Errorf("UPDATEFILE requires FileID, got %v", fileIDValue.Type)
-	}
-
-	fileID, err := valueToFileID(fileIDValue)
-	if err != nil {
-		return fmt.Errorf("invalid FileID: %w", err)
+	// Accept FileID, Bytes (32 bytes), and i64 types for the file ID parameter
+	var fileID filestore.FileID
+	if fileIDValue.Type == TypeFileID {
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID data")
+		}
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID: %w", err)
+		}
+	} else if fileIDValue.Type == TypeBytes {
+		fileIDBytes, ok := fileIDValue.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("invalid FileID bytes data")
+		}
+		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
+		if err != nil {
+			return fmt.Errorf("invalid FileID from bytes: %w", err)
+		}
+	} else if fileIDValue.Type == TypeI64 {
+		// Convert i64 to FileID by placing the value in the last 8 bytes
+		i64Val, _ := fileIDValue.AsI64()
+		// Store as big-endian in the last 8 bytes of FileID
+		fileID[24] = byte(i64Val >> 56)
+		fileID[25] = byte(i64Val >> 48)
+		fileID[26] = byte(i64Val >> 40)
+		fileID[27] = byte(i64Val >> 32)
+		fileID[28] = byte(i64Val >> 24)
+		fileID[29] = byte(i64Val >> 16)
+		fileID[30] = byte(i64Val >> 8)
+		fileID[31] = byte(i64Val)
+	} else {
+		return fmt.Errorf("UPDATEFILE requires FileID, bytes, or i64, got %v", fileIDValue.Type)
 	}
 
 	newData, _ := newDataValue.AsBytes()

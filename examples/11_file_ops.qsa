@@ -1,0 +1,15 @@
+; QuanticScript Bytecode
+; Version: 0x0100
+; Entry Offset: 0
+
+    CALL        func_0 ; cost: 5
+    RET          ; cost: 2
+
+func_0:
+    PUSH        i64 0 ; cost: 1
+    GETFILE      ; cost: 50
+    STORE       0 ; cost: 3
+    LOAD        0 ; cost: 3
+    ARRAYLEN     ; cost: 2
+    RET          ; cost: 2
+    RET          ; cost: 2

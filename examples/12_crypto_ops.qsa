@@ -1,0 +1,17 @@
+; QuanticScript Bytecode
+; Version: 0x0100
+; Entry Offset: 0
+
+    CALL        func_0 ; cost: 5
+    RET          ; cost: 2
+
+func_0:
+    GETINSTRDATA ; cost: 5
+    STORE       0 ; cost: 3
+    LOAD        0 ; cost: 3
+    SHA256       ; cost: 50
+    STORE       1 ; cost: 3
+    LOAD        1 ; cost: 3
+    ARRAYLEN     ; cost: 2
+    RET          ; cost: 2
+    RET          ; cost: 2

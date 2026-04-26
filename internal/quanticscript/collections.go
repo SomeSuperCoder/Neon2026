@@ -14,20 +14,24 @@ func (bi *BytecodeInterpreter) execArrayNew() error {
 	return bi.push(NewArray(arr))
 }
 
-// execArrayLen gets the length of an array
+// execArrayLen gets the length of an array or bytes
 func (bi *BytecodeInterpreter) execArrayLen() error {
-	// Pop array from stack
+	// Pop array or bytes from stack
 	arrValue, err := bi.pop()
 	if err != nil {
 		return err
 	}
 
-	if arrValue.Type != TypeArray {
-		return fmt.Errorf("ARRAYLEN requires array, got %v", arrValue.Type)
+	var length uint64
+	if arrValue.Type == TypeArray {
+		arr, _ := arrValue.AsArray()
+		length = uint64(len(arr))
+	} else if arrValue.Type == TypeBytes {
+		bytes, _ := arrValue.AsBytes()
+		length = uint64(len(bytes))
+	} else {
+		return fmt.Errorf("ARRAYLEN requires array or bytes, got %v", arrValue.Type)
 	}
-
-	arr, _ := arrValue.AsArray()
-	length := uint64(len(arr))
 
 	return bi.push(NewU64(length))
 }
