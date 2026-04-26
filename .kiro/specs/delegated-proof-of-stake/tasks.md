@@ -131,9 +131,10 @@
   - Ensure log format is compatible with `analyze-results.sh`
   - _Requirements: 11.5, 11.6, 11.7, 11.8_
 
-- [ ] 7. Wire everything together in `cmd/main.go`
+- [x] 7. Wire everything together in `cmd/main.go`
   - Pass staking bytecode to `LoadBuiltinPrograms`
   - Pass `GenesisConfig` to `NewConsensusManager`
   - Register `validator-tui` subcommand (or build as separate binary)
   - Ensure node startup calls `InitializeGenesis` before processing slots
   - _Requirements: 6.5, 9.1, 9.2_
+  - ✅ COMPLETED: DPoS genesis configuration integrated with default 2-validator setup (10 Neon and 5 Neon stakes), epoch length 432,000 slots, automatic initialization on node startup

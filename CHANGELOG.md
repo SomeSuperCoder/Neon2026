@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- DPoS integration in `cmd/main.go` — wired ConsensusManager, FileStore, and Runtime for full DPoS support
+  - Node startup now uses `NewConsensusManagerWithGenesis` with genesis validator configuration
+  - Default 2-validator genesis setup (10 Neon and 5 Neon stakes) for development
+  - Epoch length configured to 432,000 slots (~2 days at 400ms/slot)
+  - Automatic DPoS genesis initialization before slot processing
+  - FileStore and Runtime properly wired to ConsensusManager for epoch processing
+  - Staking bytecode loaded via `LoadBuiltinPrograms` at node startup
+  - Integration test (`internal/dpos_wiring_integration_test.go`) validates complete DPoS lifecycle
 - Validator TUI dashboard (`cmd/validator-tui/main.go`) — real-time monitoring of validator and staking state
   - Built with Bubble Tea framework and lipgloss for rich terminal UI
   - Read-only FileStore access with BadgerDB

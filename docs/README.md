@@ -6,6 +6,8 @@ Complete documentation for the Proof of History blockchain implementation.
 
 - **[Quick Start Guide](guides/quickstart.md)** - Get up and running in 30 seconds
 - **[Demo Guide](guides/demo.md)** - Interactive demos with tmux
+- **[DPoS Demo Guide](guides/dpos-demo.md)** - Delegated Proof of Stake demonstration
+- **[Validator TUI Guide](guides/validator-tui.md)** - Terminal dashboard for validators
 - **[CLI Usage Guide](guides/cli-usage.md)** - Command-line interface reference
 - **[QuanticScript Guide](guides/quanticscript.md)** - Smart contract language overview
 
@@ -27,6 +29,8 @@ Complete documentation for the Proof of History blockchain implementation.
 
 ### Implementation
 - **[Implementation Summary](reference/implementation-summary.md)** - Architecture and features
+- **[DPoS Genesis Reference](reference/dpos-genesis.md)** - Genesis initialization process
+- **[DPoS Node Integration](reference/dpos-node-integration.md)** - Node startup and configuration
 - **[BFT Fix Summary](reference/bft-fix-summary.md)** - Technical details of BFT fixes
 - **[Parser Infinite Loop Fix](reference/parser-infinite-loop-fix.md)** - Parser error handling improvements
 

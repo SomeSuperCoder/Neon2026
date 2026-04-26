@@ -273,9 +273,13 @@ go run cmd/main.go --type=leader --port=8000 --db=./leader.db
 
 The leader node will:
 - Initialize the PoH clock and start continuous block production
+- Initialize DPoS genesis with default 2-validator configuration (10 Neon and 5 Neon stakes)
+- Configure epoch length to 432,000 slots (~2 days at 400ms/slot)
 - Produce blocks every 400ms slot (minimum 64 ticks per block)
 - Store blocks to the local ledger
 - Broadcast blocks to all connected replica nodes
+
+**Note:** In production, the genesis validator configuration would be loaded from a config file. The current implementation uses hardcoded validators for development purposes.
 
 ### Running a Replica Node
 
@@ -377,6 +381,11 @@ This project is under active development. See `.kiro/specs/` for feature specifi
 ### In Development
 
 - **Delegated Proof of Stake (DPoS)** — validator registration, stake delegation, epoch scheduling, reward distribution, and slashing (see `.kiro/specs/delegated-proof-of-stake/`)
+  - ✅ Genesis initialization with configurable validators
+  - ✅ ConsensusManager integration with FileStore and Runtime
+  - ✅ Automatic DPoS state initialization on node startup
+  - 🚧 Validator TUI dashboard (completed, see `cmd/validator-tui/`)
+  - 🚧 Demo script implementation (in progress)
 
 ### Completed
 

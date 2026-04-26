@@ -157,24 +157,50 @@ go test -cover ./internal/genesis
 
 ## Integration with Node Startup
 
-The genesis initialization is called during node startup:
+The genesis initialization is automatically called during node startup in `cmd/main.go`:
 
 ```go
-// In cmd/main.go or consensus manager initialization
-config := GenesisConfig{
-    EpochLength: 432000,
-    GenesisValidators: []GenesisValidator{
-        {PublicKey: validator1Pubkey, StakeAmount: 1000000},
-        {PublicKey: validator2Pubkey, StakeAmount: 2000000},
-        // ...
+// Create genesis configuration for DPoS
+// For now, use a simple 2-validator genesis setup
+// In production, this would be loaded from a config file
+genesisConfig := consensus.GenesisConfig{
+    EpochLength: 432000, // ~2 days at 400ms/slot
+    GenesisValidators: []consensus.GenesisValidator{
+        {
+            PublicKey:   [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
+            StakeAmount: 10000000, // 10 Neon
+        },
+        {
+            PublicKey:   [32]byte{32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1},
+            StakeAmount: 5000000, // 5 Neon
+        },
     },
 }
 
-err := genesis.InitializeDPoSGenesis(fileStore, config)
-if err != nil {
+// Initialize ConsensusManager with genesis config
+consensusManager := consensus.NewConsensusManagerWithGenesis(nodeType, genesisConfig)
+
+// Wire FileStore and Runtime to ConsensusManager for DPoS operations
+consensusManager.SetFileStore(fileStore)
+consensusManager.SetRuntime(rt)
+
+// Initialize DPoS genesis state
+log.Println("Initializing DPoS genesis state...")
+if err := consensusManager.InitializeGenesis(genesisConfig); err != nil {
     log.Fatalf("Failed to initialize DPoS genesis: %v", err)
 }
+log.Println("DPoS genesis initialization complete")
 ```
+
+### Default Genesis Configuration
+
+The current implementation uses a hardcoded 2-validator genesis setup for development:
+
+- **Validator 1**: 10 Neon (10,000,000 electrons) stake
+- **Validator 2**: 5 Neon (5,000,000 electrons) stake
+- **Epoch Length**: 432,000 slots (~2 days at 400ms/slot)
+
+**Note:** In production deployments, the genesis configuration should be loaded from an external config file (e.g., JSON or TOML) to allow customization without recompiling the node binary.
 
 ## Storage Costs
 
