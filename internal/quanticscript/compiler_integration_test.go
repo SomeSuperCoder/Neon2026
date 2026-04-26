@@ -67,6 +67,18 @@ func TestFullCompilationPipeline(t *testing.T) {
 			expectedResult: 15, // 1+2+3+4+5
 			shouldFail:     false,
 		},
+		{
+			name: "string literal",
+			source: `
+				export function entry(): i64 {
+					let msg: string = "Hello, World!";
+					log(msg);
+					return 0;
+				}
+			`,
+			expectedResult: 0,
+			shouldFail:     false,
+		},
 	}
 
 	for _, tt := range tests {

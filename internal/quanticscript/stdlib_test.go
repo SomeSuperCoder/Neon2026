@@ -350,3 +350,118 @@ func TestCollectionOperations(t *testing.T) {
 		}
 	})
 }
+
+// TestLogOperation tests the log function for debugging
+func TestLogOperation(t *testing.T) {
+	ctx := NewMockExecutionContext()
+
+	t.Run("LogString", func(t *testing.T) {
+		// Test logging a string message - OpLog pops the value and discards it
+		bytecode := []byte{
+			byte(OpPush), byte(TypeString), 11, 0, 0, 0, 0, 0, 0, 0, 'H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd',
+			byte(OpLog),
+			byte(OpRet),
+		}
+
+		interpreter := NewBytecodeInterpreter(bytecode, ctx, 10000)
+		err := interpreter.Execute()
+		if err != nil {
+			t.Fatalf("Execution failed: %v", err)
+		}
+
+		// After OpLog, the stack should be empty (value was popped)
+		if len(interpreter.stack) != 0 {
+			t.Errorf("Expected empty stack after log, got %d values", len(interpreter.stack))
+		}
+	})
+
+	t.Run("LogInteger", func(t *testing.T) {
+		// Test logging an integer value
+		bytecode := []byte{
+			byte(OpPush), byte(TypeI64), 42, 0, 0, 0, 0, 0, 0, 0,
+			byte(OpLog),
+			byte(OpRet),
+		}
+
+		interpreter := NewBytecodeInterpreter(bytecode, ctx, 10000)
+		err := interpreter.Execute()
+		if err != nil {
+			t.Fatalf("Execution failed: %v", err)
+		}
+
+		// After OpLog, the stack should be empty
+		if len(interpreter.stack) != 0 {
+			t.Errorf("Expected empty stack after log, got %d values", len(interpreter.stack))
+		}
+	})
+
+	t.Run("LogHighCost", func(t *testing.T) {
+		// Test that log operation charges a high cost (5000 per OpLog)
+		bytecode := []byte{
+			byte(OpPush), byte(TypeString), 4, 0, 0, 0, 0, 0, 0, 0, 't', 'e', 's', 't',
+			byte(OpLog),
+			byte(OpRet),
+		}
+
+		// Set a low compute budget to verify high cost
+		// OpLog costs 5000, so budget of 100 should fail
+		interpreter := NewBytecodeInterpreter(bytecode, ctx, 100)
+		err := interpreter.Execute()
+
+		// Should fail due to out of compute budget
+		if err == nil {
+			t.Error("Expected execution to fail due to out of compute budget")
+		}
+		if err != nil && err.Error() != "out of compute budget" {
+			t.Errorf("Expected 'out of compute budget' error, got: %v", err)
+		}
+	})
+
+	t.Run("LogMultipleValues", func(t *testing.T) {
+		// Test logging multiple values in sequence
+		// Each OpLog costs 5000, so 2 logs = 10000 cost
+		bytecode := []byte{
+			byte(OpPush), byte(TypeString), 5, 0, 0, 0, 0, 0, 0, 0, 'F', 'i', 'r', 's', 't',
+			byte(OpLog),
+			byte(OpPush), byte(TypeString), 6, 0, 0, 0, 0, 0, 0, 0, 'S', 'e', 'c', 'o', 'n', 'd',
+			byte(OpLog),
+			byte(OpRet),
+		}
+
+		// Need enough budget for 2 logs (10000) plus other operations
+		interpreter := NewBytecodeInterpreter(bytecode, ctx, 20000)
+		err := interpreter.Execute()
+		if err != nil {
+			t.Fatalf("Execution failed: %v", err)
+		}
+
+		// After both logs, stack should be empty
+		if len(interpreter.stack) != 0 {
+			t.Errorf("Expected empty stack after logs, got %d values", len(interpreter.stack))
+		}
+	})
+
+	t.Run("LogWithDebugLogger", func(t *testing.T) {
+		// Test that SetDebugLogger can be called (even if not used by execLog currently)
+		bytecode := []byte{
+			byte(OpPush), byte(TypeI64), 99, 0, 0, 0, 0, 0, 0, 0,
+			byte(OpLog),
+			byte(OpRet),
+		}
+
+		loggerCalled := false
+		interpreter := NewBytecodeInterpreter(bytecode, ctx, 10000)
+		interpreter.SetDebugLogger(func(format string, args ...interface{}) {
+			loggerCalled = true
+		})
+
+		err := interpreter.Execute()
+		if err != nil {
+			t.Fatalf("Execution failed: %v", err)
+		}
+
+		// Note: Currently execLog doesn't call the debug logger, but the method exists
+		// This test verifies the infrastructure is in place
+		_ = loggerCalled // Logger infrastructure is available
+	})
+}

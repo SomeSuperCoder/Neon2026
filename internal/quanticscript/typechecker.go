@@ -922,6 +922,11 @@ func (tc *TypeChecker) typesCompatible(t1, t2 *TypeAnnotation) bool {
 		return false
 	}
 
+	// "any" type is compatible with anything
+	if t2.Name == "any" || t1.Name == "any" {
+		return true
+	}
+
 	// Check base type
 	if t1.Name != t2.Name {
 		return false

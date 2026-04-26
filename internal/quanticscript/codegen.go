@@ -800,9 +800,24 @@ func (cg *CodeGenerator) generateIntLiteral(expr *IntLiteral) {
 
 // generateStringLiteral generates bytecode for a string literal
 func (cg *CodeGenerator) generateStringLiteral(expr *StringLiteral) {
-	// For now, strings are not fully supported in bytecode
-	// This is a placeholder implementation
-	cg.addError(expr.Location, "string literals not yet supported in bytecode generation")
+	cg.emitOpcode(OpPush)
+	cg.emit(byte(TypeString))
+
+	// Emit string length as 8-byte little-endian
+	strLen := uint64(len(expr.Value))
+	cg.emit(byte(strLen))
+	cg.emit(byte(strLen >> 8))
+	cg.emit(byte(strLen >> 16))
+	cg.emit(byte(strLen >> 24))
+	cg.emit(byte(strLen >> 32))
+	cg.emit(byte(strLen >> 40))
+	cg.emit(byte(strLen >> 48))
+	cg.emit(byte(strLen >> 56))
+
+	// Emit string bytes
+	for _, ch := range expr.Value {
+		cg.emit(byte(ch))
+	}
 }
 
 // generateBoolLiteral generates bytecode for a boolean literal

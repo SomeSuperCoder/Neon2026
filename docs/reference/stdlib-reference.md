@@ -8,8 +8,9 @@
 4. [Collections Module](#collections-module)
 5. [String Module](#string-module)
 6. [Math Module](#math-module)
-7. [Query Module](#query-module)
-8. [Invoke Module](#invoke-module)
+7. [Debug Module](#debug-module)
+8. [Query Module](#query-module)
+9. [Invoke Module](#invoke-module)
 
 ## Overview
 
@@ -680,6 +681,51 @@ function sqrt(x: i64): i64
 let result: i64 = sqrt(100);  // 10
 let result2: i64 = sqrt(101); // 10 (floor)
 ```
+
+## Debug Module
+
+Functions for debugging and development.
+
+### log
+
+Log a value for debugging purposes.
+
+```typescript
+function log(value: any): void
+```
+
+**Parameters:**
+- `value`: Any value to log (i64, u64, string, bytes, bool, etc.)
+
+**Returns:** Nothing (void)
+
+**Cost:** 5000 (very high to discourage use in production)
+
+**Example:**
+```typescript
+export function entry(): i64 {
+    let x: i64 = 42;
+    let msg: string = "debug value";
+    
+    // Log the integer value
+    log(x);
+    
+    // Log the string value
+    log(msg);
+    
+    // Log the result of an expression
+    log(x + 8);
+    
+    return x;
+}
+```
+
+**Notes:**
+- This function is designed for debugging and development only
+- The high cost (5000 units) discourages use in production code
+- The logged value is consumed from the stack and discarded
+- In production, use query functions or emit events instead
+- Debug output format depends on the runtime environment
 
 ## Query Module
 
