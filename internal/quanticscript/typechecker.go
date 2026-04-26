@@ -48,8 +48,10 @@ func (tc *TypeChecker) registerBuiltinFunctions() {
 	// Blockchain operations
 	tc.registerFunction("getBalance", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "i64"})
 	tc.registerFunction("updateBalance", []*TypeAnnotation{{Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "void"})
+	tc.registerFunction("transfer", []*TypeAnnotation{{Name: "FileID"}, {Name: "FileID"}, {Name: "i64"}}, &TypeAnnotation{Name: "void"})
 	tc.registerFunction("getInstructionData", []*TypeAnnotation{}, &TypeAnnotation{Name: "bytes"})
 	tc.registerFunction("getProgramId", []*TypeAnnotation{}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("getProgramID", []*TypeAnnotation{}, &TypeAnnotation{Name: "FileID"})
 	tc.registerFunction("hasSigner", []*TypeAnnotation{{Name: "PublicKey"}}, &TypeAnnotation{Name: "bool"})
 	tc.registerFunction("getSigner", []*TypeAnnotation{{Name: "u64"}}, &TypeAnnotation{Name: "PublicKey"})
 	tc.registerFunction("getFile", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "bytes"})
@@ -92,6 +94,11 @@ func (tc *TypeChecker) registerBuiltinFunctions() {
 	tc.registerFunction("abs", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "i64"})
 	tc.registerFunction("pow", []*TypeAnnotation{{Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "i64"})
 	tc.registerFunction("sqrt", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "i64"})
+
+	// Conversion operations
+	tc.registerFunction("slice", []*TypeAnnotation{{Name: "bytes"}, {Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "bytes"})
+	tc.registerFunction("bytesToI64LE", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("bytesToFileID", []*TypeAnnotation{{Name: "bytes"}}, &TypeAnnotation{Name: "FileID"})
 
 	// Non-deterministic functions are registered but will be rejected
 	tc.registerNonDeterministicFunction("random")

@@ -68,11 +68,12 @@ const (
 	OpGetFileMut                         // Get mutable file reference
 	OpUpdateFile                         // Update file in FileStore
 	OpGetBalance                         // Get file balance
-	OpUpdateBalance                      // Update file balance
+	OpUpdateBalance                      // Update file balance (DEPRECATED)
 	OpGetSigner                          // Get transaction signer
 	OpHasSigner                          // Check if pubkey is signer
 	OpGetInstrData                       // Get instruction data
 	OpGetProgramID                       // Get current program ID
+	OpTransfer                           // Transfer balance between files
 )
 
 // Cross-Program Invocation
@@ -137,7 +138,9 @@ const (
 
 // Conversion Operations
 const (
-	OpBytesToI64LE Opcode = 0xE0 // Decode TypeBytes (8 bytes) as little-endian i64
+	OpBytesToI64LE  Opcode = 0xE0 // Decode TypeBytes (8 bytes) as little-endian i64
+	OpSlice         Opcode = 0xE1 // Extract byte slice from start to end
+	OpBytesToFileID Opcode = 0xE2 // Convert 32-byte slice to FileID
 )
 
 // Dispatch Operations
@@ -202,6 +205,7 @@ var OpcodeNames = map[Opcode]string{
 	OpHasSigner:     "HASSIGNER",
 	OpGetInstrData:  "GETINSTRDATA",
 	OpGetProgramID:  "GETPROGRAMID",
+	OpTransfer:      "TRANSFER",
 
 	// Cross-Program Invocation
 	OpInvoke:    "INVOKE",
@@ -252,7 +256,9 @@ var OpcodeNames = map[Opcode]string{
 	OpMathPow: "MATHPOW",
 
 	// Conversion Operations
-	OpBytesToI64LE: "BYTESTOI64LE",
+	OpBytesToI64LE:  "BYTESTOI64LE",
+	OpSlice:         "SLICE",
+	OpBytesToFileID: "BYTESTOFILEID",
 
 	// Dispatch Operations
 	OpDispatch: "DISPATCH",

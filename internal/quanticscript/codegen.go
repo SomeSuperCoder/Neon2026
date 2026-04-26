@@ -888,8 +888,10 @@ func (cg *CodeGenerator) isBuiltinFunction(name string) bool {
 		// Blockchain operations
 		"getBalance":         true,
 		"updateBalance":      true,
+		"transfer":           true,
 		"getInstructionData": true,
 		"getProgramId":       true,
+		"getProgramID":       true, // Alias
 		"hasSigner":          true,
 		"getSigner":          true,
 		"getFile":            true,
@@ -935,6 +937,10 @@ func (cg *CodeGenerator) isBuiltinFunction(name string) bool {
 		"abs":  true,
 		"pow":  true,
 		"sqrt": true,
+		// Conversion operations
+		"slice":         true,
+		"bytesToI64LE":  true,
+		"bytesToFileID": true,
 	}
 	return builtins[name]
 }
@@ -944,6 +950,7 @@ func (cg *CodeGenerator) isVoidBuiltinFunction(name string) bool {
 	voidBuiltins := map[string]bool{
 		"updateBalance": true,
 		"updateFile":    true,
+		"transfer":      true,
 	}
 	return voidBuiltins[name]
 }
@@ -956,9 +963,11 @@ func (cg *CodeGenerator) emitBuiltinCall(name string, loc SourceLocation) {
 		cg.emitOpcode(OpGetBalance)
 	case "updateBalance":
 		cg.emitOpcode(OpUpdateBalance)
+	case "transfer":
+		cg.emitOpcode(OpTransfer)
 	case "getInstructionData":
 		cg.emitOpcode(OpGetInstrData)
-	case "getProgramId":
+	case "getProgramId", "getProgramID":
 		cg.emitOpcode(OpGetProgramID)
 	case "hasSigner":
 		cg.emitOpcode(OpHasSigner)
@@ -1045,6 +1054,13 @@ func (cg *CodeGenerator) emitBuiltinCall(name string, loc SourceLocation) {
 	case "sqrt":
 		// sqrt not yet implemented
 		cg.addError(loc, "sqrt not yet implemented")
+	// Conversion operations
+	case "slice":
+		cg.emitOpcode(OpSlice)
+	case "bytesToI64LE":
+		cg.emitOpcode(OpBytesToI64LE)
+	case "bytesToFileID":
+		cg.emitOpcode(OpBytesToFileID)
 	default:
 		cg.addError(loc, "unknown builtin function '%s'", name)
 	}

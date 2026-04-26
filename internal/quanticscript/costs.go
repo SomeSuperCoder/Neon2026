@@ -50,12 +50,13 @@ var CostTable = map[Opcode]InstructionCost{
 	OpLoadG:  10,
 	OpStoreG: 15,
 
-	// Blockchain Operations (cost: 10-100)
+	// Blockchain Operations (cost: 10-150)
 	OpGetFile:       50,
 	OpGetFileMut:    50,
 	OpUpdateFile:    100,
 	OpGetBalance:    30,
-	OpUpdateBalance: 80,
+	OpUpdateBalance: 80,  // DEPRECATED
+	OpTransfer:      150, // Higher cost due to ownership + storage validation
 	OpGetSigner:     10,
 	OpHasSigner:     15,
 	OpGetInstrData:  5,
@@ -108,6 +109,11 @@ var CostTable = map[Opcode]InstructionCost{
 	OpMathMax: 2,
 	OpMathAbs: 2,
 	OpMathPow: 10, // Higher cost due to potential computation
+
+	// Conversion Operations (cost: 2-3)
+	OpBytesToI64LE:  2,
+	OpSlice:         3,
+	OpBytesToFileID: 2,
 
 	// Dispatch Operations (base 10 + 2 per arg, charged at runtime)
 	OpDispatch: 10,

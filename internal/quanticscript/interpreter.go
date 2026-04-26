@@ -184,6 +184,8 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 		return bi.execGetBalance()
 	case OpUpdateBalance:
 		return bi.execUpdateBalance()
+	case OpTransfer:
+		return bi.execTransfer()
 	case OpGetSigner:
 		return bi.execGetSigner()
 	case OpHasSigner:
@@ -272,6 +274,10 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 	// Conversion operations
 	case OpBytesToI64LE:
 		return bi.execBytesToI64LE()
+	case OpSlice:
+		return bi.execSlice()
+	case OpBytesToFileID:
+		return bi.execBytesToFileID()
 
 	// Dispatch operations
 	case OpDispatch:
@@ -1224,76 +1230,146 @@ func (bi *BytecodeInterpreter) execGetBalance() error {
 }
 
 // execUpdateBalance updates a file's balance
+// DEPRECATED: Use OpTransfer instead
 // SECURITY: Only the system program can call this instruction
 func (bi *BytecodeInterpreter) execUpdateBalance() error {
-	// Check if the calling program is the system program
+	return fmt.Errorf("UPDATEBALANCE is deprecated, use TRANSFER instead")
+}
+
+// execTransfer transfers balance from source file to destination file
+// Stack: [sourceFileID, destFileID, amount] -> []
+// This implements Requirements 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 3.4, 3.5
+func (bi *BytecodeInterpreter) execTransfer() error {
+	// Pop amount from stack (pushed last, popped first)
+	amountValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if amountValue.Type != TypeI64 {
+		return fmt.Errorf("TRANSFER requires i64 for amount, got %v", amountValue.Type)
+	}
+
+	amount, _ := amountValue.AsI64()
+
+	// Validate amount is positive (Requirement 3.1, 3.2, 3.3)
+	if amount <= 0 {
+		return fmt.Errorf("TRANSFER amount must be positive, got %d", amount)
+	}
+
+	// Pop destination FileID from stack
+	destValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	destFileID, err := valueToFileID(destValue)
+	if err != nil {
+		// Try other types
+		if destValue.Type == TypeBytes {
+			destBytes, ok := destValue.Data.([]byte)
+			if !ok {
+				return fmt.Errorf("invalid destination FileID data")
+			}
+			destFileID, err = filestore.FileIDFromBytes(destBytes)
+			if err != nil {
+				return fmt.Errorf("invalid destination FileID: %w", err)
+			}
+		} else if destValue.Type == TypeI64 {
+			// Convert i64 to FileID
+			i64Val, _ := destValue.AsI64()
+			destFileID[24] = byte(i64Val >> 56)
+			destFileID[25] = byte(i64Val >> 48)
+			destFileID[26] = byte(i64Val >> 40)
+			destFileID[27] = byte(i64Val >> 32)
+			destFileID[28] = byte(i64Val >> 24)
+			destFileID[29] = byte(i64Val >> 16)
+			destFileID[30] = byte(i64Val >> 8)
+			destFileID[31] = byte(i64Val)
+		} else {
+			return fmt.Errorf("TRANSFER requires FileID, bytes, or i64 for destination, got %v", destValue.Type)
+		}
+	}
+
+	// Pop source FileID from stack
+	sourceValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	sourceFileID, err := valueToFileID(sourceValue)
+	if err != nil {
+		// Try other types
+		if sourceValue.Type == TypeBytes {
+			sourceBytes, ok := sourceValue.Data.([]byte)
+			if !ok {
+				return fmt.Errorf("invalid source FileID data")
+			}
+			sourceFileID, err = filestore.FileIDFromBytes(sourceBytes)
+			if err != nil {
+				return fmt.Errorf("invalid source FileID: %w", err)
+			}
+		} else if sourceValue.Type == TypeI64 {
+			// Convert i64 to FileID
+			i64Val, _ := sourceValue.AsI64()
+			sourceFileID[24] = byte(i64Val >> 56)
+			sourceFileID[25] = byte(i64Val >> 48)
+			sourceFileID[26] = byte(i64Val >> 40)
+			sourceFileID[27] = byte(i64Val >> 32)
+			sourceFileID[28] = byte(i64Val >> 24)
+			sourceFileID[29] = byte(i64Val >> 16)
+			sourceFileID[30] = byte(i64Val >> 8)
+			sourceFileID[31] = byte(i64Val)
+		} else {
+			return fmt.Errorf("TRANSFER requires FileID, bytes, or i64 for source, got %v", sourceValue.Type)
+		}
+	}
+
+	// Get source file with write permission
+	sourceFile, err := bi.ctx.GetFileMut(sourceFileID)
+	if err != nil {
+		return fmt.Errorf("failed to get source file: %w", err)
+	}
+
+	// Ownership check: only the program that owns the file can transfer from it (Requirement 1.1, 1.2)
 	currentProgramID := bi.ctx.GetProgramID()
-
-	// System program ID is all zeros except last byte is 0x01
-	var systemProgramID filestore.FileID
-	systemProgramID[31] = 0x01
-
-	if currentProgramID != systemProgramID {
-		return fmt.Errorf("UPDATEBALANCE can only be called by the system program")
+	if sourceFile.TxManager != currentProgramID {
+		return fmt.Errorf("TRANSFER denied: program %s does not own file %s (owned by %s)",
+			currentProgramID.String(), sourceFileID.String(), sourceFile.TxManager.String())
 	}
 
-	// Pop amount (delta) from stack (pushed second, so popped first)
-	deltaValue, err := bi.pop()
+	// Calculate storage cost for source file (Requirement 2.1, 2.2, 2.3)
+	storageCost := filestore.CalculateStorageCost(int64(len(sourceFile.Data)))
+
+	// Check if transfer would violate storage cost constraint (Requirement 2.1, 2.4)
+	newSourceBalance := sourceFile.Balance - amount
+	if newSourceBalance < storageCost {
+		return fmt.Errorf("TRANSFER would violate storage cost: source balance would be %d, required %d",
+			newSourceBalance, storageCost)
+	}
+
+	// Get destination file with write permission
+	destFile, err := bi.ctx.GetFileMut(destFileID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get destination file: %w", err)
 	}
 
-	if deltaValue.Type != TypeI64 {
-		return fmt.Errorf("UPDATEBALANCE requires i64 for delta, got %v", deltaValue.Type)
+	// Check for overflow on destination (Requirement 3.4, 3.5)
+	const MAX_I64 = 9223372036854775807
+	if destFile.Balance > MAX_I64-amount {
+		return fmt.Errorf("TRANSFER would cause overflow on destination")
 	}
 
-	// Pop file ID from stack (pushed first, so popped second)
-	fileIDValue, err := bi.pop()
-	if err != nil {
-		return err
+	// Perform the transfer atomically (Requirement 1.3, 1.5)
+	sourceFile.Balance -= amount
+	destFile.Balance += amount
+
+	// Update both files
+	if err := bi.ctx.UpdateFile(sourceFile); err != nil {
+		return fmt.Errorf("failed to update source file: %w", err)
 	}
-
-	// Accept FileID, Bytes (32 bytes), and i64 types for the file ID parameter
-	var fileID filestore.FileID
-	if fileIDValue.Type == TypeFileID {
-		fileIDBytes, ok := fileIDValue.Data.([]byte)
-		if !ok {
-			return fmt.Errorf("invalid FileID data")
-		}
-		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
-		if err != nil {
-			return fmt.Errorf("invalid FileID: %w", err)
-		}
-	} else if fileIDValue.Type == TypeBytes {
-		fileIDBytes, ok := fileIDValue.Data.([]byte)
-		if !ok {
-			return fmt.Errorf("invalid FileID bytes data")
-		}
-		fileID, err = filestore.FileIDFromBytes(fileIDBytes)
-		if err != nil {
-			return fmt.Errorf("invalid FileID from bytes: %w", err)
-		}
-	} else if fileIDValue.Type == TypeI64 {
-		// Convert i64 to FileID by placing the value in the last 8 bytes
-		i64Val, _ := fileIDValue.AsI64()
-		// Store as big-endian in the last 8 bytes of FileID
-		fileID[24] = byte(i64Val >> 56)
-		fileID[25] = byte(i64Val >> 48)
-		fileID[26] = byte(i64Val >> 40)
-		fileID[27] = byte(i64Val >> 32)
-		fileID[28] = byte(i64Val >> 24)
-		fileID[29] = byte(i64Val >> 16)
-		fileID[30] = byte(i64Val >> 8)
-		fileID[31] = byte(i64Val)
-	} else {
-		return fmt.Errorf("UPDATEBALANCE requires FileID, bytes, or i64, got %v", fileIDValue.Type)
-	}
-
-	delta, _ := deltaValue.AsI64()
-
-	// Update balance in context
-	if err := bi.ctx.UpdateFileBalance(fileID, delta); err != nil {
-		return fmt.Errorf("failed to update balance: %w", err)
+	if err := bi.ctx.UpdateFile(destFile); err != nil {
+		return fmt.Errorf("failed to update destination file: %w", err)
 	}
 
 	return nil

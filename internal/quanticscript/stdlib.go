@@ -440,3 +440,85 @@ func (bi *BytecodeInterpreter) execDispatch() error {
 	// Push handler name on top so assembly can branch on it
 	return bi.push(NewString(def.Handler))
 }
+
+// Helper functions for System Program and smart contracts
+
+// execSlice extracts a byte slice from start (inclusive) to end (exclusive)
+// Stack: [data (bytes), start (i64), end (i64)] -> [result (bytes)]
+func (bi *BytecodeInterpreter) execSlice() error {
+	// Pop end index from stack
+	endValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if endValue.Type != TypeI64 {
+		return fmt.Errorf("SLICE requires i64 for end index, got %v", endValue.Type)
+	}
+
+	// Pop start index from stack
+	startValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if startValue.Type != TypeI64 {
+		return fmt.Errorf("SLICE requires i64 for start index, got %v", startValue.Type)
+	}
+
+	// Pop data from stack
+	dataValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if dataValue.Type != TypeBytes {
+		return fmt.Errorf("SLICE requires bytes for data, got %v", dataValue.Type)
+	}
+
+	data, _ := dataValue.AsBytes()
+	start, _ := startValue.AsI64()
+	end, _ := endValue.AsI64()
+
+	// Validate indices
+	if start < 0 || end < 0 {
+		return fmt.Errorf("SLICE: indices must be non-negative, got start=%d end=%d", start, end)
+	}
+	if start > end {
+		return fmt.Errorf("SLICE: start index %d greater than end index %d", start, end)
+	}
+	if end > int64(len(data)) {
+		return fmt.Errorf("SLICE: end index %d out of bounds for length %d", end, len(data))
+	}
+
+	// Extract slice
+	result := data[start:end]
+
+	return bi.push(NewBytes(result))
+}
+
+// execBytesToFileID converts a 32-byte slice to FileID
+// Stack: [data (bytes)] -> [fileID (FileID)]
+func (bi *BytecodeInterpreter) execBytesToFileID() error {
+	// Pop data from stack
+	dataValue, err := bi.pop()
+	if err != nil {
+		return err
+	}
+
+	if dataValue.Type != TypeBytes {
+		return fmt.Errorf("BYTESTOFILEID requires bytes, got %v", dataValue.Type)
+	}
+
+	data, _ := dataValue.AsBytes()
+
+	if len(data) != 32 {
+		return fmt.Errorf("BYTESTOFILEID requires exactly 32 bytes, got %d", len(data))
+	}
+
+	// Create FileID value
+	fileIDCopy := make([]byte, 32)
+	copy(fileIDCopy, data)
+
+	return bi.push(NewFileID(fileIDCopy))
+}

@@ -1,5 +1,5 @@
 // System_Program: Built-in program for account management
-// Handles account creation, balance transfers, and space allocation
+// Uses the new transfer() instruction for all balance operations
 // This is the single source of truth - assembly and bytecode are compiler outputs
 
 // Error codes
@@ -9,102 +9,131 @@ const ERROR_BALANCE_OVERFLOW: i64 = 0x1002;
 const ERROR_STORAGE_RENT_VIOLATION: i64 = 0x1003;
 const ERROR_UNAUTHORIZED_SIGNER: i64 = 0x1004;
 const ERROR_INVALID_INSTRUCTION: i64 = 0x1FFF;
+const ERROR_INVALID_AMOUNT: i64 = 0x1005;
 
-// Success code
 const SUCCESS: i64 = 0;
-
-// Maximum i64 value for overflow checks
 const MAX_I64: i64 = 9223372036854775807;
 
-// Entry point
-// For MVP, this returns an error code
-// The full implementation will use DISPATCH opcode to parse instructions
-// and route to the appropriate handler functions
+// Instruction type codes
+const INSTR_CREATE_ACCOUNT: i64 = 0;
+const INSTR_TRANSFER: i64 = 1;
+const INSTR_ALLOCATE_SPACE: i64 = 2;
+
+// Entry point with instruction dispatch
 export function entry(): i64 {
-    // Get instruction data
     let instrData: bytes = getInstructionData();
     
-    // TODO: Use DISPATCH opcode to parse instruction
-    // For now, return invalid instruction error
-    // The DISPATCH opcode will:
-    // 1. Parse instruction type code from data[0]
-    // 2. Look up SystemProgramRegistry
-    // 3. Parse all args according to schema
-    // 4. Push args + handler name onto stack
-    // 5. Branch to appropriate handler
+    // Check if instruction data is empty
+    if (len(instrData) == 0) {
+        return ERROR_INVALID_INSTRUCTION;
+    }
+    
+    // Get instruction type (first byte)
+    let firstByte: bytes = slice(instrData, 0, 1);
+    let instrType: i64 = bytesToI64LE(firstByte);
+    
+    // Dispatch based on instruction type
+    if (instrType == INSTR_CREATE_ACCOUNT) {
+        return handleCreateAccount(instrData);
+    }
+    
+    if (instrType == INSTR_TRANSFER) {
+        return handleTransfer(instrData);
+    }
+    
+    if (instrType == INSTR_ALLOCATE_SPACE) {
+        return handleAllocateSpace(instrData);
+    }
     
     return ERROR_INVALID_INSTRUCTION;
 }
 
-// Handler for CREATE_ACCOUNT instruction
-// Creates a new account with the specified owner and initial balance
-// Note: In production, DISPATCH will convert bytes to PublicKey
-// and FileID index before calling this function
-function handleCreateAccount(ownerIdx: i64, balance: i64): i64 {
-    // For now, we work with FileID indices (i64)
-    // The actual implementation will need PublicKey type conversion
+// CREATE_ACCOUNT: Creates a new account file
+// Format: [type:u8][owner:FileID(32)][balance:i64(8)]
+function handleCreateAccount(instrData: bytes): i64 {
+    // Validate length (should be 41 bytes: 1 + 32 + 8)
+    if (len(instrData) != 41) {
+        return ERROR_INVALID_INSTRUCTION;
+    }
     
-    // Validate: balance must be non-negative
+    // Extract owner FileID (bytes 1-33)
+    let ownerBytes: bytes = slice(instrData, 1, 33);
+    let owner: FileID = bytesToFileID(ownerBytes);
+    
+    // Extract initial balance (bytes 33-41, little-endian)
+    let balanceBytes: bytes = slice(instrData, 33, 41);
+    let balance: i64 = bytesToI64LE(balanceBytes);
+    
+    // Validate balance is non-negative
     if (balance < 0) {
         return ERROR_INSUFFICIENT_BALANCE;
     }
     
-    // Create the account by updating its balance
-    updateBalance(ownerIdx, balance);
+    // Get system program's FileID
+    let systemFileID: FileID = getProgramID();
+    
+    // Transfer balance from system program to new account
+    transfer(systemFileID, owner, balance);
     
     return SUCCESS;
 }
 
-// Handler for TRANSFER instruction
-// Transfers balance from one account to another
-function handleTransfer(fromIdx: i64, toIdx: i64, amount: i64): i64 {
-    // Validate: amount must be positive
+// TRANSFER: Transfers balance between two accounts
+// Format: [type:u8][from:FileID(32)][to:FileID(32)][amount:i64(8)]
+function handleTransfer(instrData: bytes): i64 {
+    // Validate length (should be 73 bytes: 1 + 32 + 32 + 8)
+    if (len(instrData) != 73) {
+        return ERROR_INVALID_INSTRUCTION;
+    }
+    
+    // Extract from FileID (bytes 1-33)
+    let fromBytes: bytes = slice(instrData, 1, 33);
+    let fromFileID: FileID = bytesToFileID(fromBytes);
+    
+    // Extract to FileID (bytes 33-65)
+    let toBytes: bytes = slice(instrData, 33, 65);
+    let toFileID: FileID = bytesToFileID(toBytes);
+    
+    // Extract amount (bytes 65-73, little-endian)
+    let amountBytes: bytes = slice(instrData, 65, 73);
+    let amount: i64 = bytesToI64LE(amountBytes);
+    
+    // Validate amount is positive
     if (amount <= 0) {
-        return ERROR_INSUFFICIENT_BALANCE;
+        return ERROR_INVALID_AMOUNT;
     }
     
-    // Get current balance of from account
-    let fromBalance: i64 = getBalance(fromIdx);
-    
-    // Validate: from account must have sufficient balance
-    if (fromBalance < amount) {
-        return ERROR_INSUFFICIENT_BALANCE;
-    }
-    
-    // Get current balance of to account
-    let toBalance: i64 = getBalance(toIdx);
-    
-    // Validate: transfer must not cause overflow
-    if (toBalance > MAX_I64 - amount) {
-        return ERROR_BALANCE_OVERFLOW;
-    }
-    
-    // Perform the transfer
-    let negAmount: i64 = 0 - amount;
-    updateBalance(fromIdx, negAmount);
-    updateBalance(toIdx, amount);
+    // Use the transfer instruction
+    // This will automatically validate ownership and storage costs
+    transfer(fromFileID, toFileID, amount);
     
     return SUCCESS;
 }
 
-// Handler for ALLOCATE_SPACE instruction
-// Allocates additional space for an account by adding balance for storage rent
-function handleAllocateSpace(accountIdx: i64, extraBalance: i64): i64 {
-    // Validate: extra_balance must be non-negative
+// ALLOCATE_SPACE: Adds balance to an account for storage rent
+// Format: [type:u8][account:FileID(32)][extraBalance:i64(8)]
+function handleAllocateSpace(instrData: bytes): i64 {
+    // Validate length (should be 41 bytes: 1 + 32 + 8)
+    if (len(instrData) != 41) {
+        return ERROR_INVALID_INSTRUCTION;
+    }
+    
+    // Extract account FileID (bytes 1-33)
+    let accountBytes: bytes = slice(instrData, 1, 33);
+    let account: FileID = bytesToFileID(accountBytes);
+    
+    // Extract extra balance (bytes 33-41, little-endian)
+    let extraBalanceBytes: bytes = slice(instrData, 33, 41);
+    let extraBalance: i64 = bytesToI64LE(extraBalanceBytes);
+    
+    // Validate extra balance is non-negative
     if (extraBalance < 0) {
         return ERROR_INSUFFICIENT_BALANCE;
     }
     
-    // Get current balance
-    let currentBalance: i64 = getBalance(accountIdx);
-    
-    // Validate: allocation must not cause overflow
-    if (currentBalance > MAX_I64 - extraBalance) {
-        return ERROR_BALANCE_OVERFLOW;
-    }
-    
-    // Add the extra balance for storage rent
-    updateBalance(accountIdx, extraBalance);
+    // Transfer from system program to the account
+    let systemFileID: FileID = getProgramID();
+    transfer(systemFileID, account, extraBalance);
     
     return SUCCESS;
 }
