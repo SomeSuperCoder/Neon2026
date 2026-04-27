@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -511,7 +510,20 @@ func handleAccountCommand() {
 	rt := runtime.NewRuntime()
 	txProcessor := processor.NewTxProcessor(fs2, rt)
 
-	// Create account file directly in the store (genesis account)
+	// NOTE: This is a genesis account creation operation.
+	// For production use with existing accounts, you should use a CREATE_FILE transaction
+	// with proper input declarations:
+	//
+	// Inputs: {
+	//     "program": { SystemProgramID, Read },
+	//     "payer": { PayerFileID, Write },      // Account providing initial balance
+	//     "new_file": { NewFileID, Write },     // New account being created
+	// }
+	//
+	// The CREATE_FILE instruction format is:
+	// [type:u8(0)][fileID:FileID(32)][payer:FileID(32)][balance:i64(8)][owner:PublicKey(32)]
+	//
+	// For genesis accounts (first account creation), we create directly in the store:
 	accountFile := &filestore.File{
 		ID:         fileID,
 		Balance:    *balance,
@@ -553,6 +565,8 @@ func handleAccountCommand() {
 	fmt.Printf("Address: %s\n", createdID.String())
 	fmt.Printf("Balance: %d\n", *balance)
 	fmt.Printf("Keypair saved to: %s\n", *output)
+	fmt.Printf("\nNote: This is a genesis account created directly in the store.\n")
+	fmt.Printf("For creating accounts from existing accounts, use a CREATE_FILE transaction.\n")
 
 	_ = txProcessor // Suppress unused warning
 }
@@ -569,6 +583,7 @@ func handleTransferCommand() {
 
 	if *fromFile == "" || *toAddr == "" || *amount <= 0 {
 		fmt.Println("Usage: transfer --from <keypair-file> --to <address> --amount <amount> --state <db-path>")
+		fmt.Println("\nError: All parameters are required and amount must be positive")
 		os.Exit(1)
 	}
 
@@ -585,12 +600,12 @@ func handleTransferCommand() {
 
 	pubKeyBytes, err := hex.DecodeString(keypair["public_key"])
 	if err != nil {
-		log.Fatalf("Invalid public key: %v", err)
+		log.Fatalf("Invalid public key in keypair file: %v", err)
 	}
 
 	privKeyBytes, err := hex.DecodeString(keypair["private_key"])
 	if err != nil {
-		log.Fatalf("Invalid private key: %v", err)
+		log.Fatalf("Invalid private key in keypair file: %v", err)
 	}
 
 	var txPubKey transaction.PublicKey
@@ -598,12 +613,12 @@ func handleTransferCommand() {
 
 	fromID, err := filestore.FileIDFromString(keypair["address"])
 	if err != nil {
-		log.Fatalf("Invalid from address: %v", err)
+		log.Fatalf("Invalid from address in keypair file: %v", err)
 	}
 
 	toID, err := filestore.FileIDFromString(*toAddr)
 	if err != nil {
-		log.Fatalf("Invalid to address: %v", err)
+		log.Fatalf("Invalid destination address: %v\nPlease provide a valid 32-byte hex address", err)
 	}
 
 	// Initialize file store
@@ -617,34 +632,41 @@ func handleTransferCommand() {
 	rt := runtime.NewRuntime()
 	txProcessor := processor.NewTxProcessor(fs2, rt)
 
-	// Create transfer instruction
-	transferData := encodeTransferInstruction(*amount, fromID, toID)
-	instruction := transaction.Instruction{
-		ProgramID: genesis.SystemProgramID,
-		Inputs: map[string]transaction.FileAccess{
-			"from": {FileID: fromID, Permission: transaction.Write},
-			"to":   {FileID: toID, Permission: transaction.Write},
-		},
-		Data: transferData,
+	// Use TransactionBuilder to construct transaction with proper input declarations
+	builder := transaction.NewTransactionBuilder(transaction.TxID{})
+
+	// Add transfer instruction using the builder
+	// This automatically declares:
+	// - System Program with Read permission
+	// - Sender with Write permission
+	// - Receiver with Write permission
+	err = builder.AddTransferInstruction(
+		genesis.SystemProgramID,
+		fromID,
+		toID,
+		*amount,
+	)
+	if err != nil {
+		log.Fatalf("Failed to create transfer instruction: %v\nEnsure amount is positive and addresses are valid", err)
 	}
 
-	// Create transaction
-	tx := &transaction.Transaction{
-		LastSeen:     transaction.TxID{},
-		Instructions: []transaction.Instruction{instruction},
-		Signatures:   []transaction.Signature{},
+	// Build the transaction (without signatures first, for signing)
+	tx, err := builder.Build()
+	if err != nil {
+		log.Fatalf("Failed to build transaction: %v", err)
 	}
 
 	// Sign transaction
 	txData, err := tx.Marshal()
 	if err != nil {
-		log.Fatalf("Failed to marshal transaction: %v", err)
+		log.Fatalf("Failed to marshal transaction for signing: %v", err)
 	}
 
 	signature := ed25519.Sign(ed25519.PrivateKey(privKeyBytes), txData)
 	var sig [64]byte
 	copy(sig[:], signature)
 
+	// Add signature to transaction
 	tx.Signatures = []transaction.Signature{
 		{PublicKey: txPubKey, Signature: sig},
 	}
@@ -652,11 +674,11 @@ func handleTransferCommand() {
 	// Process transaction
 	result, err := txProcessor.ProcessTransaction(tx)
 	if err != nil {
-		log.Fatalf("Transaction failed: %v", err)
+		log.Fatalf("Transaction processing failed: %v\n\nPossible causes:\n- Insufficient balance in sender account\n- Invalid file permissions\n- Account does not exist", err)
 	}
 
 	if !result.Success {
-		log.Fatalf("Transaction failed: %v", result.Error)
+		log.Fatalf("Transaction execution failed: %v", result.Error)
 	}
 
 	fmt.Printf("Transfer successful!\n")
@@ -794,17 +816,6 @@ func publicKeyToFileID(pubkey transaction.PublicKey) filestore.FileID {
 	var fileID filestore.FileID
 	copy(fileID[:], pubkey[:])
 	return fileID
-}
-
-// encodeTransferInstruction encodes a transfer instruction payload:
-// byte[0] = 0x01 (Transfer), byte[1-32] = from FileID, byte[33-64] = to FileID, byte[65-72] = amount LE.
-func encodeTransferInstruction(amount int64, from, to filestore.FileID) []byte {
-	data := make([]byte, 73)
-	data[0] = 1 // Transfer
-	copy(data[1:33], from[:])
-	copy(data[33:65], to[:])
-	binary.LittleEndian.PutUint64(data[65:73], uint64(amount))
-	return data
 }
 
 // initFileStore initializes a file store and loads the built-in QuanticScript programs at genesis.

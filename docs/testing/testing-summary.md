@@ -170,6 +170,12 @@ go test -v ./internal/genesis -run TestLoadBuiltinPrograms
 go test -v ./internal/processor -run TestValidate
 go test -v ./internal/transaction -run TestCreateTransferInstruction
 go test -v ./internal/transaction -run TestTransactionBuilder
+
+# Validation integration tests
+go test -v ./internal -run TestEndToEndTransferWithProperInputDeclarations
+go test -v ./internal -run TestTransactionRejection
+go test -v ./internal -run TestNoStateChangesOnValidationFailure
+go test -v ./internal -run TestMultiInstructionTransactionValidation
 ```
 
 **Test Coverage**:
@@ -182,6 +188,10 @@ go test -v ./internal/transaction -run TestTransactionBuilder
 7. Transaction input validation and permission checking
 8. Transaction builder with proper input declarations
 9. System Program helper functions for instruction creation
+10. End-to-end validation flow with proper input declarations
+11. Transaction rejection scenarios (missing program, incorrect permissions, non-existent files, non-executable programs)
+12. State isolation on validation failures (no state changes except fee deduction)
+13. Multi-instruction transaction validation and atomicity
 
 ---
 
@@ -237,7 +247,7 @@ These helpers simplify bytecode construction for comprehensive interpreter tests
 
 ### Transaction Input Validation Tests
 
-The transaction input validation system includes comprehensive tests in `internal/processor/input_validator_test.go` and `internal/transaction/`:
+The transaction input validation system includes comprehensive tests in `internal/processor/input_validator_test.go`, `internal/transaction/`, and `internal/validation_integration_test.go`:
 
 ```bash
 # Input validator tests
@@ -252,6 +262,12 @@ go test -v ./internal/transaction -run TestAddTransferInstruction
 # System helpers tests
 go test -v ./internal/transaction -run TestCreateTransferInstruction
 go test -v ./internal/transaction -run TestEncodeTransferData
+
+# Validation integration tests
+go test -v ./internal -run TestEndToEndTransferWithProperInputDeclarations
+go test -v ./internal -run TestTransactionRejection
+go test -v ./internal -run TestNoStateChangesOnValidationFailure
+go test -v ./internal -run TestMultiInstructionTransactionValidation
 ```
 
 **Input Validator Test Coverage** (`input_validator_test.go`):
@@ -279,6 +295,16 @@ go test -v ./internal/transaction -run TestEncodeTransferData
 3. `TestEncodeTransferData` - Encodes transfer data in correct format (73 bytes)
 4. `TestInputKeyConstants` - Verifies standard input key constants
 
+**Validation Integration Test Coverage** (`validation_integration_test.go`):
+1. `TestEndToEndTransferWithProperInputDeclarations` - Complete transfer flow with proper input declarations
+2. `TestTransactionRejectionMissingProgramDeclaration` - Rejects transactions without program declaration
+3. `TestTransactionRejectionIncorrectPermissions` - Rejects transactions with incorrect permissions (e.g., Read instead of Write)
+4. `TestTransactionRejectionNonExistentFiles` - Rejects transactions referencing non-existent files
+5. `TestTransactionRejectionNonExecutableProgram` - Rejects transactions invoking non-executable programs
+6. `TestNoStateChangesOnValidationFailure` - Verifies no state changes occur when validation fails
+7. `TestMultiInstructionTransactionValidation` - Validates multi-instruction transactions with proper declarations
+8. `TestMultiInstructionTransactionPartialValidationFailure` - Rejects entire transaction if any instruction fails validation
+
 **Error Types**:
 - `ErrMissingInput` - Required file not declared in instruction inputs
 - `ErrInvalidPermission` - Invalid permission value (must be Read=1 or Write=2)
@@ -290,6 +316,7 @@ go test -v ./internal/transaction -run TestEncodeTransferData
 2. InputValidator checks all inputs before execution
 3. Transaction processor rejects invalid instructions before state changes
 4. All file accesses must be explicitly declared with correct permissions
+5. Failed validation prevents any state modifications (except fee deduction)
 
 ### Cross-Program Invocation Tests (`cross_program_test.go`)
 

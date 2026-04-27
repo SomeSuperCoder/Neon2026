@@ -111,3 +111,67 @@ func EncodeTransferData(
 
 	return data
 }
+
+// CreateFileInstruction creates a properly formatted System Program CREATE_FILE instruction
+// with all required input declarations.
+//
+// The instruction will declare:
+// - System Program with Read permission (program can be executed)
+// - Payer with Write permission (balance will be deducted)
+// - New file with Write permission (file will be created)
+//
+// This implements Requirements 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5
+func CreateFileInstruction(
+	systemProgramID filestore.FileID,
+	newFileID filestore.FileID,
+	payerID filestore.FileID,
+	balance int64,
+	owner PublicKey,
+) (*Instruction, error) {
+	// Validate balance is non-negative
+	if balance < 0 {
+		return nil, fmt.Errorf("balance must be non-negative, got %d", balance)
+	}
+
+	// Create inputs map with proper declarations
+	inputs := map[string]FileAccess{
+		InputKeyProgram: {
+			FileID:     systemProgramID,
+			Permission: Read, // Program is read-only
+		},
+		InputKeyPayer: {
+			FileID:     payerID,
+			Permission: Write, // Payer balance will be modified
+		},
+		"new_file": {
+			FileID:     newFileID,
+			Permission: Write, // New file will be created
+		},
+	}
+
+	// Encode instruction data
+	// Format: [type:u8(0)][fileID:FileID(32)][payer:FileID(32)][balance:i64(8)][owner:PublicKey(32)]
+	data := make([]byte, 105)
+
+	// Instruction type (CREATE_FILE = 0)
+	data[0] = 0
+
+	// New file ID (bytes 1-32)
+	copy(data[1:33], newFileID[:])
+
+	// Payer ID (bytes 33-64)
+	copy(data[33:65], payerID[:])
+
+	// Balance (bytes 65-72, little-endian)
+	binary.LittleEndian.PutUint64(data[65:73], uint64(balance))
+
+	// Owner public key (bytes 73-104)
+	copy(data[73:105], owner[:])
+
+	// Create and return instruction
+	return &Instruction{
+		ProgramID: systemProgramID,
+		Inputs:    inputs,
+		Data:      data,
+	}, nil
+}

@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Validation integration tests (`internal/validation_integration_test.go`) — comprehensive end-to-end testing of transaction input validation
+  - `TestEndToEndTransferWithProperInputDeclarations` — validates complete transfer flow with proper input declarations
+  - `TestTransactionRejectionMissingProgramDeclaration` — verifies rejection of transactions without program declaration
+  - `TestTransactionRejectionIncorrectPermissions` — verifies rejection of transactions with incorrect permissions
+  - `TestTransactionRejectionNonExistentFiles` — verifies rejection of transactions referencing non-existent files
+  - `TestTransactionRejectionNonExecutableProgram` — verifies rejection of transactions invoking non-executable programs
+  - `TestNoStateChangesOnValidationFailure` — verifies no state changes occur when validation fails
+  - `TestMultiInstructionTransactionValidation` — validates multi-instruction transactions with proper declarations
+  - `TestMultiInstructionTransactionPartialValidationFailure` — verifies entire transaction rejection if any instruction fails validation
+  - Helper functions for test setup: `setupValidationTestEnv`, `createTestAccount`, `signTransaction`, `encodeTransferInstructionValidation`
+  - Updated testing documentation in `docs/testing/testing-summary.md` with validation integration test coverage
 - DPoS integration in `cmd/main.go` — wired ConsensusManager, FileStore, and Runtime for full DPoS support
   - Node startup now uses `NewConsensusManagerWithGenesis` with genesis validator configuration
   - Default 2-validator genesis setup (10 Neon and 5 Neon stakes) for development

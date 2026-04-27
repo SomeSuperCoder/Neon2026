@@ -110,11 +110,11 @@
   - Verify rollback works when validation fails
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 5.1, 5.2, 5.3, 5.4, 5.5, 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 6. Add integration tests for validation
+- [x] 6. Add integration tests for validation
   - Create comprehensive integration tests for the validation flow
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 5.1, 5.2, 5.3, 5.4, 5.5, 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 6.1 Create internal/validation_integration_test.go
+- [x] 6.1 Create internal/validation_integration_test.go
   - Test end-to-end transfer with proper input declarations
   - Test transaction rejection with missing program declaration
   - Test transaction rejection with incorrect permissions
@@ -124,34 +124,34 @@
   - Test multi-instruction transactions with validation
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 5.1, 5.2, 5.3, 5.4, 5.5, 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 7. Update CLI to use transaction builder
+- [x] 7. Update CLI to use transaction builder
   - Modify CLI commands to use the new builder pattern
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
-- [ ] 7.1 Update cmd/main.go transfer command
+- [x] 7.1 Update cmd/main.go transfer command
   - Replace manual transaction construction with TransactionBuilder
   - Use CreateTransferInstruction helper
   - Ensure proper input declarations in all CLI operations
   - Update error messages to guide users on proper usage
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
-- [ ] 7.2 Update cmd/main.go account create command
+- [x] 7.2 Update cmd/main.go account create command
   - Use proper input declarations for CREATE_FILE instructions
   - Declare System Program, payer, and new file with correct permissions
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 8. Run full test suite and verify
+- [x] 8. Run full test suite and verify
   - Ensure all tests pass with new validation
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, 5.5, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 8.1 Run go test ./...
+- [x] 8.1 Run go test ./...
   - Execute full test suite
   - Verify all tests pass
   - Check for any compilation errors
   - Fix any remaining test failures
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, 5.5, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 8.2 Test CLI operations manually
+- [x] 8.2 Test CLI operations manually
   - Test account create command
   - Test transfer command
   - Test query command
