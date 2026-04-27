@@ -208,7 +208,10 @@ export function optimized(x: i64): i64 {
 
 ```typescript
 // Get a file from the FileStore
-let file = getFile(fileID);
+let fileData: bytes = getFile(fileID);
+
+// Get balance of a file
+let balance: i64 = getBalance(fileID);
 
 // Update file data
 updateFile(fileID, newData);
@@ -223,11 +226,11 @@ let data: bytes = getInstructionData();
 let hash: bytes = sha256(data);
 
 // Create and delete files (system program only)
-let newFileID: bytes = createFile(data, balance, txManager);
+createFile(ownerFileID, data, balance);
 deleteFile(fileID);
 
 // Transfer balance between files (system program only)
-transferBalance(fromFileID, toFileID, amount);
+transfer(fromFileID, toFileID, amount);
 ```
 
 ## Key Features

@@ -59,9 +59,10 @@ func TestSystemProgramStructure(t *testing.T) {
 
 	requiredFunctions := []string{
 		"entry",
-		"handleCreateAccount",
+		"handleCreateFile",
 		"handleTransfer",
-		"handleAllocateSpace",
+		"handleBurn",
+		"handleCloseFile",
 	}
 
 	for _, fn := range requiredFunctions {
@@ -73,10 +74,9 @@ func TestSystemProgramStructure(t *testing.T) {
 	// Verify error codes are defined
 	requiredConstants := []string{
 		"ERROR_INSUFFICIENT_BALANCE",
-		"ERROR_INVALID_ACCOUNT",
-		"ERROR_BALANCE_OVERFLOW",
-		"ERROR_STORAGE_RENT_VIOLATION",
-		"ERROR_UNAUTHORIZED_SIGNER",
+		"ERROR_UNAUTHORIZED",
+		"ERROR_INVALID_AMOUNT",
+		"ERROR_FILE_HAS_DATA",
 		"ERROR_INVALID_INSTRUCTION",
 		"SUCCESS",
 	}
@@ -93,13 +93,12 @@ func TestSystemProgramStructure(t *testing.T) {
 // TestSystemProgramErrorCodes verifies that error codes match the specification
 func TestSystemProgramErrorCodes(t *testing.T) {
 	expectedErrors := map[string]int64{
-		"ERROR_INSUFFICIENT_BALANCE":   0x1000,
-		"ERROR_INVALID_ACCOUNT":        0x1001,
-		"ERROR_BALANCE_OVERFLOW":       0x1002,
-		"ERROR_STORAGE_RENT_VIOLATION": 0x1003,
-		"ERROR_UNAUTHORIZED_SIGNER":    0x1004,
-		"ERROR_INVALID_INSTRUCTION":    0x1FFF,
-		"SUCCESS":                      0,
+		"ERROR_INSUFFICIENT_BALANCE": 0x1000,
+		"ERROR_UNAUTHORIZED":         0x1004,
+		"ERROR_INVALID_AMOUNT":       0x1005,
+		"ERROR_FILE_HAS_DATA":        0x1006,
+		"ERROR_INVALID_INSTRUCTION":  0x1FFF,
+		"SUCCESS":                    0x00,
 	}
 
 	// Read the source code
@@ -120,39 +119,52 @@ func TestSystemProgramErrorCodes(t *testing.T) {
 	t.Log("All error codes verified")
 }
 
-// TestCreateAccountLogic tests the CreateAccount instruction logic
-func TestCreateAccountLogic(t *testing.T) {
-	t.Skip("Skipping until DISPATCH integration is complete")
+// TestSystemCreateFileLogic tests the CreateFile instruction logic
+func TestSystemCreateFileLogic(t *testing.T) {
+	t.Skip("Skipping until full integration is complete")
 
 	// Test cases to implement:
-	// 1. Valid account creation with positive balance
-	// 2. Invalid account creation with negative balance (should return ERROR_INSUFFICIENT_BALANCE)
-	// 3. Account creation with zero balance (should succeed)
-	// 4. Unauthorized account creation (should return ERROR_UNAUTHORIZED_SIGNER)
+	// 1. Valid file creation with positive balance
+	// 2. Invalid file creation with negative balance (should return ERROR_INVALID_AMOUNT)
+	// 3. File creation with zero balance (should succeed)
+	// 4. File creation with insufficient system balance (should return ERROR_INSUFFICIENT_BALANCE)
 }
 
-// TestTransferLogic tests the Transfer instruction logic
-func TestTransferLogic(t *testing.T) {
-	t.Skip("Skipping until DISPATCH integration is complete")
+// TestSystemTransferLogic tests the Transfer instruction logic
+func TestSystemTransferLogic(t *testing.T) {
+	t.Skip("Skipping until full integration is complete")
 
 	// Test cases to implement:
 	// 1. Valid transfer with sufficient balance (should succeed)
 	// 2. Transfer with insufficient balance (should return ERROR_INSUFFICIENT_BALANCE)
-	// 3. Transfer with negative amount (should return ERROR_INSUFFICIENT_BALANCE)
-	// 4. Transfer with zero amount (should return ERROR_INSUFFICIENT_BALANCE)
-	// 5. Transfer causing overflow (should return ERROR_BALANCE_OVERFLOW)
-	// 6. Unauthorized transfer (should return ERROR_UNAUTHORIZED_SIGNER)
+	// 3. Transfer with negative amount (should return ERROR_INVALID_AMOUNT)
+	// 4. Transfer with zero amount (should return ERROR_INVALID_AMOUNT)
+	// 5. Transfer from non-owned file (should return ERROR_UNAUTHORIZED)
+	// 6. Transfer violating storage cost (should return ERROR_INSUFFICIENT_BALANCE)
 }
 
-// TestAllocateSpaceLogic tests the AllocateSpace instruction logic
-func TestAllocateSpaceLogic(t *testing.T) {
-	t.Skip("Skipping until DISPATCH integration is complete")
+// TestSystemBurnLogic tests the Burn instruction logic
+func TestSystemBurnLogic(t *testing.T) {
+	t.Skip("Skipping until full integration is complete")
 
 	// Test cases to implement:
-	// 1. Valid space allocation (should succeed)
-	// 2. Allocation with negative balance (should return ERROR_INSUFFICIENT_BALANCE)
-	// 3. Allocation causing overflow (should return ERROR_BALANCE_OVERFLOW)
-	// 4. Unauthorized allocation (should return ERROR_UNAUTHORIZED_SIGNER)
+	// 1. Valid burn with sufficient balance (should succeed)
+	// 2. Burn with insufficient balance (should return ERROR_INSUFFICIENT_BALANCE)
+	// 3. Burn with negative amount (should return ERROR_INVALID_AMOUNT)
+	// 4. Burn with zero amount (should return ERROR_INVALID_AMOUNT)
+	// 5. Burn from non-owned file (should return ERROR_UNAUTHORIZED)
+	// 6. Burn violating storage cost (should return ERROR_INSUFFICIENT_BALANCE)
+}
+
+// TestSystemCloseFileLogic tests the CloseFile instruction logic
+func TestSystemCloseFileLogic(t *testing.T) {
+	t.Skip("Skipping until full integration is complete")
+
+	// Test cases to implement:
+	// 1. Valid file close with zero data (should succeed)
+	// 2. Close file with non-zero data (should return ERROR_FILE_HAS_DATA)
+	// 3. Close non-owned file (should return ERROR_UNAUTHORIZED)
+	// 4. Close file with balance transfer to destination (should succeed)
 }
 
 // Helper function to check if string contains substring

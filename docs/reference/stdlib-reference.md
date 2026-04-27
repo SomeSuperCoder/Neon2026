@@ -32,11 +32,11 @@ Functions for interacting with blockchain state and files.
 Get the balance of a file/account.
 
 ```typescript
-function getBalance(fileId: i64): i64
+function getBalance(fileId: FileID): i64
 ```
 
 **Parameters:**
-- `fileId`: The file identifier
+- `fileId`: The file identifier (FileID type)
 
 **Returns:** The balance in the smallest unit
 
@@ -44,7 +44,7 @@ function getBalance(fileId: i64): i64
 
 **Example:**
 ```typescript
-let accountId: i64 = 100;
+let accountId: FileID = bytesToFileID(accountBytes);
 let balance: i64 = getBalance(accountId);
 
 if (balance < 1000) {

@@ -173,6 +173,8 @@ func (a *Assembler) parseInstruction(line string, lineNum int) error {
 		return a.parseNoOperands(operands, lineNum)
 	case OpGetInstrData, OpGetProgramID:
 		return a.parseNoOperands(operands, lineNum)
+	case OpTransfer, OpCreateFile, OpDeleteFile:
+		return a.parseNoOperands(operands, lineNum)
 	case OpLoadG, OpStoreG:
 		return a.parseNoOperands(operands, lineNum) // TODO: implement global state operands
 	case OpInvoke, OpInvokeRet:
@@ -203,9 +205,6 @@ func (a *Assembler) parseInstruction(line string, lineNum int) error {
 		return a.parseNoOperands(operands, lineNum)
 	// Conversion Operations
 	case OpSlice, OpBytesToFileID:
-		return a.parseNoOperands(operands, lineNum)
-	// Transfer operation
-	case OpTransfer:
 		return a.parseNoOperands(operands, lineNum)
 	default:
 		return fmt.Errorf("unhandled opcode: %v", opcode)

@@ -74,7 +74,7 @@ export function entry(ctx: InstructionContext): i64 {
 
 ### Blockchain Types
 
-- `FileID`: 32-byte file identifier (represented as `i64` in current implementation)
+- `FileID`: 32-byte file identifier
 - `PublicKey`: 32-byte Ed25519 public key
 - `InstructionContext`: Context passed to entry function
 

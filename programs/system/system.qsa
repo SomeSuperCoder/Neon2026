@@ -10,8 +10,8 @@ func_0:
     STORE       0 ; cost: 3
     LOAD        0 ; cost: 3
     ARRAYLEN     ; cost: 2
-    PUSH        i64 0 ; cost: 1
-    EQ           ; cost: 2
+    PUSH        i64 1 ; cost: 1
+    LT           ; cost: 2
     JMPIF       label_1 ; cost: 2
     JMP         label_2 ; cost: 2
 
@@ -22,11 +22,15 @@ label_1:
 label_2:
     LOAD        0 ; cost: 3
     PUSH        i64 0 ; cost: 1
-    PUSH        i64 1 ; cost: 1
+    PUSH        i64 8 ; cost: 1
     SLICE        ; cost: 3
     STORE       1 ; cost: 3
     LOAD        1 ; cost: 3
     BYTESTOI64LE ; cost: 2
+    STORE       2 ; cost: 3
+    LOAD        2 ; cost: 3
+    PUSH        i64 255 ; cost: 1
+    BAND         ; cost: 2
     STORE       2 ; cost: 3
     LOAD        2 ; cost: 3
     PUSH        i64 0 ; cost: 1
@@ -64,6 +68,18 @@ label_9:
     RET          ; cost: 2
 
 label_10:
+    LOAD        2 ; cost: 3
+    PUSH        i64 3 ; cost: 1
+    EQ           ; cost: 2
+    JMPIF       label_12 ; cost: 2
+    JMP         label_13 ; cost: 2
+
+label_12:
+    LOAD        0 ; cost: 3
+    CALL        func_14 ; cost: 5
+    RET          ; cost: 2
+
+label_13:
     PUSH        i64 8191 ; cost: 1
     RET          ; cost: 2
     RET          ; cost: 2
@@ -75,14 +91,14 @@ func_5:
     PUSH        i64 41 ; cost: 1
     EQ           ; cost: 2
     NOT          ; cost: 1
-    JMPIF       label_12 ; cost: 2
-    JMP         label_13 ; cost: 2
+    JMPIF       label_15 ; cost: 2
+    JMP         label_16 ; cost: 2
 
-label_12:
+label_15:
     PUSH        i64 8191 ; cost: 1
     RET          ; cost: 2
 
-label_13:
+label_16:
     LOAD        0 ; cost: 3
     PUSH        i64 1 ; cost: 1
     PUSH        i64 33 ; cost: 1
@@ -102,20 +118,38 @@ label_13:
     LOAD        4 ; cost: 3
     PUSH        i64 0 ; cost: 1
     LT           ; cost: 2
-    JMPIF       label_14 ; cost: 2
-    JMP         label_15 ; cost: 2
+    JMPIF       label_17 ; cost: 2
+    JMP         label_18 ; cost: 2
 
-label_14:
-    PUSH        i64 4096 ; cost: 1
+label_17:
+    PUSH        i64 4101 ; cost: 1
     RET          ; cost: 2
 
-label_15:
+label_18:
     GETPROGRAMID ; cost: 5
     STORE       5 ; cost: 3
+    LOAD        0 ; cost: 3
+    PUSH        i64 0 ; cost: 1
+    PUSH        i64 0 ; cost: 1
+    SLICE        ; cost: 3
+    STORE       6 ; cost: 3
+    LOAD        2 ; cost: 3
+    LOAD        6 ; cost: 3
+    PUSH        i64 0 ; cost: 1
+    CREATEFILE   ; cost: 1
+    LOAD        4 ; cost: 3
+    PUSH        i64 0 ; cost: 1
+    GT           ; cost: 2
+    JMPIF       label_19 ; cost: 2
+    JMP         label_20 ; cost: 2
+
+label_19:
     LOAD        5 ; cost: 3
     LOAD        2 ; cost: 3
     LOAD        4 ; cost: 3
     TRANSFER     ; cost: 150
+
+label_20:
     PUSH        i64 0 ; cost: 1
     RET          ; cost: 2
     RET          ; cost: 2
@@ -127,14 +161,14 @@ func_8:
     PUSH        i64 73 ; cost: 1
     EQ           ; cost: 2
     NOT          ; cost: 1
-    JMPIF       label_16 ; cost: 2
-    JMP         label_17 ; cost: 2
+    JMPIF       label_21 ; cost: 2
+    JMP         label_22 ; cost: 2
 
-label_16:
+label_21:
     PUSH        i64 8191 ; cost: 1
     RET          ; cost: 2
 
-label_17:
+label_22:
     LOAD        0 ; cost: 3
     PUSH        i64 1 ; cost: 1
     PUSH        i64 33 ; cost: 1
@@ -162,14 +196,14 @@ label_17:
     LOAD        6 ; cost: 3
     PUSH        i64 0 ; cost: 1
     LTE          ; cost: 2
-    JMPIF       label_18 ; cost: 2
-    JMP         label_19 ; cost: 2
+    JMPIF       label_23 ; cost: 2
+    JMP         label_24 ; cost: 2
 
-label_18:
+label_23:
     PUSH        i64 4101 ; cost: 1
     RET          ; cost: 2
 
-label_19:
+label_24:
     LOAD        2 ; cost: 3
     LOAD        4 ; cost: 3
     LOAD        6 ; cost: 3
@@ -185,14 +219,14 @@ func_11:
     PUSH        i64 41 ; cost: 1
     EQ           ; cost: 2
     NOT          ; cost: 1
-    JMPIF       label_20 ; cost: 2
-    JMP         label_21 ; cost: 2
+    JMPIF       label_25 ; cost: 2
+    JMP         label_26 ; cost: 2
 
-label_20:
+label_25:
     PUSH        i64 8191 ; cost: 1
     RET          ; cost: 2
 
-label_21:
+label_26:
     LOAD        0 ; cost: 3
     PUSH        i64 1 ; cost: 1
     PUSH        i64 33 ; cost: 1
@@ -211,21 +245,145 @@ label_21:
     STORE       4 ; cost: 3
     LOAD        4 ; cost: 3
     PUSH        i64 0 ; cost: 1
-    LT           ; cost: 2
-    JMPIF       label_22 ; cost: 2
-    JMP         label_23 ; cost: 2
+    LTE          ; cost: 2
+    JMPIF       label_27 ; cost: 2
+    JMP         label_28 ; cost: 2
 
-label_22:
+label_27:
+    PUSH        i64 4101 ; cost: 1
+    RET          ; cost: 2
+
+label_28:
+    LOAD        2 ; cost: 3
+    GETFILE      ; cost: 50
+    STORE       5 ; cost: 3
+    LOAD        5 ; cost: 3
+    ARRAYLEN     ; cost: 2
+    STORE       6 ; cost: 3
+    LOAD        2 ; cost: 3
+    GETBALANCE   ; cost: 30
+    STORE       7 ; cost: 3
+    LOAD        7 ; cost: 3
+    LOAD        4 ; cost: 3
+    LT           ; cost: 2
+    JMPIF       label_29 ; cost: 2
+    JMP         label_30 ; cost: 2
+
+label_29:
     PUSH        i64 4096 ; cost: 1
     RET          ; cost: 2
 
-label_23:
+label_30:
+    PUSH        i64 0 ; cost: 1
+    STORE       8 ; cost: 3
+    LOAD        6 ; cost: 3
+    PUSH        i64 0 ; cost: 1
+    GT           ; cost: 2
+    JMPIF       label_31 ; cost: 2
+    JMP         label_32 ; cost: 2
+
+label_31:
+    LOAD        6 ; cost: 3
+    PUSH        i64 1023 ; cost: 1
+    ADD          ; cost: 2
+    PUSH        i64 1024 ; cost: 1
+    DIV          ; cost: 4
+    STORE       9 ; cost: 3
+    LOAD        9 ; cost: 3
+    PUSH        i64 1000 ; cost: 1
+    MUL          ; cost: 3
+    STORE       8 ; cost: 3
+
+label_32:
+    LOAD        7 ; cost: 3
+    LOAD        4 ; cost: 3
+    SUB          ; cost: 2
+    STORE       10 ; cost: 3
+    LOAD        10 ; cost: 3
+    LOAD        8 ; cost: 3
+    LT           ; cost: 2
+    JMPIF       label_33 ; cost: 2
+    JMP         label_34 ; cost: 2
+
+label_33:
+    PUSH        i64 4096 ; cost: 1
+    RET          ; cost: 2
+
+label_34:
     GETPROGRAMID ; cost: 5
-    STORE       5 ; cost: 3
-    LOAD        5 ; cost: 3
+    STORE       11 ; cost: 3
     LOAD        2 ; cost: 3
+    LOAD        11 ; cost: 3
     LOAD        4 ; cost: 3
     TRANSFER     ; cost: 150
+    PUSH        i64 0 ; cost: 1
+    RET          ; cost: 2
+    RET          ; cost: 2
+
+func_14:
+    STORE       0 ; cost: 3
+    LOAD        0 ; cost: 3
+    ARRAYLEN     ; cost: 2
+    PUSH        i64 65 ; cost: 1
+    EQ           ; cost: 2
+    NOT          ; cost: 1
+    JMPIF       label_35 ; cost: 2
+    JMP         label_36 ; cost: 2
+
+label_35:
+    PUSH        i64 8191 ; cost: 1
+    RET          ; cost: 2
+
+label_36:
+    LOAD        0 ; cost: 3
+    PUSH        i64 1 ; cost: 1
+    PUSH        i64 33 ; cost: 1
+    SLICE        ; cost: 3
+    STORE       1 ; cost: 3
+    LOAD        1 ; cost: 3
+    BYTESTOFILEID ; cost: 2
+    STORE       2 ; cost: 3
+    LOAD        0 ; cost: 3
+    PUSH        i64 33 ; cost: 1
+    PUSH        i64 65 ; cost: 1
+    SLICE        ; cost: 3
+    STORE       3 ; cost: 3
+    LOAD        3 ; cost: 3
+    BYTESTOFILEID ; cost: 2
+    STORE       4 ; cost: 3
+    LOAD        2 ; cost: 3
+    GETFILE      ; cost: 50
+    STORE       5 ; cost: 3
+    LOAD        5 ; cost: 3
+    ARRAYLEN     ; cost: 2
+    PUSH        i64 0 ; cost: 1
+    GT           ; cost: 2
+    JMPIF       label_37 ; cost: 2
+    JMP         label_38 ; cost: 2
+
+label_37:
+    PUSH        i64 4102 ; cost: 1
+    RET          ; cost: 2
+
+label_38:
+    LOAD        2 ; cost: 3
+    GETBALANCE   ; cost: 30
+    STORE       6 ; cost: 3
+    LOAD        6 ; cost: 3
+    PUSH        i64 0 ; cost: 1
+    GT           ; cost: 2
+    JMPIF       label_39 ; cost: 2
+    JMP         label_40 ; cost: 2
+
+label_39:
+    LOAD        2 ; cost: 3
+    LOAD        4 ; cost: 3
+    LOAD        6 ; cost: 3
+    TRANSFER     ; cost: 150
+
+label_40:
+    LOAD        2 ; cost: 3
+    DELETEFILE   ; cost: 1
     PUSH        i64 0 ; cost: 1
     RET          ; cost: 2
     RET          ; cost: 2

@@ -46,7 +46,7 @@ func NewTypeChecker() *TypeChecker {
 // registerBuiltinFunctions registers built-in functions and marks non-deterministic ones
 func (tc *TypeChecker) registerBuiltinFunctions() {
 	// Blockchain operations
-	tc.registerFunction("getBalance", []*TypeAnnotation{{Name: "i64"}}, &TypeAnnotation{Name: "i64"})
+	tc.registerFunction("getBalance", []*TypeAnnotation{{Name: "FileID"}}, &TypeAnnotation{Name: "i64"})
 	tc.registerFunction("updateBalance", []*TypeAnnotation{{Name: "i64"}, {Name: "i64"}}, &TypeAnnotation{Name: "void"})
 	tc.registerFunction("transfer", []*TypeAnnotation{{Name: "FileID"}, {Name: "FileID"}, {Name: "i64"}}, &TypeAnnotation{Name: "void"})
 	tc.registerFunction("getInstructionData", []*TypeAnnotation{}, &TypeAnnotation{Name: "bytes"})
