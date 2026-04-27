@@ -35,6 +35,8 @@ type TxProcessor struct {
 	feeConfig transaction.FeeConfig
 	// stateCache holds transaction-local state changes for atomicity
 	stateCache map[filestore.FileID]*filestore.File
+	// inputValidator validates instruction inputs before execution
+	inputValidator *InputValidator
 	// mu protects concurrent access during transaction execution
 	mu sync.Mutex
 }
@@ -42,10 +44,11 @@ type TxProcessor struct {
 // NewTxProcessor creates a new transaction processor
 func NewTxProcessor(fileStore *filestore.FileStore, rt *runtime.Runtime) *TxProcessor {
 	return &TxProcessor{
-		fileStore:  fileStore,
-		runtime:    rt,
-		feeConfig:  transaction.DefaultFeeConfig(),
-		stateCache: make(map[filestore.FileID]*filestore.File),
+		fileStore:      fileStore,
+		runtime:        rt,
+		feeConfig:      transaction.DefaultFeeConfig(),
+		stateCache:     make(map[filestore.FileID]*filestore.File),
+		inputValidator: NewInputValidator(fileStore),
 	}
 }
 
@@ -239,6 +242,11 @@ func (tp *TxProcessor) DeductFee(feePayerID filestore.FileID, fee int64) error {
 func (tp *TxProcessor) ExecuteInstruction(instr *transaction.Instruction, signers []transaction.PublicKey) error {
 	if instr == nil {
 		return fmt.Errorf("instruction cannot be nil")
+	}
+
+	// Validate instruction inputs before execution (Requirements 1.1, 1.2, 1.3, 1.4, 1.5, 5.1, 5.2, 5.3, 5.4, 5.5)
+	if err := tp.inputValidator.ValidateInstructionInputs(instr); err != nil {
+		return fmt.Errorf("input validation failed: %w", err)
 	}
 
 	// Load program file

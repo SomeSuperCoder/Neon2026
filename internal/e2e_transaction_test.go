@@ -111,8 +111,9 @@ func TestEndToEndAccountCreationAndTransfer(t *testing.T) {
 			{
 				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
-					"from": {FileID: aliceAccountID, Permission: transaction.Write},
-					"to":   {FileID: bobAccountID, Permission: transaction.Write},
+					"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+					"from":    {FileID: aliceAccountID, Permission: transaction.Write},
+					"to":      {FileID: bobAccountID, Permission: transaction.Write},
 				},
 				Data: transferData,
 			},
@@ -257,16 +258,18 @@ func TestMultiInstructionTransactionAtomicity(t *testing.T) {
 			{
 				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
-					"from": {FileID: account1ID, Permission: transaction.Write},
-					"to":   {FileID: account2ID, Permission: transaction.Write},
+					"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+					"from":    {FileID: account1ID, Permission: transaction.Write},
+					"to":      {FileID: account2ID, Permission: transaction.Write},
 				},
 				Data: encodeTransferInstructionE2E(1000, account1ID, account2ID),
 			},
 			{
 				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
-					"from": {FileID: account2ID, Permission: transaction.Write},
-					"to":   {FileID: account3ID, Permission: transaction.Write},
+					"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+					"from":    {FileID: account2ID, Permission: transaction.Write},
+					"to":      {FileID: account3ID, Permission: transaction.Write},
 				},
 				Data: encodeTransferInstructionE2E(10000, account2ID, account3ID), // This will fail
 			},
@@ -384,8 +387,9 @@ func TestTransactionRevertOnInstructionFailure(t *testing.T) {
 			{
 				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
-					"from": {FileID: fromID, Permission: transaction.Write},
-					"to":   {FileID: toID, Permission: transaction.Write},
+					"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+					"from":    {FileID: fromID, Permission: transaction.Write},
+					"to":      {FileID: toID, Permission: transaction.Write},
 				},
 				Data: encodeTransferInstructionE2E(20000, fromID, toID), // More than available
 			},
@@ -518,16 +522,18 @@ func TestFeePaymentAndBalanceUpdates(t *testing.T) {
 			{
 				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
-					"from": {FileID: senderID, Permission: transaction.Write},
-					"to":   {FileID: recipientID, Permission: transaction.Write},
+					"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+					"from":    {FileID: senderID, Permission: transaction.Write},
+					"to":      {FileID: recipientID, Permission: transaction.Write},
 				},
 				Data: encodeTransferInstructionE2E(3000, senderID, recipientID),
 			},
 			{
 				ProgramID: genesis.SystemProgramID,
 				Inputs: map[string]transaction.FileAccess{
-					"from": {FileID: senderID, Permission: transaction.Write},
-					"to":   {FileID: recipientID, Permission: transaction.Write},
+					"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+					"from":    {FileID: senderID, Permission: transaction.Write},
+					"to":      {FileID: recipientID, Permission: transaction.Write},
 				},
 				Data: encodeTransferInstructionE2E(2000, senderID, recipientID),
 			},

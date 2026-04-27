@@ -108,6 +108,7 @@ func TestReadPermissionEnforcement(t *testing.T) {
 	instr := transaction.Instruction{
 		ProgramID: testProg.GetProgramID(),
 		Inputs: map[string]transaction.FileAccess{
+			"program": {FileID: testProg.GetProgramID(), Permission: transaction.Read},
 			"account": {FileID: testAccountID, Permission: transaction.Read},
 		},
 		Data: []byte{},
@@ -224,8 +225,9 @@ func TestWritePermissionEnforcement(t *testing.T) {
 	instr := transaction.Instruction{
 		ProgramID: genesis.SystemProgramID,
 		Inputs: map[string]transaction.FileAccess{
-			"from": {FileID: fromID, Permission: transaction.Write},
-			"to":   {FileID: toID, Permission: transaction.Write},
+			"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+			"from":    {FileID: fromID, Permission: transaction.Write},
+			"to":      {FileID: toID, Permission: transaction.Write},
 		},
 		Data: transferData,
 	}
@@ -368,6 +370,7 @@ func TestUndeclaredFileAccessDetection(t *testing.T) {
 	instr := transaction.Instruction{
 		ProgramID: testProg.GetProgramID(),
 		Inputs: map[string]transaction.FileAccess{
+			"program":  {FileID: testProg.GetProgramID(), Permission: transaction.Read},
 			"declared": {FileID: declaredID, Permission: transaction.Write},
 			// undeclaredID is NOT declared
 		},
@@ -514,6 +517,7 @@ func TestPermissionViolationHandling(t *testing.T) {
 	instr := transaction.Instruction{
 		ProgramID: testProg.GetProgramID(),
 		Inputs: map[string]transaction.FileAccess{
+			"program":  {FileID: testProg.GetProgramID(), Permission: transaction.Read},
 			"account1": {FileID: account1ID, Permission: transaction.Write},
 			"account2": {FileID: account2ID, Permission: transaction.Read}, // Read only
 		},

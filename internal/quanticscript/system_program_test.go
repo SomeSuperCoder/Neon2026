@@ -469,6 +469,7 @@ func TestSystemCreateFile(t *testing.T) {
 		instrData := encodeCreateFileInstruction(fileID, payerID, 10000, owner)
 
 		inputs := map[string]transaction.FileAccess{
+			"program":  {FileID: SystemProgramID, Permission: transaction.Read},
 			"new_file": {FileID: fileID, Permission: transaction.Write},
 			"payer":    {FileID: payerID, Permission: transaction.Write},
 		}
@@ -524,6 +525,7 @@ func TestSystemCreateFile(t *testing.T) {
 		instrData := encodeCreateFileInstruction(fileID, payerID, 0, owner)
 
 		inputs := map[string]transaction.FileAccess{
+			"program":  {FileID: SystemProgramID, Permission: transaction.Read},
 			"new_file": {FileID: fileID, Permission: transaction.Write},
 			"payer":    {FileID: payerID, Permission: transaction.Write},
 		}
@@ -583,8 +585,9 @@ func TestSystemTransfer(t *testing.T) {
 		instrData := encodeTransferInstruction(fromID, toID, 3000)
 
 		inputs := map[string]transaction.FileAccess{
-			"from": {FileID: fromID, Permission: transaction.Write},
-			"to":   {FileID: toID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"from":    {FileID: fromID, Permission: transaction.Write},
+			"to":      {FileID: toID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -641,8 +644,9 @@ func TestSystemTransfer(t *testing.T) {
 		instrData := encodeTransferInstruction(fromID, toID, 5000)
 
 		inputs := map[string]transaction.FileAccess{
-			"from": {FileID: fromID, Permission: transaction.Write},
-			"to":   {FileID: toID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"from":    {FileID: fromID, Permission: transaction.Write},
+			"to":      {FileID: toID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -690,8 +694,9 @@ func TestSystemBurn(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 3000)
 
 		inputs := map[string]transaction.FileAccess{
-			"file":   {FileID: fileID, Permission: transaction.Write},
-			"system": {FileID: SystemProgramID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"file":    {FileID: fileID, Permission: transaction.Write},
+			"system":  {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -731,8 +736,9 @@ func TestSystemBurn(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 5000)
 
 		inputs := map[string]transaction.FileAccess{
-			"file":   {FileID: fileID, Permission: transaction.Write},
-			"system": {FileID: SystemProgramID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"file":    {FileID: fileID, Permission: transaction.Write},
+			"system":  {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -777,8 +783,9 @@ func TestSystemBurn(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 6000)
 
 		inputs := map[string]transaction.FileAccess{
-			"file":   {FileID: fileID, Permission: transaction.Write},
-			"system": {FileID: SystemProgramID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"file":    {FileID: fileID, Permission: transaction.Write},
+			"system":  {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -826,6 +833,7 @@ func TestSystemCloseFile(t *testing.T) {
 		instrData := encodeCloseFileInstruction(fileID, destID)
 
 		inputs := map[string]transaction.FileAccess{
+			"program":     {FileID: SystemProgramID, Permission: transaction.Read},
 			"file":        {FileID: fileID, Permission: transaction.Write},
 			"destination": {FileID: destID, Permission: transaction.Write},
 		}
@@ -888,6 +896,7 @@ func TestSystemCloseFile(t *testing.T) {
 		instrData := encodeCloseFileInstruction(fileID, destID)
 
 		inputs := map[string]transaction.FileAccess{
+			"program":     {FileID: SystemProgramID, Permission: transaction.Read},
 			"file":        {FileID: fileID, Permission: transaction.Write},
 			"destination": {FileID: destID, Permission: transaction.Write},
 		}
@@ -949,6 +958,7 @@ func TestSystemCreateFileEdgeCases(t *testing.T) {
 		instrData := encodeCreateFileInstruction(fileID, payerID, 1000000000, owner)
 
 		inputs := map[string]transaction.FileAccess{
+			"program":  {FileID: SystemProgramID, Permission: transaction.Read},
 			"new_file": {FileID: fileID, Permission: transaction.Write},
 			"payer":    {FileID: payerID, Permission: transaction.Write},
 		}
@@ -1007,8 +1017,9 @@ func TestSystemTransferEdgeCases(t *testing.T) {
 		instrData := encodeTransferInstruction(fromID, toID, 0)
 
 		inputs := map[string]transaction.FileAccess{
-			"from": {FileID: fromID, Permission: transaction.Write},
-			"to":   {FileID: toID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"from":    {FileID: fromID, Permission: transaction.Write},
+			"to":      {FileID: toID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -1054,8 +1065,9 @@ func TestSystemTransferEdgeCases(t *testing.T) {
 		instrData := encodeTransferInstruction(fromID, toID, 10000)
 
 		inputs := map[string]transaction.FileAccess{
-			"from": {FileID: fromID, Permission: transaction.Write},
-			"to":   {FileID: toID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"from":    {FileID: fromID, Permission: transaction.Write},
+			"to":      {FileID: toID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -1116,8 +1128,9 @@ func TestSystemTransferEdgeCases(t *testing.T) {
 		instrData := encodeTransferInstruction(fromID, toID, 6000)
 
 		inputs := map[string]transaction.FileAccess{
-			"from": {FileID: fromID, Permission: transaction.Write},
-			"to":   {FileID: toID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"from":    {FileID: fromID, Permission: transaction.Write},
+			"to":      {FileID: toID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -1153,8 +1166,9 @@ func TestSystemBurnEdgeCases(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 0)
 
 		inputs := map[string]transaction.FileAccess{
-			"file":   {FileID: fileID, Permission: transaction.Write},
-			"system": {FileID: SystemProgramID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"file":    {FileID: fileID, Permission: transaction.Write},
+			"system":  {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -1187,8 +1201,9 @@ func TestSystemBurnEdgeCases(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 10000)
 
 		inputs := map[string]transaction.FileAccess{
-			"file":   {FileID: fileID, Permission: transaction.Write},
-			"system": {FileID: SystemProgramID, Permission: transaction.Write},
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+			"file":    {FileID: fileID, Permission: transaction.Write},
+			"system":  {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -1231,6 +1246,7 @@ func TestSystemCloseFileEdgeCases(t *testing.T) {
 		instrData := encodeCloseFileInstruction(fileID, fileID)
 
 		inputs := map[string]transaction.FileAccess{
+			"program":     {FileID: SystemProgramID, Permission: transaction.Read},
 			"file":        {FileID: fileID, Permission: transaction.Write},
 			"destination": {FileID: fileID, Permission: transaction.Write},
 		}
@@ -1277,6 +1293,7 @@ func TestSystemCloseFileEdgeCases(t *testing.T) {
 		instrData := encodeCloseFileInstruction(fileID, destID)
 
 		inputs := map[string]transaction.FileAccess{
+			"program":     {FileID: SystemProgramID, Permission: transaction.Read},
 			"file":        {FileID: fileID, Permission: transaction.Write},
 			"destination": {FileID: destID, Permission: transaction.Write},
 		}
@@ -1308,7 +1325,9 @@ func TestSystemProgramErrorCodes(t *testing.T) {
 		// Create instruction with invalid opcode (99)
 		instrData := []byte{99, 0, 0, 0}
 
-		inputs := map[string]transaction.FileAccess{}
+		inputs := map[string]transaction.FileAccess{
+			"program": {FileID: SystemProgramID, Permission: transaction.Read},
+		}
 
 		var owner transaction.PublicKey
 		copy(owner[:], []byte("owner-pubkey-32-bytes-long!!"))

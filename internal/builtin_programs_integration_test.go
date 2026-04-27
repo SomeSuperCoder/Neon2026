@@ -153,8 +153,9 @@ func TestSystemProgramCreateAccountAndTransfer(t *testing.T) {
 		Instructions: []transaction.Instruction{{
 			ProgramID: genesis.SystemProgramID,
 			Inputs: map[string]transaction.FileAccess{
-				"from": {FileID: aliceID, Permission: transaction.Write},
-				"to":   {FileID: bobID, Permission: transaction.Write},
+				"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+				"from":    {FileID: aliceID, Permission: transaction.Write},
+				"to":      {FileID: bobID, Permission: transaction.Write},
 			},
 			Data: transferData,
 		}},
@@ -206,8 +207,9 @@ func TestSystemProgramTransferInsufficientBalance(t *testing.T) {
 		Instructions: []transaction.Instruction{{
 			ProgramID: genesis.SystemProgramID,
 			Inputs: map[string]transaction.FileAccess{
-				"from": {FileID: senderID, Permission: transaction.Write},
-				"to":   {FileID: recipientID, Permission: transaction.Write},
+				"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+				"from":    {FileID: senderID, Permission: transaction.Write},
+				"to":      {FileID: recipientID, Permission: transaction.Write},
 			},
 			Data: encodeTransferInstruction(999_999_999, senderID, recipientID),
 		}},
@@ -373,8 +375,9 @@ func TestTransactionProcessingThroughRuntime(t *testing.T) {
 	instr := &transaction.Instruction{
 		ProgramID: genesis.SystemProgramID,
 		Inputs: map[string]transaction.FileAccess{
-			"from": {FileID: senderID, Permission: transaction.Write},
-			"to":   {FileID: recipientID, Permission: transaction.Write},
+			"program": {FileID: genesis.SystemProgramID, Permission: transaction.Read},
+			"from":    {FileID: senderID, Permission: transaction.Write},
+			"to":      {FileID: recipientID, Permission: transaction.Write},
 		},
 		Data: encodeTransferInstruction(5_000, senderID, recipientID),
 	}

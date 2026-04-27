@@ -165,6 +165,11 @@ go test -v ./internal -run TestLedgerPersistenceAndRecovery
 go test -v ./internal/genesis
 go test -v ./internal/genesis -run TestInitializeDPoSGenesis
 go test -v ./internal/genesis -run TestLoadBuiltinPrograms
+
+# Transaction input validation tests
+go test -v ./internal/processor -run TestValidate
+go test -v ./internal/transaction -run TestCreateTransferInstruction
+go test -v ./internal/transaction -run TestTransactionBuilder
 ```
 
 **Test Coverage**:
@@ -174,6 +179,9 @@ go test -v ./internal/genesis -run TestLoadBuiltinPrograms
 4. DPoS genesis initialization with validator records
 5. Epoch state and reward pool file creation
 6. Builtin program loading (System, Token, Staking)
+7. Transaction input validation and permission checking
+8. Transaction builder with proper input declarations
+9. System Program helper functions for instruction creation
 
 ---
 
@@ -226,6 +234,62 @@ The `comprehensive_test.go` file provides helper functions for building bytecode
 - `buildCall(offset)` - Create CALL instruction for function calls
 
 These helpers simplify bytecode construction for comprehensive interpreter tests covering control flow, data structures, arithmetic, blockchain state, cross-program invocation, string operations, cryptographic operations, and function calls.
+
+### Transaction Input Validation Tests
+
+The transaction input validation system includes comprehensive tests in `internal/processor/input_validator_test.go` and `internal/transaction/`:
+
+```bash
+# Input validator tests
+go test -v ./internal/processor -run TestValidateInstructionInputs
+go test -v ./internal/processor -run TestValidateExecutableProgram
+go test -v ./internal/processor -run TestValidateFileExists
+
+# Transaction builder tests
+go test -v ./internal/transaction -run TestTransactionBuilder
+go test -v ./internal/transaction -run TestAddTransferInstruction
+
+# System helpers tests
+go test -v ./internal/transaction -run TestCreateTransferInstruction
+go test -v ./internal/transaction -run TestEncodeTransferData
+```
+
+**Input Validator Test Coverage** (`input_validator_test.go`):
+1. `TestValidateInstructionInputs_ValidInputs` - Validates properly declared inputs with correct permissions
+2. `TestValidateInstructionInputs_MissingProgramDeclaration` - Detects missing program in inputs map
+3. `TestValidateInstructionInputs_NonExecutableProgram` - Detects program without Executable flag
+4. `TestValidateInstructionInputs_MissingFile` - Detects non-existent files in inputs
+5. `TestValidateInstructionInputs_InvalidPermission` - Detects invalid permission values (not Read/Write)
+6. `TestValidateInstructionInputs_EmptyInputsMap` - Rejects instructions with empty inputs
+7. `TestValidateExecutableProgram` - Validates program executable flag separately
+8. `TestValidateFileExists` - Validates file existence separately
+
+**Transaction Builder Test Coverage** (`builder_test.go`):
+1. `TestNewTransactionBuilder` - Constructor initialization
+2. `TestAddTransferInstruction` - Adding transfer with proper input declarations
+3. `TestAddTransferInstructionZeroAmount` - Rejection of zero amounts
+4. `TestAddTransferInstructionNegativeAmount` - Rejection of negative amounts
+5. `TestAddSignature` - Adding signatures to transactions
+6. `TestBuild` - Building complete transactions
+7. `TestMultipleInstructions` - Multi-instruction transaction support
+
+**System Helpers Test Coverage** (`system_helpers_test.go`):
+1. `TestCreateTransferInstruction` - Creates transfer with proper inputs and permissions
+2. `TestCreateTransferInstructionZeroAmount` - Validates amount is positive
+3. `TestEncodeTransferData` - Encodes transfer data in correct format (73 bytes)
+4. `TestInputKeyConstants` - Verifies standard input key constants
+
+**Error Types**:
+- `ErrMissingInput` - Required file not declared in instruction inputs
+- `ErrInvalidPermission` - Invalid permission value (must be Read=1 or Write=2)
+- `ErrProgramNotExecutable` - Program file lacks Executable flag
+- `ErrFileNotFound` - Input file doesn't exist in file store
+
+**Validation Flow**:
+1. TransactionBuilder creates instructions with proper input declarations
+2. InputValidator checks all inputs before execution
+3. Transaction processor rejects invalid instructions before state changes
+4. All file accesses must be explicitly declared with correct permissions
 
 ### Cross-Program Invocation Tests (`cross_program_test.go`)
 

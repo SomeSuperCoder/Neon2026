@@ -104,7 +104,8 @@ The system uses a layered architecture:
 - **Core Blockchain Layer**: PoH clock, entries, and blocks
 - **Storage Layer**: Persistent ledger with SQLite
 - **Verification Layer**: Chain integrity and validity verification
-- **File-Based State Layer**: File store, transaction processing, and smart contract runtime (in development)
+- **File-Based State Layer**: File store, transaction processing, and smart contract runtime
+- **Transaction Layer**: Transaction builder with input validation and permission declarations
 
 ## Key Concepts
 
@@ -122,7 +123,7 @@ The system uses a layered architecture:
 
 ### CLI Commands for Account Management
 
-The blockchain now includes CLI commands for managing accounts and transactions:
+The blockchain includes CLI commands for managing accounts and transactions. For programmatic transaction construction, see the [Transaction Builder API](docs/reference/transaction-builder.md).
 
 ```bash
 # Create a new account
