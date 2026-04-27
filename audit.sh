@@ -10,7 +10,8 @@ VALIDATORS=3
 CI_MODE=false
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-REPORT_FILE="logs/audit-${TIMESTAMP}.json"
+AUDIT_DIR="logs/audit-${TIMESTAMP}"
+REPORT_FILE="${AUDIT_DIR}/report.json"
 EXIT_CODE=0
 TOTAL_PHASES=4
 PASSED_PHASES=0
@@ -89,7 +90,7 @@ parse_arguments() {
 
 # Initialize JSON report
 init_json_report() {
-    mkdir -p logs
+    mkdir -p "$AUDIT_DIR"
     cat > "$REPORT_FILE" << EOF
 {
   "audit_timestamp": "${TIMESTAMP}",
@@ -140,9 +141,9 @@ finalize_json_report() {
 EOF
 }
 
-# Cleanup function
-cleanup() {
-    echo -e "\n${YELLOW}Cleaning up test artifacts...${NC}"
+# Cleanup function - only processes, keep audit directory
+cleanup_processes() {
+    echo -e "\n${YELLOW}Cleaning up test processes...${NC}"
     
     # Kill all tracked processes
     for pid in "${PIDS_TO_CLEANUP[@]}"; do
@@ -162,18 +163,20 @@ cleanup() {
     done
     
     # Kill any remaining audit processes
-    pkill -9 -f "poh-node.*audit-" 2>/dev/null || true
+    pkill -9 -f "poh-node.*${AUDIT_DIR}" 2>/dev/null || true
+    
+    echo -e "${GREEN}Cleanup complete${NC}"
+}
+
+# Full cleanup including audit directory (for signal handler)
+cleanup() {
+    cleanup_processes
     
     # Additional wait for file handles to close
     sleep 2
     
-    # Remove temporary databases and state directories
-    for db in "${DBS_TO_CLEANUP[@]}"; do
-        rm -f "$db" 2>/dev/null || true
-        rm -rf "${db}_state.db" 2>/dev/null || true
-    done
-    
-    echo -e "${GREEN}Cleanup complete${NC}"
+    # Remove entire audit directory (contains all databases and state directories)
+    rm -rf "$AUDIT_DIR" 2>/dev/null || true
 }
 
 # Signal handler
@@ -259,11 +262,11 @@ run_basic_consensus_test() {
     local phase_dbs=()
     
     # Start leader
-    local leader_db="audit-basic-leader.db"
+    local leader_db="${AUDIT_DIR}/basic-leader.db"
     phase_dbs+=("$leader_db")
     DBS_TO_CLEANUP+=("$leader_db")
     
-    ./bin/poh-node --type=leader --port=9000 --db="$leader_db" > logs/audit-basic-leader.log 2>&1 &
+    ./bin/poh-node --type=leader --port=9000 --db="$leader_db" > "${AUDIT_DIR}/basic-leader.log" 2>&1 &
     local leader_pid=$!
     phase_pids+=($leader_pid)
     PIDS_TO_CLEANUP+=($leader_pid)
@@ -276,12 +279,12 @@ run_basic_consensus_test() {
     else
         # Start replicas
         for i in {1..3}; do
-            local replica_db="audit-basic-replica${i}.db"
+            local replica_db="${AUDIT_DIR}/basic-replica${i}.db"
             phase_dbs+=("$replica_db")
             DBS_TO_CLEANUP+=("$replica_db")
             
             local port=$((9000 + i))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9000 --db="$replica_db" > logs/audit-basic-replica${i}.log 2>&1 &
+            ./bin/poh-node --type=replica --port=$port --peers=localhost:9000 --db="$replica_db" > "${AUDIT_DIR}/basic-replica${i}.log" 2>&1 &
             local replica_pid=$!
             phase_pids+=($replica_pid)
             PIDS_TO_CLEANUP+=($replica_pid)
@@ -357,11 +360,11 @@ run_bft_with_tolerance_test() {
     local phase_dbs=()
     
     # Start leader
-    local leader_db="audit-bft-leader.db"
+    local leader_db="${AUDIT_DIR}/bft-leader.db"
     phase_dbs+=("$leader_db")
     DBS_TO_CLEANUP+=("$leader_db")
     
-    ./bin/poh-node --type=leader --port=9100 --db="$leader_db" > logs/audit-bft-leader.log 2>&1 &
+    ./bin/poh-node --type=leader --port=9100 --db="$leader_db" > "${AUDIT_DIR}/bft-leader.log" 2>&1 &
     local leader_pid=$!
     phase_pids+=($leader_pid)
     PIDS_TO_CLEANUP+=($leader_pid)
@@ -374,12 +377,12 @@ run_bft_with_tolerance_test() {
     else
         # Start 4 honest replicas
         for i in {1..4}; do
-            local replica_db="audit-bft-replica${i}.db"
+            local replica_db="${AUDIT_DIR}/bft-replica${i}.db"
             phase_dbs+=("$replica_db")
             DBS_TO_CLEANUP+=("$replica_db")
             
             local port=$((9100 + i))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9100 --db="$replica_db" > logs/audit-bft-replica${i}.log 2>&1 &
+            ./bin/poh-node --type=replica --port=$port --peers=localhost:9100 --db="$replica_db" > "${AUDIT_DIR}/bft-replica${i}.log" 2>&1 &
             local replica_pid=$!
             phase_pids+=($replica_pid)
             PIDS_TO_CLEANUP+=($replica_pid)
@@ -391,10 +394,10 @@ run_bft_with_tolerance_test() {
         done
         
         # Start 1 malicious replica
-        local malicious_db="audit-bft-malicious.db"
+        local malicious_db="${AUDIT_DIR}/bft-malicious.db"
         DBS_TO_CLEANUP+=("$malicious_db")
         
-        ./bin/poh-node --type=replica --port=9105 --peers=localhost:9100 --db="$malicious_db" --malicious > logs/audit-bft-malicious.log 2>&1 &
+        ./bin/poh-node --type=replica --port=9105 --peers=localhost:9100 --db="$malicious_db" --malicious > "${AUDIT_DIR}/bft-malicious.log" 2>&1 &
         local malicious_pid=$!
         phase_pids+=($malicious_pid)
         PIDS_TO_CLEANUP+=($malicious_pid)
@@ -461,11 +464,11 @@ run_bft_without_tolerance_test() {
     local phase_dbs=()
     
     # Start leader
-    local leader_db="audit-nobft-leader.db"
+    local leader_db="${AUDIT_DIR}/nobft-leader.db"
     phase_dbs+=("$leader_db")
     DBS_TO_CLEANUP+=("$leader_db")
     
-    ./bin/poh-node --type=leader --port=9200 --db="$leader_db" > logs/audit-nobft-leader.log 2>&1 &
+    ./bin/poh-node --type=leader --port=9200 --db="$leader_db" > "${AUDIT_DIR}/nobft-leader.log" 2>&1 &
     local leader_pid=$!
     phase_pids+=($leader_pid)
     PIDS_TO_CLEANUP+=($leader_pid)
@@ -478,12 +481,12 @@ run_bft_without_tolerance_test() {
     else
         # Start 2 honest replicas
         for i in {1..2}; do
-            local replica_db="audit-nobft-replica${i}.db"
+            local replica_db="${AUDIT_DIR}/nobft-replica${i}.db"
             phase_dbs+=("$replica_db")
             DBS_TO_CLEANUP+=("$replica_db")
             
             local port=$((9200 + i))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9200 --db="$replica_db" > logs/audit-nobft-replica${i}.log 2>&1 &
+            ./bin/poh-node --type=replica --port=$port --peers=localhost:9200 --db="$replica_db" > "${AUDIT_DIR}/nobft-replica${i}.log" 2>&1 &
             local replica_pid=$!
             phase_pids+=($replica_pid)
             PIDS_TO_CLEANUP+=($replica_pid)
@@ -496,11 +499,11 @@ run_bft_without_tolerance_test() {
         
         # Start 2 malicious replicas
         for i in {1..2}; do
-            local malicious_db="audit-nobft-malicious${i}.db"
+            local malicious_db="${AUDIT_DIR}/nobft-malicious${i}.db"
             DBS_TO_CLEANUP+=("$malicious_db")
             
             local port=$((9202 + i))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9200 --db="$malicious_db" --malicious > logs/audit-nobft-malicious${i}.log 2>&1 &
+            ./bin/poh-node --type=replica --port=$port --peers=localhost:9200 --db="$malicious_db" --malicious > "${AUDIT_DIR}/nobft-malicious${i}.log" 2>&1 &
             local malicious_pid=$!
             phase_pids+=($malicious_pid)
             PIDS_TO_CLEANUP+=($malicious_pid)
@@ -561,11 +564,11 @@ run_dpos_lifecycle_test() {
     local phase_dbs=()
     
     # Start leader
-    local leader_db="audit-dpos-validator1.db"
+    local leader_db="${AUDIT_DIR}/dpos-validator1.db"
     phase_dbs+=("$leader_db")
     DBS_TO_CLEANUP+=("$leader_db")
     
-    ./bin/poh-node --type=leader --port=9300 --db="$leader_db" > logs/audit-dpos-validator1.log 2>&1 &
+    ./bin/poh-node --type=leader --port=9300 --db="$leader_db" > "${AUDIT_DIR}/dpos-validator1.log" 2>&1 &
     local leader_pid=$!
     phase_pids+=($leader_pid)
     PIDS_TO_CLEANUP+=($leader_pid)
@@ -578,12 +581,12 @@ run_dpos_lifecycle_test() {
     else
         # Start remaining validators
         for i in $(seq 2 $VALIDATORS); do
-            local validator_db="audit-dpos-validator${i}.db"
+            local validator_db="${AUDIT_DIR}/dpos-validator${i}.db"
             phase_dbs+=("$validator_db")
             DBS_TO_CLEANUP+=("$validator_db")
             
             local port=$((9300 + i - 1))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9300 --db="$validator_db" > logs/audit-dpos-validator${i}.log 2>&1 &
+            ./bin/poh-node --type=replica --port=$port --peers=localhost:9300 --db="$validator_db" > "${AUDIT_DIR}/dpos-validator${i}.log" 2>&1 &
             local validator_pid=$!
             phase_pids+=($validator_pid)
             PIDS_TO_CLEANUP+=($validator_pid)
@@ -689,13 +692,13 @@ main() {
     run_bft_without_tolerance_test
     run_dpos_lifecycle_test
     
-    # Cleanup
-    cleanup
-    
-    # Finalize report
+    # Finalize report before cleanup
     local end_time=$(date +%s)
     local total_duration=$((end_time - start_time))
     finalize_json_report "$total_duration"
+    
+    # Cleanup (but preserve the audit directory with report)
+    cleanup_processes
     
     # Display summary
     display_summary
