@@ -112,13 +112,9 @@ function handleTransfer(instrData: bytes): i64 {
     let amountBytes: bytes = slice(instrData, 65, 73);
     let amount: i64 = bytesToI64LE(amountBytes);
     
-    // Validate amount is positive
-    if (amount <= 0) {
-        return ERROR_INVALID_AMOUNT;
-    }
-    
     // Use the transfer instruction
     // OpTransfer automatically validates:
+    // - Amount is positive (will error if <= 0)
     // - Ownership (from file must be owned by System Program)
     // - Storage cost constraints
     // - Balance sufficiency
@@ -144,41 +140,12 @@ function handleBurn(instrData: bytes): i64 {
     let amountBytes: bytes = slice(instrData, 33, 41);
     let amount: i64 = bytesToI64LE(amountBytes);
     
-    // Validate amount is positive
-    if (amount <= 0) {
-        return ERROR_INVALID_AMOUNT;
-    }
-    
-    // Get file data and current balance
-    let fileData: bytes = getFile(fileID);
-    let dataLen: i64 = len(fileData);
-    let currentBalance: i64 = getBalance(fileID);
-    
-    // Check if burn would make balance negative
-    if (currentBalance < amount) {
-        return ERROR_INSUFFICIENT_BALANCE;
-    }
-    
-    // Calculate storage cost based on data size
-    // Storage cost formula: base * size_in_kb * (1.1 ^ size_in_mb)
-    // For simplicity, we'll use a conservative estimate:
-    // - 0 bytes = 0 cost
-    // - 1-1024 bytes = 1000 cost
-    // - 1025-2048 bytes = 2000 cost, etc.
-    let storageCost: i64 = 0;
-    if (dataLen > 0) {
-        let sizeInKB: i64 = (dataLen + 1023) / 1024;  // Round up
-        storageCost = sizeInKB * 1000;
-    }
-    
-    // Check if remaining balance would cover storage cost
-    let newBalance: i64 = currentBalance - amount;
-    if (newBalance < storageCost) {
-        return ERROR_INSUFFICIENT_BALANCE;
-    }
-    
     // Perform the burn by transferring to system program
-    // The transfer opcode will validate ownership and storage costs
+    // The transfer opcode will validate:
+    // - Amount is positive (will error if <= 0)
+    // - Ownership
+    // - Storage costs
+    // - Balance sufficiency
     let systemFileID: FileID = getProgramID();
     transfer(fileID, systemFileID, amount);
     
@@ -205,7 +172,13 @@ function handleCloseFile(instrData: bytes): i64 {
     let fileData: bytes = getFile(fileToClose);
     
     // Verify file has zero data length
+    // If file has data, we should error out to prevent data loss
     if (len(fileData) > 0) {
+        // Force an error by attempting an invalid operation
+        // We'll try to transfer a negative amount which will cause the interpreter to error
+        let negativeAmount: i64 = -1;
+        transfer(fileToClose, destination, negativeAmount);
+        // This line won't be reached due to the error above
         return ERROR_FILE_HAS_DATA;
     }
     
