@@ -39,6 +39,19 @@ func (m *MockExecutionContext) UpdateFile(file *filestore.File) error {
 	return nil
 }
 
+func (m *MockExecutionContext) CreateFile(file *filestore.File) error {
+	m.files[file.ID] = file
+	return nil
+}
+
+func (m *MockExecutionContext) DeleteFile(fileID filestore.FileID) error {
+	if _, ok := m.files[fileID]; !ok {
+		return fmt.Errorf("file not found: %s", fileID.String())
+	}
+	delete(m.files, fileID)
+	return nil
+}
+
 func (m *MockExecutionContext) GetFileBalance(fileID filestore.FileID) (int64, error) {
 	file, err := m.GetFile(fileID)
 	if err != nil {

@@ -51,20 +51,23 @@ export function entry(): i64 {
 }
 
 // CREATE_FILE: Creates a new file owned by the System Program
-// Format: [type:u8(1)][owner:FileID(32)][initial_balance:i64(8)] = 41 bytes
+// Format: [type:u8(1)][fileID:FileID(32)][balance:i64(8)][owner:PublicKey(32)] = 73 bytes
 function handleCreateFile(instrData: bytes): i64 {
     // Validate length
-    if (len(instrData) != 41) {
+    if (len(instrData) != 73) {
         return ERROR_INVALID_INSTRUCTION;
     }
     
-    // Extract owner FileID (bytes 1-33)
-    let ownerBytes: bytes = slice(instrData, 1, 33);
-    let owner: FileID = bytesToFileID(ownerBytes);
+    // Extract fileID (bytes 1-33)
+    let fileIDBytes: bytes = slice(instrData, 1, 33);
+    let fileID: FileID = bytesToFileID(fileIDBytes);
     
     // Extract initial balance (bytes 33-41, little-endian)
     let balanceBytes: bytes = slice(instrData, 33, 41);
     let balance: i64 = bytesToI64LE(balanceBytes);
+    
+    // Extract owner PublicKey (bytes 41-73) - not used in current implementation
+    // let ownerBytes: bytes = slice(instrData, 41, 73);
     
     // Validate balance is non-negative
     if (balance < 0) {
@@ -77,12 +80,12 @@ function handleCreateFile(instrData: bytes): i64 {
     // Create new file with System Program as TxManager
     // The createFile opcode sets TxManager to the current program (System Program)
     let emptyData: bytes = slice(instrData, 0, 0);  // Empty bytes
-    createFile(owner, emptyData, 0);
+    createFile(fileID, emptyData, 0);
     
     // Transfer initial balance from system program to new file
     // This will automatically validate that system program has sufficient balance
     if (balance > 0) {
-        transfer(systemFileID, owner, balance);
+        transfer(systemFileID, fileID, balance);
     }
     
     return SUCCESS;

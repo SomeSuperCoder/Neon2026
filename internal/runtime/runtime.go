@@ -94,6 +94,42 @@ func (ctx *ExecutionContext) UpdateFile(file *filestore.File) error {
 	return nil
 }
 
+// CreateFile creates a new file with write permission validation
+// This implements Requirements 4.2, 8.1, 8.2, 8.3
+func (ctx *ExecutionContext) CreateFile(file *filestore.File) error {
+	if file == nil {
+		return fmt.Errorf("file cannot be nil")
+	}
+
+	// Validate and record write access (Requirement 8.1, 8.2)
+	if err := ctx.AccessController.ValidateAndRecord(file.ID, transaction.Write); err != nil {
+		return fmt.Errorf("access validation failed for file %s: %w", file.ID.String(), err)
+	}
+
+	// Create file in store
+	if _, err := ctx.FileStore.CreateFile(file); err != nil {
+		return fmt.Errorf("failed to create file %s: %w", file.ID.String(), err)
+	}
+
+	return nil
+}
+
+// DeleteFile deletes a file with write permission validation
+// This implements Requirements 4.2, 8.1, 8.2, 8.3
+func (ctx *ExecutionContext) DeleteFile(fileID filestore.FileID) error {
+	// Validate and record write access (Requirement 8.1, 8.2)
+	if err := ctx.AccessController.ValidateAndRecord(fileID, transaction.Write); err != nil {
+		return fmt.Errorf("access validation failed for file %s: %w", fileID.String(), err)
+	}
+
+	// Delete file from store
+	if err := ctx.FileStore.DeleteFile(fileID); err != nil {
+		return fmt.Errorf("failed to delete file %s: %w", fileID.String(), err)
+	}
+
+	return nil
+}
+
 // GetFileBalance retrieves a file's balance with read permission validation
 // This is a convenience method for balance queries
 func (ctx *ExecutionContext) GetFileBalance(fileID filestore.FileID) (int64, error) {

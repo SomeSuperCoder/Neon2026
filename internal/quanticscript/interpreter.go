@@ -1970,8 +1970,8 @@ func (bi *BytecodeInterpreter) execCreateFile() error {
 		TxManager: programID,
 	}
 
-	// Store the file in the FileStore
-	if err := bi.ctx.UpdateFile(newFile); err != nil {
+	// Create the file in the FileStore
+	if err := bi.ctx.CreateFile(newFile); err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 
@@ -2017,14 +2017,8 @@ func (bi *BytecodeInterpreter) execDeleteFile() error {
 			currentProgramID.String(), fileID.String(), file.TxManager.String())
 	}
 
-	// Delete the file by setting it to nil (or use a DeleteFile method if available)
-	// For now, we'll create an empty file with zero balance to mark it as deleted
-	// This is a placeholder - the actual implementation should use a proper delete mechanism
-	file.Data = []byte{}
-	file.Balance = 0
-
-	// Update the file (marking it as deleted)
-	if err := bi.ctx.UpdateFile(file); err != nil {
+	// Delete the file using the context's DeleteFile method
+	if err := bi.ctx.DeleteFile(fileID); err != nil {
 		return fmt.Errorf("failed to delete file: %w", err)
 	}
 

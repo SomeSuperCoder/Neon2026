@@ -17,6 +17,12 @@ type ExecutionContext interface {
 	// UpdateFile updates a file with write permission validation
 	UpdateFile(file *filestore.File) error
 
+	// CreateFile creates a new file with write permission validation
+	CreateFile(file *filestore.File) error
+
+	// DeleteFile deletes a file with write permission validation
+	DeleteFile(fileID filestore.FileID) error
+
 	// GetFileBalance retrieves a file's balance with read permission validation
 	GetFileBalance(fileID filestore.FileID) (int64, error)
 
