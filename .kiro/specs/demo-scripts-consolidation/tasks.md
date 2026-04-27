@@ -94,32 +94,32 @@
   - Preserve existing analysis functionality
   - _Requirements: 3.2_
 
-- [ ] 5. Remove old demo scripts
+- [x] 5. Remove old demo scripts
   - Delete demo.sh
   - Delete demo-automated.sh
   - Delete demo-bft.sh
   - Delete demo-dpos.sh
   - _Requirements: 3.1, 3.4_
 
-- [ ] 6. Update documentation
+- [x] 6. Update documentation
   - Update README.md Quick Start section with new scripts
   - Update README.md Usage section to reference audit.sh and devnet.sh
   - _Requirements: 3.5_
 
-- [ ] 6.1 Update docs/guides/demo.md
+- [x] 6.1 Update docs/guides/demo.md
   - Replace references to old demo scripts with devnet.sh
   - Add audit.sh usage examples
   - Update tmux navigation section (remove if not applicable)
   - Update network configuration section
   - _Requirements: 3.5_
 
-- [ ] 6.2 Update docs/guides/dpos-demo.md
+- [x] 6.2 Update docs/guides/dpos-demo.md
   - Replace demo-dpos.sh references with audit.sh
   - Update usage examples
   - Update output format section
   - _Requirements: 3.5_
 
-- [ ] 6.3 Update docs/testing/automated-testing.md
+- [x] 6.3 Update docs/testing/automated-testing.md
   - Replace demo-automated.sh references with audit.sh
   - Update CI/CD integration examples
   - Update JSON output format documentation

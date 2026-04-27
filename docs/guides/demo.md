@@ -2,220 +2,330 @@
 
 ## Quick Start
 
-### Regular Demo
+### Local Development Network
 
-Run the demo with default settings (1 leader + 2 replicas):
+Run a local development network with devnet.sh:
 ```bash
-./demo.sh
+# Start with default 3 validators
+./devnet.sh start
+
+# Start with custom number of validators
+./devnet.sh start 5
+
+# Check network status
+./devnet.sh status
+
+# View logs
+./devnet.sh logs
+
+# Stop the network
+./devnet.sh stop
 ```
 
-Run with a custom number of replicas (1-9):
+### Comprehensive Testing
+
+Run the audit script to validate all blockchain functionality:
 ```bash
-./demo.sh 5    # 1 leader + 5 replicas
+# Run with default settings (30s per phase, 3 validators)
+./audit.sh
+
+# Run with custom duration and validator count
+./audit.sh --duration 60 --validators 5
+
+# Run in CI mode (no colors, no prompts)
+./audit.sh --ci
 ```
 
-### BFT Testing Demo
+The audit script tests:
+- Basic consensus with honest nodes
+- BFT with tolerance (network can handle malicious nodes)
+- BFT without tolerance (insufficient honest nodes)
+- DPoS lifecycle (delegation, epochs, rewards, slashing)
 
-Run the BFT demo to test Byzantine Fault Tolerance with malicious nodes:
+## Script Features
+
+### devnet.sh - Local Development Network
+- **Persistent state**: Maintains blockchain state across restarts
+- **Background processes**: Nodes run as background processes (no tmux required)
+- **Multiple commands**: start, stop, restart, status, logs, clean
+- **Configurable**: Custom port, database directory, and log directory
+- **Easy monitoring**: View logs and status for all validators
+
+### audit.sh - Comprehensive Testing
+- **Four test phases**: Basic consensus, BFT with/without tolerance, DPoS lifecycle
+- **JSON reports**: Machine-parseable output for CI/CD integration
+- **Configurable**: Custom test duration and validator count
+- **CI mode**: Automated testing without interactive prompts
+- **Exit codes**: 0=pass, 1=fail, 2=config error
+
+## devnet.sh Commands
+
+### start
+Start a local development network with N validators:
 ```bash
-./demo-bft.sh 3 1    # 3 honest + 1 malicious replica
-./demo-bft.sh 4 2    # 4 honest + 2 malicious replicas
+./devnet.sh start [N]    # Default: 3 validators
 ```
 
-The script will automatically calculate and display whether the network has BFT:
-- **BFT Requirement**: Honest nodes > 2 × Malicious nodes
-- **Example**: 4 honest + 1 malicious = BFT ✓ (4 > 2×1)
-- **Example**: 2 honest + 2 malicious = NO BFT ✗ (2 ≤ 2×2)
+Options:
+- `--port PORT`: Starting port number (default: 8000)
+- `--db-dir DIR`: Database directory (default: ./devnet-data)
+- `--log-dir DIR`: Log directory (default: ./logs)
 
-## Demo Script Features
+### stop
+Stop the running devnet:
+```bash
+./devnet.sh stop
+```
 
-### Regular Demo (demo.sh)
-- **Automatic build**: Compiles the project before starting
-- **Clean slate**: Removes old database files
-- **Configurable replicas**: Specify 1-9 replica nodes
-- **Tiled layout**: Automatically arranges panes in tmux
-- **Color-coded output**: Leader in blue, replicas in green
+### restart
+Restart the devnet with the same or different number of validators:
+```bash
+./devnet.sh restart [N]
+```
 
-### BFT Testing Demo (demo-bft.sh)
-- **Malicious nodes**: Simulates Byzantine faults for testing
-- **BFT calculation**: Automatically checks if network has fault tolerance
-- **Separate databases**: Malicious nodes use separate DB files
-- **Color-coded output**: Honest nodes in green, malicious in red
-- **Multiple attack vectors**: Tests various Byzantine behaviors
+### status
+Show the status of all validators:
+```bash
+./devnet.sh status
+```
 
-## tmux Navigation
+Displays:
+- Running/stopped status for each validator
+- Block counts from databases
+- Process IDs
 
-| Action | Command |
-|--------|---------|
-| Switch panes | `Ctrl+B` then arrow keys |
-| Zoom pane | `Ctrl+B` then `Z` (toggle) |
-| Detach session | `Ctrl+B` then `D` |
-| Reattach | `tmux attach -t poh-demo` |
-| Scroll in pane | `Ctrl+B` then `[`, then arrow keys (press `q` to exit) |
+### logs
+View logs for specific validator or all validators:
+```bash
+./devnet.sh logs           # All validators
+./devnet.sh logs 1         # Validator 1 only
+```
 
-## Stopping the Demo
+### clean
+Stop devnet and remove all data:
+```bash
+./devnet.sh clean
+```
 
-### Option 1: Stop script
+Prompts for confirmation before deleting databases and logs.
+
+## Stopping the Network
+
+### devnet.sh
+```bash
+./devnet.sh stop
+```
+
+### audit.sh
+The audit script automatically cleans up after each test phase. Press `Ctrl+C` to interrupt if needed.
+
+### Legacy cleanup
 ```bash
 ./stop-demo.sh
 ```
-This will prompt you to optionally clean up database files.
-
-### Option 2: Manual stop
-1. Press `Ctrl+C` in each pane to stop the nodes
-2. Type `exit` in each pane to close them
-3. Or kill the session: `tmux kill-session -t poh-demo`
+This will stop both legacy tmux sessions and any running devnet.
 
 ## What You'll See
 
-### Leader Node (Top/First Pane)
+### devnet.sh Output
+
+When starting the network:
 ```
-Leader node: Producing block for slot 42
-Leader node: Block produced - height=15, slot=42, entries=64
-Leader node: Block stored to ledger - height=15
-Leader node: Block broadcasted to peers - height=15
+Building poh-node...
+Starting devnet with 3 validators...
+
+Network Configuration:
+  Validator 1 (Leader): localhost:8000 -> devnet-data/validator1.db
+  Validator 2:          localhost:8001 -> devnet-data/validator2.db
+  Validator 3:          localhost:8002 -> devnet-data/validator3.db
+
+Logs:
+  logs/devnet-validator-1.log
+  logs/devnet-validator-2.log
+  logs/devnet-validator-3.log
+
+Devnet started successfully!
 ```
 
-### Honest Replica Nodes
+### audit.sh Output
+
+The audit script shows progress through four phases:
+
+**Phase 1: Basic Consensus**
 ```
-Replica node: Received block - height=15, slot=42, entries=64
-Replica node: Block passed consensus validation - height=15
-Replica node: Block passed verification - height=15
-Replica node: Block linkage verified - height=15
-Replica node: Block stored successfully - height=15, slot=42
+=== Phase 1: Basic Consensus ===
+Starting 1 leader + 3 honest replicas...
+Running for 30 seconds...
+✓ Phase complete: 150 blocks produced
 ```
 
-### Malicious Replica Nodes (BFT Demo Only)
+**Phase 2: BFT With Tolerance**
 ```
-MALICIOUS: Skipping validation for block 12
-MALICIOUS: Stored block 12 without validation
-Replica node: Block verification failed: entry hash does not match
-MALICIOUS: Ignoring verification failure, storing anyway
-MALICIOUS: Corrupted block 15 by setting invalid hash count
-```
-
-### Malicious Leader Behavior (when using --malicious flag)
-```
-MALICIOUS LEADER: Starting node as MALICIOUS LEADER
-MALICIOUS: Corrupted block 9 by setting invalid hash count
-MALICIOUS: Corrupted block 10 with wrong previous hash
-MALICIOUS: Skipping storage of corrupted block 12
+=== Phase 2: BFT With Tolerance ===
+Starting 1 leader + 4 honest + 1 malicious...
+Running for 30 seconds...
+✓ Phase complete: Honest nodes rejected 15 invalid blocks
 ```
 
-Note: The `--malicious` flag enables Byzantine fault behaviors for testing. Use `demo-bft.sh` for automated BFT testing.
+**Phase 3: BFT Without Tolerance**
+```
+=== Phase 3: BFT Without Tolerance ===
+Starting 1 leader + 2 honest + 2 malicious...
+Running for 30 seconds...
+✓ Phase complete: Network behavior under insufficient BFT observed
+```
+
+**Phase 4: DPoS Lifecycle**
+```
+=== Phase 4: DPoS Lifecycle ===
+Starting 3 validators from genesis...
+Running for 30 seconds...
+✓ Phase complete: DPoS lifecycle simulated
+```
+
+**Final Summary**
+```
+=== Audit Summary ===
+Total phases: 4
+Passed: 4
+Failed: 0
+
+Overall status: PASSED
+
+Report saved to: logs/audit-20260427-120000.json
+```
 
 ## Network Configuration
 
-The demo creates the following network:
+### devnet.sh Network
 
-- **Leader**: `localhost:8000` (produces blocks)
-- **Replica 1**: `localhost:8001` (validates and stores)
-- **Replica 2**: `localhost:8002` (validates and stores)
-- **Replica N**: `localhost:800N` (validates and stores)
+The devnet creates the following network:
+
+- **Validator 1 (Leader)**: `localhost:8000` → `devnet-data/validator1.db`
+- **Validator 2**: `localhost:8001` → `devnet-data/validator2.db`
+- **Validator 3**: `localhost:8002` → `devnet-data/validator3.db`
+- **Validator N**: `localhost:800(N-1)` → `devnet-data/validatorN.db`
 
 All replicas connect to the leader and receive blocks via TCP.
 
-## Malicious Node Behaviors
+State is persistent across restarts. Use `./devnet.sh clean` to reset.
 
-When running with the `--malicious` flag or using `demo-bft.sh`, nodes exhibit Byzantine faults:
+### audit.sh Network
 
-### Malicious Leader Behaviors
-1. **Invalid Hash Counts**: Every 3rd block has corrupted NumHashes (set to 1)
-2. **Wrong Previous Hash**: Every 5th block has corrupted PreviousBlockHash
-3. **Skip Storage**: Doesn't store corrupted blocks locally
-4. **Broadcast Corruption**: Still broadcasts corrupted blocks to replicas
+The audit script creates temporary networks for each test phase:
 
-### Malicious Replica Behaviors
-1. **Skip Validation**: Every 4th block is stored without validation
-2. **Ignore Consensus Failures**: Every 6th block ignores consensus validation errors
-3. **Ignore Verification Failures**: Every 6th block ignores PoH verification errors
-4. **Ignore Linkage Failures**: Every 6th block ignores block linkage errors
+- **Phase 1**: 1 leader + 3 honest replicas
+- **Phase 2**: 1 leader + 4 honest + 1 malicious
+- **Phase 3**: 1 leader + 2 honest + 2 malicious
+- **Phase 4**: N validators (configurable, default 3)
 
-### Expected Outcomes
+All test artifacts are automatically cleaned up after each phase.
 
-**With BFT (Honest > 2×Malicious)**:
-- Honest nodes reject invalid blocks
-- Network maintains valid chain state
-- Malicious nodes have corrupted local state
-- Consensus is preserved
+## BFT Testing
 
-**Without BFT (Honest ≤ 2×Malicious)**:
-- Invalid blocks may be accepted
-- Network state becomes inconsistent
-- Chain integrity is compromised
-- Demonstrates need for BFT threshold
+The audit script includes comprehensive BFT testing in phases 2 and 3.
 
-## BFT Testing Scenarios
+### Phase 2: BFT With Tolerance
 
-### Scenario 1: Network Has BFT
-```bash
-./demo-bft.sh 4 1    # 4 honest, 1 malicious
-```
-**Expected**: Honest nodes reject corrupted blocks, maintain valid chain
+Tests network behavior when honest nodes outnumber malicious nodes:
+- **Configuration**: 1 leader + 4 honest + 1 malicious
+- **BFT Status**: ✓ Has BFT (4 > 2×1)
+- **Expected**: Honest nodes reject invalid blocks, maintain integrity
 
-### Scenario 2: Network Lacks BFT
-```bash
-./demo-bft.sh 2 2    # 2 honest, 2 malicious
-```
-**Expected**: Network may accept invalid blocks, chain integrity at risk
+### Phase 3: BFT Without Tolerance
 
-### Scenario 3: Extreme Byzantine Fault
-```bash
-./demo-bft.sh 6 2    # 6 honest, 2 malicious
-```
-**Expected**: Strong BFT, network easily handles Byzantine faults
+Tests network behavior when there are insufficient honest nodes:
+- **Configuration**: 1 leader + 2 honest + 2 malicious
+- **BFT Status**: ✗ No BFT (2 ≤ 2×2)
+- **Expected**: Network may accept invalid blocks, demonstrates need for BFT threshold
 
 ## Database Files
 
-Each node maintains its own SQLite database:
-- `leader.db` - Leader's blockchain state
-- `replica1.db` - Replica 1's blockchain state
-- `replica2.db` - Replica 2's blockchain state
+### devnet.sh Databases
+
+Each validator maintains its own SQLite database in `devnet-data/`:
+- `devnet-data/validator1.db` - Leader's blockchain state
+- `devnet-data/validator2.db` - Replica 1's blockchain state
+- `devnet-data/validator3.db` - Replica 2's blockchain state
 - etc.
 
-After stopping the demo, you can inspect these databases or restart nodes with the existing state.
+State persists across restarts. Use `./devnet.sh clean` to remove all data.
+
+### audit.sh Databases
+
+The audit script creates temporary databases for each test phase:
+- `audit-leader.db`, `audit-honest-1.db`, etc.
+- Automatically cleaned up after each phase
+- Final report saved to `logs/audit-TIMESTAMP.json`
 
 ## Troubleshooting
 
-### "tmux: command not found"
-Install tmux:
-```bash
-# Ubuntu/Debian
-sudo apt-get install tmux
-
-# macOS
-brew install tmux
-```
-
 ### "address already in use"
 Another process is using the ports. Either:
-1. Stop the existing demo: `./stop-demo.sh`
-2. Or change the ports in the script
+1. Stop the existing network: `./devnet.sh stop` or `./stop-demo.sh`
+2. Or change the ports: `./devnet.sh start --port 9000`
 
 ### Nodes not connecting
-- Ensure the leader starts first (the script handles this)
+- Ensure the leader starts first (scripts handle this automatically)
 - Check firewall settings if running across machines
 - Verify ports 8000-8009 are available
 
+### Build failures
+```bash
+go mod download
+go build -o bin/poh-node cmd/main.go
+```
+
+### Database locked errors
+```bash
+./devnet.sh clean
+./devnet.sh start
+```
+
 ## Advanced Usage
 
-### Running nodes on different machines
+### Running validators on different machines
 
-Edit `demo.sh` and change `localhost` to the leader's IP address:
+Edit the devnet.sh script or use manual node startup:
 ```bash
---peers=192.168.1.100:8000
+# On machine 1 (leader)
+go run cmd/main.go --type=leader --port=8000 --db=./leader.db
+
+# On machine 2 (replica)
+go run cmd/main.go --type=replica --port=8001 --peers=192.168.1.100:8000 --db=./replica.db
 ```
 
-### Inspecting the database
+### Inspecting databases
 
 ```bash
-sqlite3 leader.db "SELECT block_height, slot, timestamp FROM blocks;"
+# devnet databases
+sqlite3 devnet-data/validator1.db "SELECT block_height, slot, timestamp FROM blocks;"
+
+# audit results
+cat logs/audit-20260427-120000.json | jq '.summary'
 ```
 
-### Monitoring block production rate
+### Monitoring block production
 
 ```bash
-watch -n 1 'sqlite3 leader.db "SELECT COUNT(*) as total_blocks FROM blocks;"'
+# Watch devnet block production
+watch -n 1 'sqlite3 devnet-data/validator1.db "SELECT COUNT(*) as total_blocks FROM blocks;"'
+
+# Check devnet status
+./devnet.sh status
+```
+
+### Analyzing audit results
+
+```bash
+# View JSON report
+cat logs/audit-TIMESTAMP.json | jq '.'
+
+# Extract specific metrics
+cat logs/audit-TIMESTAMP.json | jq '.phases.basic_consensus.metrics'
+
+# Check overall status
+cat logs/audit-TIMESTAMP.json | jq '.summary.overall_status'
 ```
 
 ## Performance Notes
@@ -227,9 +337,23 @@ watch -n 1 'sqlite3 leader.db "SELECT COUNT(*) as total_blocks FROM blocks;"'
 
 ## Next Steps
 
-After running the demo:
-1. Observe the block production and propagation
-2. Try stopping a replica and restarting it (it will sync)
-3. Inspect the database files to see stored blocks
-4. Run the integration tests: `go test -v ./internal`
-5. Modify the code and rebuild to experiment
+After running the scripts:
+
+### With devnet.sh
+1. Observe block production: `./devnet.sh logs`
+2. Check network status: `./devnet.sh status`
+3. Submit transactions via CLI (see [CLI Usage Guide](cli-usage.md))
+4. Inspect databases: `sqlite3 devnet-data/validator1.db`
+5. Test state persistence: `./devnet.sh restart`
+
+### With audit.sh
+1. Review the JSON report: `cat logs/audit-TIMESTAMP.json`
+2. Verify all phases passed
+3. Integrate into CI/CD pipeline
+4. Run with custom parameters: `./audit.sh --duration 60 --validators 5`
+
+### General
+1. Run integration tests: `go test -v ./internal`
+2. Explore the codebase and modify features
+3. Read the [QuanticScript Guide](quanticscript.md)
+4. Check out the [Testing Guide](../testing/automated-testing.md)

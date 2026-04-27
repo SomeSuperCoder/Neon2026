@@ -5,18 +5,17 @@ A Proof of History (PoH) blockchain implementation inspired by Solana's architec
 ## Quick Start
 
 ```bash
-# Run a basic demo (with tmux)
-./demo.sh
+# Run comprehensive test suite
+./audit.sh
 
-# Test Byzantine Fault Tolerance (with tmux)
-./demo-bft.sh 3 1
+# Start local development network
+./devnet.sh start
 
-# Test Delegated Proof of Stake (DPoS)
-./demo-dpos.sh 3 30
+# Check network status
+./devnet.sh status
 
-# Automated testing (no tmux, AI-friendly)
-./demo-automated.sh 3 1 15
-./analyze-results.sh
+# Stop the network
+./devnet.sh stop
 ```
 
 See [docs/guides/quickstart.md](docs/guides/quickstart.md) for a 30-second introduction.
@@ -35,14 +34,13 @@ This project implements a verifiable delay function using sequential SHA-256 has
 - Transaction integration with cryptographic timestamping
 - **Delegated Proof of Stake (DPoS) genesis initialization**
 - **Byzantine Fault Tolerance testing with malicious nodes**
-- **Automated demo scripts with tmux visualization**
-- **AI-friendly automated testing tools (no tmux required)**
-- **Comprehensive test launcher with reporting**
+- **Comprehensive audit script for automated testing**
+- **Local development network (devnet) for testing and development**
+- **CI/CD-friendly testing with JSON reports**
 
 ## Requirements
 
 - Go 1.23.0 or higher
-- tmux (for demo scripts)
 - SQLite3
 
 ## Installation
@@ -163,97 +161,64 @@ go run calculate_storage_cost.go programs/token/token.qsb
 
 This utility helps estimate the Neon balance required to store program bytecode or data on-chain using the exponential storage cost formula. See [docs/reference/cost-model.md](docs/reference/cost-model.md) for details on storage costs.
 
-### Quick Demo with tmux
+### Quick Demo with devnet.sh
 
-The easiest way to see the blockchain in action is to use the demo script, which starts a leader and multiple replicas in tmux panes:
+The easiest way to see the blockchain in action is to use the devnet script, which starts a local development network:
 
 ```bash
-# Start with default 2 replicas
-./demo.sh
+# Start with default 3 validators
+./devnet.sh start
 
-# Or specify the number of replicas (1-9)
-./demo.sh 3
-./demo.sh 5
+# Or specify the number of validators
+./devnet.sh start 5
+
+# Check network status
+./devnet.sh status
+
+# View logs
+./devnet.sh logs
+
+# Stop the network
+./devnet.sh stop
 ```
 
 This will:
 - Build the project
-- Clean up old database files
 - Start a leader node on port 8000
 - Start the specified number of replica nodes on ports 8001, 8002, etc.
-- Display all nodes in a tiled tmux layout
+- Run nodes as background processes
+- Maintain state across restarts
 
-**Example with 2 replicas:**
-```
-┌─────────────────────────────┐
-│        Leader Node          │
-├─────────────┬───────────────┤
-│  Replica 1  │   Replica 2   │
-└─────────────┴───────────────┘
-```
+**devnet.sh Commands:**
+- `start [N]`: Start network with N validators (default: 3)
+- `stop`: Stop all validators
+- `restart [N]`: Restart network
+- `status`: Show validator status and block counts
+- `logs [ID]`: View logs for specific validator or all
+- `clean`: Stop network and remove all data
 
-**Example with 4 replicas:**
-```
-┌─────────────┬───────────────┐
-│   Leader    │   Replica 1   │
-├─────────────┼───────────────┤
-│  Replica 2  │   Replica 3   │
-├─────────────┴───────────────┤
-│        Replica 4            │
-└─────────────────────────────┘
-```
+### Comprehensive Testing with audit.sh
 
-**tmux Commands:**
-- Detach from session: `Ctrl+B`, then `D`
-- Navigate between panes: `Ctrl+B`, then arrow keys
-- Stop all nodes: `Ctrl+C` in each pane, or run `./stop-demo.sh`
-
-### BFT Testing Demo
-
-Test Byzantine Fault Tolerance with malicious nodes:
+Run the audit script to validate all blockchain functionality:
 
 ```bash
-# Run with honest and malicious replicas
-./demo-bft.sh 3 1    # 3 honest + 1 malicious (has BFT)
-./demo-bft.sh 4 2    # 4 honest + 2 malicious (has BFT)
-./demo-bft.sh 2 2    # 2 honest + 2 malicious (NO BFT)
+# Run with default settings (30s per phase, 3 validators)
+./audit.sh
+
+# Run with custom settings
+./audit.sh --duration 60 --validators 5
+
+# Run in CI mode (no colors, no prompts)
+./audit.sh --ci
 ```
 
-The script automatically calculates BFT status:
-- **BFT Requirement**: Honest nodes > 2 × Malicious nodes
-- **With BFT**: Network rejects invalid blocks, maintains integrity
-- **Without BFT**: Network may accept corrupted blocks
+The audit script tests:
+- **Phase 1**: Basic consensus with honest nodes
+- **Phase 2**: BFT with tolerance (4 honest + 1 malicious)
+- **Phase 3**: BFT without tolerance (2 honest + 2 malicious)
+- **Phase 4**: DPoS lifecycle (delegation, epochs, rewards, slashing)
 
-**Malicious behaviors include**:
-- Sending blocks with invalid hash counts
-- Broadcasting blocks with wrong previous hashes
-- Skipping validation and accepting invalid blocks
-- Storing unvalidated blocks
-
-See [docs/guides/demo.md](docs/guides/demo.md) for detailed BFT testing scenarios and expected outcomes.
-
-### Automated Testing (No tmux)
-
-For AI agents and automated testing without tmux:
-
-```bash
-# Run a single test scenario
-./demo-automated.sh 3 1 15    # 3 honest + 1 malicious, 15 seconds
-
-# Analyze results
-./analyze-results.sh
-
-# Run comprehensive test suite
-./test-launcher.sh 20         # Run all scenarios, 20s each
-```
-
-**Features**:
-- Clear log prefixes: `[LEADER]`, `[HONEST-1]`, `[MALICIOUS-1]`
-- Automatic results analysis
-- Generates markdown reports
-- Saves logs and databases for inspection
-
-See [docs/testing/automated-testing.md](docs/testing/automated-testing.md) for complete guide.
+Results are saved to `logs/audit-TIMESTAMP.json` for analysis.
 
 ### Command-Line Options
 

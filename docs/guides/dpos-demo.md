@@ -2,44 +2,57 @@
 
 ## Overview
 
-The `demo-dpos.sh` script provides a comprehensive automated demonstration of the Delegated Proof of Stake (DPoS) consensus mechanism. It exercises the full DPoS lifecycle including genesis initialization, block production, stake delegation, epoch boundaries, reward distribution, and slashing.
+The audit script includes a comprehensive DPoS (Delegated Proof of Stake) lifecycle test as Phase 4. This phase exercises the full DPoS lifecycle including genesis initialization, block production, stake delegation, epoch boundaries, reward distribution, and slashing.
 
 ## Usage
 
 ```bash
-./demo-dpos.sh <num_validators> <duration_seconds>
+# Run full audit including DPoS phase
+./audit.sh
+
+# Run with custom settings
+./audit.sh --duration 60 --validators 5
+
+# Run in CI mode
+./audit.sh --ci
 ```
 
 ### Parameters
 
-- `num_validators`: Number of validator nodes to start (2-9, default: 3)
-- `duration_seconds`: How long to run the demo in seconds (minimum: 10, default: 30)
+- `--duration SECONDS`: Duration for each test phase including DPoS (default: 30)
+- `--validators N`: Number of validators for DPoS tests (default: 3)
+- `--ci`: CI mode with no colors or interactive prompts
+- `--help`: Show help message
 
 ### Examples
 
 ```bash
-# Run with 3 validators for 30 seconds
-./demo-dpos.sh 3 30
+# Run full audit with default settings (30s per phase, 3 validators)
+./audit.sh
 
-# Run with 5 validators for 60 seconds
-./demo-dpos.sh 5 60
+# Run with longer duration and more validators
+./audit.sh --duration 60 --validators 5
 
-# Quick test with 2 validators for 10 seconds
-./demo-dpos.sh 2 10
+# Run in CI mode for automated testing
+./audit.sh --ci
 ```
 
-## Demo Phases
+## DPoS Test Phase
 
-The demo executes four distinct phases:
+The audit script's Phase 4 tests the complete DPoS lifecycle:
 
-### Phase 1: Genesis & Block Production
+### Phase 4: DPoS Lifecycle
+
+The DPoS phase includes four sub-phases:
+
+### Sub-Phase 1: Genesis & Block Production
 
 - Starts N validator nodes from genesis configuration
 - First node runs as leader, others as replicas
 - Monitors block production in real-time
 - Logs each block with slot number, validator ID, and block hash
 
-### Phase 2: Stake Delegation
+### Sub-Phase 2: Stake Delegation
 
 - Simulates delegation of stake to each validator
 - Calculates total delegated stake across the network
@@ -47,7 +60,7 @@ The demo executes four distinct phases:
 
 **Note:** This phase is currently simulated. Full implementation requires transaction submission via CLI.
 
-### Phase 3: Epoch Boundary & Reward Distribution
+### Sub-Phase 3: Epoch Boundary & Reward Distribution
 
 - Calculates current epoch and slot numbers
 - Simulates reward distribution based on blocks produced
@@ -56,7 +69,7 @@ The demo executes four distinct phases:
 
 **Note:** Epoch boundaries occur every 432,000 slots (~2 days at 400ms/slot). This phase is simulated for demo purposes.
 
-### Phase 4: Slashing
+### Sub-Phase 4: Slashing
 
 - Simulates a double-sign slashing event
 - Reduces validator stake by 5%
@@ -65,73 +78,104 @@ The demo executes four distinct phases:
 
 **Note:** This phase is currently simulated. Full implementation requires double-sign proof submission.
 
-## Output
+## Output Format
 
 ### Console Output
 
-The demo provides rich console output with:
+The audit script provides structured output for the DPoS phase:
 
-- Color-coded validator logs
-- Real-time block production updates
-- Phase completion summaries
-- Human-readable summary tables showing:
-  - Validator statistics (blocks produced, chain height, status)
-  - Lifecycle phase results
-  - Network metrics (total blocks, consistency, duration)
-  - Overall demo status (success/failure)
+```
+=== Phase 4: DPoS Lifecycle ===
+Starting 3 validators from genesis...
+Running for 30 seconds...
 
-### JSON Log
+Sub-phase 1: Genesis & Block Production
+  ✓ Validators started
+  ✓ Blocks produced: 150
 
-A structured JSON log is saved to `logs/dpos-demo-<timestamp>.json` containing:
+Sub-phase 2: Stake Delegation
+  ✓ Delegation simulated
+  ✓ Total stake: 15 Neon
+
+Sub-phase 3: Epoch & Rewards
+  ✓ Epoch boundary simulated
+  ✓ Rewards distributed
+
+Sub-phase 4: Slashing
+  ✓ Slashing event simulated
+  ✓ Validator stake reduced
+
+✓ Phase 4 complete
+```
+
+### JSON Report
+
+The audit script generates a comprehensive JSON report at `logs/audit-TIMESTAMP.json`:
 
 ```json
 {
-  "demo_type": "dpos",
-  "timestamp": "20260426-120000",
-  "num_validators": 3,
-  "duration_seconds": 30,
+  "audit_timestamp": "20260427-120000",
+  "configuration": {
+    "duration_seconds": 30,
+    "num_validators": 3,
+    "ci_mode": false
+  },
   "phases": {
-    "genesis_and_blocks": { ... },
-    "delegation": { ... },
-    "epoch_and_rewards": { ... },
-    "slashing": { ... }
+    "dpos_lifecycle": {
+      "status": "passed",
+      "duration_seconds": 30,
+      "validators": 3,
+      "total_blocks": 150,
+      "delegation_simulated": true,
+      "epoch_simulated": true,
+      "slashing_simulated": true,
+      "metrics": {
+        "blocks_per_validator": 50,
+        "total_stake_electrons": 15000000000,
+        "reward_pool_electrons": 1000000000,
+        "slashed_amount_electrons": 750000000
+      }
+    }
   },
   "summary": {
-    "total_blocks": 150,
-    "average_blocks_per_validator": 50,
-    "consistency": "consistent",
-    "phase_failures": 0,
-    "overall_status": "success"
+    "total_phases": 4,
+    "passed_phases": 4,
+    "failed_phases": 0,
+    "overall_status": "passed",
+    "total_duration_seconds": 120
   }
 }
 ```
 
 ### Database Files
 
-Each validator's blockchain state is persisted to:
-- `validator1.db` (leader)
-- `validator2.db`, `validator3.db`, etc. (replicas)
+Temporary databases are created for the DPoS phase:
+- `audit-validator-1.db`, `audit-validator-2.db`, etc.
+- Automatically cleaned up after the phase completes
 
-### Node Logs
+### Logs
 
 Individual validator logs are saved to:
-- `logs/validator_1.log`
-- `logs/validator_2.log`
+- `logs/audit-validator-1.log`
+- `logs/audit-validator-2.log`
 - etc.
 
 ## Exit Codes
 
-- `0`: Demo completed successfully (all phases passed, chain consistent)
-- `1`: Demo failed (block production failed or chain inconsistent)
+The audit script uses the following exit codes:
+
+- `0`: All phases passed including DPoS
+- `1`: One or more phases failed
+- `2`: Configuration error or build failure
 
 ## Success Criteria
 
-The demo is considered successful when:
+The DPoS phase is considered successful when:
 
 1. ✅ All validators produce blocks
 2. ✅ Total blocks > 0
 3. ✅ All validators have consistent chain height
-4. ✅ No phase failures
+4. ✅ All sub-phases complete without errors
 
 ## Troubleshooting
 
@@ -145,17 +189,19 @@ go build -o bin/poh-node cmd/main.go
 
 ### Port Conflicts
 
-If ports 8000-8009 are in use, stop conflicting processes:
+If ports 8000-8009 are in use:
 ```bash
 pkill -f "poh-node"
+./audit.sh
 ```
 
 ### Database Locked
 
 If you see "database is locked" errors:
 ```bash
-rm -f validator*.db
-./demo-dpos.sh 3 30
+pkill -f "poh-node"
+rm -f audit-*.db
+./audit.sh
 ```
 
 ### Inconsistent Chain Heights
@@ -164,25 +210,61 @@ Minor height differences (1-2 blocks) are normal due to timing. Large difference
 
 ## Cleanup
 
-The demo automatically cleans up on exit (Ctrl+C or completion):
+The audit script automatically cleans up after each phase:
 - Stops all validator nodes
 - Closes database connections
-- Saves final logs
+- Removes temporary databases
+- Saves final JSON report
 
-To manually clean up:
+To manually clean up if needed:
 ```bash
 pkill -f "poh-node"
-rm -f validator*.db
+rm -f audit-*.db
 ```
 
-## Integration with analyze-results.sh
+## Integration with CI/CD
 
-The JSON log format is compatible with the existing `analyze-results.sh` script for automated analysis. The structured format enables:
+The JSON report format is designed for CI/CD integration:
 
-- Machine parsing of demo results
-- Automated testing and CI/CD integration
-- Historical comparison of demo runs
-- Performance metrics tracking
+```bash
+# Run audit in CI mode
+./audit.sh --ci --duration 30 --validators 3
+
+# Check exit code
+if [ $? -eq 0 ]; then
+  echo "All tests passed including DPoS"
+else
+  echo "Tests failed"
+  exit 1
+fi
+
+# Parse JSON report
+cat logs/audit-*.json | jq '.phases.dpos_lifecycle.status'
+```
+
+### Example GitHub Actions
+
+```yaml
+- name: Run DPoS Tests
+  run: ./audit.sh --ci --duration 30 --validators 3
+  
+- name: Upload Test Report
+  uses: actions/upload-artifact@v2
+  with:
+    name: audit-report
+    path: logs/audit-*.json
+```
+
+### Example GitLab CI
+
+```yaml
+test:dpos:
+  script:
+    - ./audit.sh --ci --duration 30 --validators 3
+  artifacts:
+    paths:
+      - logs/audit-*.json
+```
 
 ## Future Enhancements
 
@@ -195,9 +277,41 @@ The following features are planned for future releases:
 5. **Network Partitioning**: Test DPoS behavior under network failures
 6. **Dynamic Validator Set**: Add/remove validators during the demo
 
+## Analyzing Results
+
+### View JSON Report
+
+```bash
+# View full report
+cat logs/audit-TIMESTAMP.json | jq '.'
+
+# View DPoS phase only
+cat logs/audit-TIMESTAMP.json | jq '.phases.dpos_lifecycle'
+
+# Check overall status
+cat logs/audit-TIMESTAMP.json | jq '.summary.overall_status'
+
+# Extract metrics
+cat logs/audit-TIMESTAMP.json | jq '.phases.dpos_lifecycle.metrics'
+```
+
+### Inspect Databases (during test)
+
+If you need to inspect databases while the test is running:
+
+```bash
+# Check block count
+sqlite3 audit-validator-1.db "SELECT COUNT(*) FROM blocks;"
+
+# View recent blocks
+sqlite3 audit-validator-1.db "SELECT block_height, slot FROM blocks ORDER BY block_height DESC LIMIT 5;"
+```
+
 ## Related Documentation
 
-- [Validator TUI Guide](validator-tui.md)
-- [DPoS Requirements](.kiro/specs/delegated-proof-of-stake/requirements.md)
-- [DPoS Design](.kiro/specs/delegated-proof-of-stake/design.md)
+- [Demo Guide](demo.md) - General demo and testing guide
+- [Validator TUI Guide](validator-tui.md) - Real-time validator monitoring
+- [DPoS Requirements](../../.kiro/specs/delegated-proof-of-stake/requirements.md)
+- [DPoS Design](../../.kiro/specs/delegated-proof-of-stake/design.md)
 - [CLI Usage Guide](cli-usage.md)
+- [Automated Testing Guide](../testing/automated-testing.md)

@@ -1,156 +1,232 @@
 # Automated Testing Guide
 
-This guide covers the automated testing tools designed for AI agents and developers who want to run tests without tmux.
+This guide covers the automated testing tools designed for AI agents, CI/CD pipelines, and developers who want to run comprehensive tests without manual intervention.
 
 ## Overview
 
-Three automated scripts are available:
+Two main automated scripts are available:
 
-1. **demo-automated.sh** - Run a single BFT test scenario
-2. **test-launcher.sh** - Run multiple test scenarios sequentially
-3. **analyze-results.sh** - Analyze results from completed tests
+1. **audit.sh** - Comprehensive test suite with four phases (consensus, BFT, DPoS)
+2. **analyze-results.sh** - Analyze blockchain state and logs from devnet or audit runs
 
-## demo-automated.sh
+## audit.sh
 
 ### Purpose
-Run a blockchain network with configurable honest and malicious nodes, with clear log prefixes for easy analysis.
+Run a comprehensive blockchain test suite covering consensus, Byzantine Fault Tolerance, and DPoS lifecycle in a single automated execution.
 
 ### Usage
 ```bash
-./demo-automated.sh [num_honest] [num_malicious] [duration_seconds]
+./audit.sh [OPTIONS]
 ```
+
+### Options
+- `--duration SECONDS`: Duration for each test phase (default: 30)
+- `--validators N`: Number of validators for DPoS tests (default: 3)
+- `--ci`: CI mode with no colors or interactive prompts
+- `--help`: Show help message
 
 ### Examples
 ```bash
-# 2 honest + 1 malicious, run for 10 seconds
-./demo-automated.sh 2 1 10
+# Run with default settings (30s per phase, 3 validators)
+./audit.sh
 
-# 4 honest + 1 malicious, run for 30 seconds
-./demo-automated.sh 4 1 30
+# Run with longer duration and more validators
+./audit.sh --duration 60 --validators 5
 
-# 3 honest + 2 malicious, run for 20 seconds
-./demo-automated.sh 3 2 20
+# Run in CI mode for automated pipelines
+./audit.sh --ci
 ```
+
+### Test Phases
+
+The audit script executes four sequential test phases:
+
+#### Phase 1: Basic Consensus
+- **Configuration**: 1 leader + 3 honest replicas
+- **Duration**: Configurable (default 30s)
+- **Tests**: Block production, chain consistency, consensus validation
+- **Success Criteria**: All nodes produce blocks, consistent chain height
+
+#### Phase 2: BFT With Tolerance
+- **Configuration**: 1 leader + 4 honest + 1 malicious replica
+- **Duration**: Configurable (default 30s)
+- **Tests**: Byzantine fault handling, invalid block rejection
+- **Success Criteria**: Honest nodes reject invalid blocks, maintain integrity
+
+#### Phase 3: BFT Without Tolerance
+- **Configuration**: 1 leader + 2 honest + 2 malicious replicas
+- **Duration**: Configurable (default 30s)
+- **Tests**: Network behavior under insufficient BFT
+- **Success Criteria**: Demonstrates need for BFT threshold
+
+#### Phase 4: DPoS Lifecycle
+- **Configuration**: N validators from genesis (configurable, default 3)
+- **Duration**: Configurable (default 30s)
+- **Tests**: Delegation, epoch boundaries, rewards, slashing
+- **Success Criteria**: All DPoS sub-phases complete successfully
 
 ### Features
-- **No tmux required** - Runs in background with clear output
-- **Prefixed logs** - Each node has a clear prefix:
-  - `[LEADER]` - Leader node (blue)
-  - `[HONEST-1]`, `[HONEST-2]` - Honest replicas (green)
-  - `[MALICIOUS-1]`, `[MALICIOUS-2]` - Malicious replicas (red)
-- **Automatic analysis** - Shows results when test completes
-- **Log files** - Saves logs to `logs/` directory
-- **Database files** - Saves databases for inspection
+- **No manual intervention** - Fully automated execution
+- **Automatic cleanup** - Cleans up after each phase
+- **JSON reports** - Machine-parseable output at `logs/audit-TIMESTAMP.json`
+- **Exit codes** - 0=pass, 1=fail, 2=config error
+- **CI-friendly** - `--ci` mode disables colors and prompts
 
-### Output Example
+### Output Format
+
+#### Console Output
 ```
-[LEADER] Leader node: Producing block for slot 15
-[LEADER] Leader node: Block produced - height=10, slot=15, entries=64
-[LEADER] Leader node: Block stored to ledger - height=10
-[HONEST-1] Replica node: Received block - height=10, slot=15, entries=64
-[HONEST-1] Replica node: Block passed verification - height=10
-[HONEST-1] Replica node: Block stored successfully - height=10
-[MALICIOUS-1] MALICIOUS: Skipping validation for block 10
-[MALICIOUS-1] MALICIOUS: Stored block 10 without validation
+╔════════════════════════════════════════╗
+║  PoH Blockchain Audit Suite           ║
+╚════════════════════════════════════════╝
+
+Configuration:
+  Duration per phase: 30 seconds
+  Validators (DPoS): 3
+  CI mode: false
+
+=== Phase 1: Basic Consensus ===
+Starting 1 leader + 3 honest replicas...
+Running for 30 seconds...
+✓ Phase complete: 150 blocks produced
+
+=== Phase 2: BFT With Tolerance ===
+Starting 1 leader + 4 honest + 1 malicious...
+Running for 30 seconds...
+✓ Phase complete: Honest nodes rejected 15 invalid blocks
+
+=== Phase 3: BFT Without Tolerance ===
+Starting 1 leader + 2 honest + 2 malicious...
+Running for 30 seconds...
+✓ Phase complete: Network behavior observed
+
+=== Phase 4: DPoS Lifecycle ===
+Starting 3 validators from genesis...
+Running for 30 seconds...
+✓ Phase complete: DPoS lifecycle simulated
+
+=== Audit Summary ===
+Total phases: 4
+Passed: 4
+Failed: 0
+
+Overall status: PASSED
+
+Report saved to: logs/audit-20260427-120000.json
 ```
 
-### Results Analysis
-After the test completes, you'll see:
-- Block counts for each node
-- Validation failures for honest nodes
-- Malicious actions detected
-- BFT verdict (whether network maintained integrity)
+#### JSON Report Format
 
----
+The audit script generates a comprehensive JSON report:
 
-## test-launcher.sh
-
-### Purpose
-Run a comprehensive test suite with multiple BFT scenarios automatically.
-
-### Usage
-```bash
-./test-launcher.sh [duration_per_test]
+```json
+{
+  "audit_timestamp": "20260427-120000",
+  "configuration": {
+    "duration_seconds": 30,
+    "num_validators": 3,
+    "ci_mode": false
+  },
+  "phases": {
+    "basic_consensus": {
+      "status": "passed",
+      "duration_seconds": 30,
+      "total_blocks": 150,
+      "consistency": "consistent",
+      "metrics": {
+        "blocks_per_validator": 50,
+        "leader_blocks": 150,
+        "replica_blocks": [50, 50, 50]
+      }
+    },
+    "bft_with_tolerance": {
+      "status": "passed",
+      "duration_seconds": 30,
+      "honest_nodes": 4,
+      "malicious_nodes": 1,
+      "blocks_rejected": 15,
+      "malicious_actions_detected": 20,
+      "metrics": {
+        "honest_consistency": "consistent",
+        "bft_status": "has_bft"
+      }
+    },
+    "bft_without_tolerance": {
+      "status": "passed",
+      "duration_seconds": 30,
+      "honest_nodes": 2,
+      "malicious_nodes": 2,
+      "consistency": "inconsistent",
+      "metrics": {
+        "bft_status": "no_bft",
+        "compromise_indicators": 5
+      }
+    },
+    "dpos_lifecycle": {
+      "status": "passed",
+      "duration_seconds": 30,
+      "validators": 3,
+      "total_blocks": 120,
+      "delegation_simulated": true,
+      "epoch_simulated": true,
+      "slashing_simulated": true,
+      "metrics": {
+        "blocks_per_validator": 40,
+        "total_stake_electrons": 15000000000
+      }
+    }
+  },
+  "summary": {
+    "total_phases": 4,
+    "passed_phases": 4,
+    "failed_phases": 0,
+    "overall_status": "passed",
+    "total_duration_seconds": 120
+  }
+}
 ```
 
-### Example
-```bash
-# Run all tests, 20 seconds each
-./test-launcher.sh 20
+### Exit Codes
 
-# Run all tests, 30 seconds each (default)
-./test-launcher.sh 30
-```
+- `0`: All tests passed
+- `1`: One or more tests failed
+- `2`: Configuration error or build failure
 
-### Test Scenarios
-
-The launcher runs 8 different scenarios:
-
-1. **Baseline** - 4 honest + 0 malicious (all honest)
-2. **Strong BFT** - 4 honest + 1 malicious
-3. **Minimal BFT** - 3 honest + 1 malicious
-4. **Strong BFT** - 5 honest + 2 malicious
-5. **Edge Case** - 2 honest + 1 malicious (no BFT)
-6. **No BFT** - 2 honest + 2 malicious
-7. **Robust BFT** - 6 honest + 2 malicious
-8. **Compromised** - 1 honest + 2 malicious
-
-### Features
-- **Sequential execution** - Runs all tests one after another
-- **Automatic cleanup** - Cleans up between tests
-- **Markdown report** - Generates detailed report
-- **Archived results** - Saves logs and databases for each test
-- **Summary statistics** - Shows quick overview at the end
-
-### Output
-- **Console output** - Real-time progress and results
-- **Report file** - `test-report-YYYYMMDD-HHMMSS.md`
-- **Test artifacts** - `test-results/test_N/` directories
-
-### Report Contents
-- Configuration for each test
-- BFT status calculation
-- Block counts for all nodes
-- Consistency analysis
-- Verdict for each scenario
-- Summary of key findings
+Use these exit codes in CI/CD pipelines to determine test success.
 
 ---
 
 ## analyze-results.sh
 
 ### Purpose
-Analyze blockchain state and logs after running a demo.
+Analyze blockchain state and logs from devnet or audit runs.
 
 ### Usage
 ```bash
-# Run after demo-automated.sh completes
+# Analyze audit results (default)
 ./analyze-results.sh
+
+# Analyze devnet databases
+./analyze-results.sh --db-dir devnet-data
 ```
 
 ### What It Analyzes
 
 #### Database Analysis
-- Block counts for each node
+- Block counts for each validator
 - Chain height
 - Last 5 blocks produced
 - Chain continuity (gaps detection)
 
 #### Consistency Check
-- Compares heights across honest nodes
+- Compares heights across all nodes
 - Identifies inconsistencies
 - Flags unexpected behavior
 
-#### Log Analysis
-- Counts blocks stored by each node
-- Counts blocks rejected by honest nodes
-- Counts malicious actions
-- Shows sample log entries
-
-#### BFT Verdict
-- Calculates if network has BFT
-- Determines if honest nodes maintained consistency
-- Provides final verdict
+#### Summary
+- Total blocks across network
+- Average blocks per validator
+- Overall consistency status
 
 ### Output Example
 ```
@@ -160,177 +236,207 @@ Analyze blockchain state and logs after running a demo.
 
 === Database Analysis ===
 
-[LEADER]
-  Blocks: 25
-  Height: 25
+[VALIDATOR-1]
+  Blocks: 150
+  Height: 150
   Last 5 blocks:
-    25: slot=32, entries=64
-    24: slot=31, entries=64
-
-[HONEST-1]
-  Blocks: 20
-  Height: 20
+    150: slot=149, entries=64
+    149: slot=148, entries=64
   ✓ Chain continuous
 
-[MALICIOUS-1]
-  Blocks: 23
-  Height: 23
-  ⚠ Chain gaps: 3 (expected for malicious)
+[VALIDATOR-2]
+  Blocks: 150
+  Height: 150
+  ✓ Chain continuous
+
+[VALIDATOR-3]
+  Blocks: 150
+  Height: 150
+  ✓ Chain continuous
 
 === Consistency Check ===
 
-✓ All honest nodes have consistent height: 20
+✓ All validators have consistent height: 150
 
-=== BFT Verdict ===
+=== Summary ===
 
-Network composition:
-  Honest nodes: 2
-  Malicious nodes: 1
-
-✗ Network lacks BFT (2 ≤ 2×1)
-⚠ VERDICT: NO BFT - network compromised
+Total blocks: 150
+Average per validator: 50
+Consistency: CONSISTENT
 ```
 
 ---
 
-## Workflow for AI Agents
+## Workflow for CI/CD
 
-### Quick Test
+### Quick Audit Test
 ```bash
-# Run a single test
-./demo-automated.sh 3 1 15
+# Run audit in CI mode
+./audit.sh --ci --duration 30 --validators 3
 
-# Analyze results
-./analyze-results.sh
+# Check exit code
+if [ $? -eq 0 ]; then
+  echo "All tests passed"
+else
+  echo "Tests failed"
+  exit 1
+fi
 ```
 
-### Comprehensive Testing
+### Parse JSON Results
 ```bash
-# Run full test suite
-./test-launcher.sh 20
+# Extract overall status
+cat logs/audit-*.json | jq '.summary.overall_status'
 
-# View report
-cat test-report-*.md
+# Extract phase results
+cat logs/audit-*.json | jq '.phases | to_entries[] | {phase: .key, status: .value.status}'
 
-# Inspect specific test
-ls test-results/test_3/
-cat test-results/test_3/honest_1.log
+# Check for failures
+FAILED=$(cat logs/audit-*.json | jq '.summary.failed_phases')
+if [ "$FAILED" -gt 0 ]; then
+  echo "Failed phases: $FAILED"
+  exit 1
+fi
 ```
 
-### Custom Analysis
+### Analyze Devnet State
 ```bash
-# Check specific database
-sqlite3 leader.db "SELECT * FROM blocks ORDER BY block_height DESC LIMIT 5;"
+# Start devnet
+./devnet.sh start 3
 
-# Search logs for patterns
-grep "MALICIOUS:" logs/malicious_1.log | wc -l
-grep "verification failed" logs/honest_1.log | wc -l
+# Run for some time...
+sleep 60
 
-# Compare block counts
-for db in replica*.db; do
-    echo "$db: $(sqlite3 $db 'SELECT COUNT(*) FROM blocks;')"
-done
+# Analyze state
+./analyze-results.sh --db-dir devnet-data
+
+# Stop devnet
+./devnet.sh stop
 ```
-
 ---
 
-## Understanding Results
+## Understanding Audit Results
 
-### Successful BFT Test
+### Successful Audit
 **Indicators:**
-- Honest nodes have identical block counts
-- Honest nodes rejected invalid blocks
-- Malicious nodes have different/higher block counts
-- Network maintained consensus
+- All four phases pass
+- Consistent block production across phases
+- BFT phases demonstrate expected behavior
+- DPoS lifecycle completes successfully
 
 **Example:**
-```
-✓ Network has BFT (4 > 2×1)
-✓ Honest nodes maintained consistency
-✓ VERDICT: BFT SUCCESSFUL
+```json
+{
+  "summary": {
+    "total_phases": 4,
+    "passed_phases": 4,
+    "failed_phases": 0,
+    "overall_status": "passed"
+  }
+}
 ```
 
-### Failed BFT Test
+### Failed Audit
 **Indicators:**
-- Honest nodes have inconsistent block counts
-- Some invalid blocks were accepted
-- Network state diverged
+- One or more phases fail
+- Inconsistent block production
+- Unexpected network behavior
 
 **Example:**
-```
-✗ Network lacks BFT (2 ≤ 2×2)
-✗ Honest nodes inconsistent
-✗ VERDICT: NO BFT - network compromised
+```json
+{
+  "summary": {
+    "total_phases": 4,
+    "passed_phases": 3,
+    "failed_phases": 1,
+    "overall_status": "failed"
+  }
+}
 ```
 
-### Expected Malicious Behavior
-- **Skipping validation** - "MALICIOUS: Skipping validation for block X"
-- **Storing invalid blocks** - "MALICIOUS: Stored block X without validation"
-- **Ignoring failures** - "MALICIOUS: Ignoring verification failure"
-- **Chain gaps** - Malicious nodes may have gaps in their chain
+### Phase-Specific Results
 
-### Expected Honest Behavior
-- **Rejecting invalid blocks** - "Block verification failed"
-- **Consistent state** - All honest nodes have same height
-- **Proper validation** - "Block passed verification"
+#### Basic Consensus
+- All nodes should produce blocks
+- Chain heights should be consistent
+- No validation failures
+
+#### BFT With Tolerance
+- Honest nodes reject invalid blocks
+- Malicious blocks are not stored by honest nodes
+- Network maintains integrity
+
+#### BFT Without Tolerance
+- Demonstrates insufficient BFT threshold
+- May show inconsistent state (expected)
+- Validates BFT requirement calculation
+
+#### DPoS Lifecycle
+- All sub-phases complete
+- Validators produce blocks
+- Lifecycle events simulated successfully
 
 ---
 
 ## Troubleshooting
 
-### Nodes Not Starting
+### Build Failures
 ```bash
-# Check if ports are in use
+# Update dependencies
+go mod download
+
+# Rebuild
+go build -o bin/poh-node cmd/main.go
+
+# Retry audit
+./audit.sh
+```
+
+### Port Conflicts
+```bash
+# Check ports in use
 lsof -i :8000-8009
 
 # Kill stuck processes
 pkill -f poh-node
 
 # Clean up and retry
-rm -f *.db logs/*.log
-./demo-automated.sh 2 1 10
+./audit.sh
 ```
 
-### No Blocks Stored
-**Possible causes:**
-- Test duration too short (increase to 15-30 seconds)
-- Timing issues (replicas receiving blocks before genesis)
-- Database errors (check logs for errors)
-
-### Script Hangs
+### Database Errors
 ```bash
-# Force kill everything
-pkill -9 -f poh-node
-pkill -9 -f demo-automated
+# Clean up old databases
+rm -f audit-*.db devnet-data/*.db
 
-# Clean up
-rm -f *.db logs/*.log
+# Retry
+./audit.sh
 ```
 
-### Inconsistent Results
-- Run tests for longer duration (30+ seconds)
-- Ensure clean state between tests
-- Check system load (high load affects timing)
+### Timing Issues
+- Increase test duration: `./audit.sh --duration 60`
+- Reduce system load
+- Check for resource constraints
 
 ---
 
 ## Performance Considerations
 
 ### Test Duration
-- **Short (5-10s)**: Quick validation, may have timing issues
-- **Medium (15-30s)**: Recommended for most tests
-- **Long (60s+)**: Comprehensive testing, more stable results
+- **Short (15-30s)**: Quick validation, suitable for CI
+- **Medium (30-60s)**: Recommended for comprehensive testing
+- **Long (60s+)**: Thorough testing, more stable results
 
 ### System Resources
-- Each node uses ~10-20MB RAM
+- Each validator uses ~10-20MB RAM
 - CPU usage depends on PoH hashing
 - Disk I/O for SQLite writes
 - Network bandwidth minimal (localhost)
 
-### Recommended Limits
-- **Max nodes**: 10 total (1 leader + 9 replicas)
-- **Max concurrent tests**: 1 (sequential only)
-- **Max test duration**: 120 seconds
+### Recommended Settings
+- **CI/CD**: `--duration 30 --validators 3 --ci`
+- **Development**: `--duration 60 --validators 5`
+- **Comprehensive**: `--duration 120 --validators 7`
 
 ---
 
@@ -338,26 +444,84 @@ rm -f *.db logs/*.log
 
 ### Example GitHub Actions
 ```yaml
-- name: Run BFT Tests
-  run: |
-    ./test-launcher.sh 15
-    
-- name: Upload Test Report
-  uses: actions/upload-artifact@v2
-  with:
-    name: bft-test-report
-    path: test-report-*.md
+name: Blockchain Audit
+
+on: [push, pull_request]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.23
+      
+      - name: Run Audit
+        run: ./audit.sh --ci --duration 30 --validators 3
+      
+      - name: Upload Report
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: audit-report
+          path: logs/audit-*.json
+      
+      - name: Check Results
+        run: |
+          STATUS=$(cat logs/audit-*.json | jq -r '.summary.overall_status')
+          if [ "$STATUS" != "passed" ]; then
+            echo "Audit failed"
+            exit 1
+          fi
 ```
 
 ### Example GitLab CI
 ```yaml
-test:bft:
+audit:
+  stage: test
   script:
-    - ./test-launcher.sh 20
+    - ./audit.sh --ci --duration 30 --validators 3
   artifacts:
+    when: always
     paths:
-      - test-report-*.md
-      - test-results/
+      - logs/audit-*.json
+    reports:
+      junit: logs/audit-*.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+```
+
+### Example Jenkins Pipeline
+```groovy
+pipeline {
+  agent any
+  stages {
+    stage('Audit') {
+      steps {
+        sh './audit.sh --ci --duration 30 --validators 3'
+      }
+    }
+    stage('Analyze') {
+      steps {
+        sh '''
+          STATUS=$(cat logs/audit-*.json | jq -r '.summary.overall_status')
+          if [ "$STATUS" != "passed" ]; then
+            exit 1
+          fi
+        '''
+      }
+    }
+  }
+  post {
+    always {
+      archiveArtifacts artifacts: 'logs/audit-*.json', fingerprint: true
+    }
+  }
+}
 ```
 
 ---
@@ -365,51 +529,78 @@ test:bft:
 ## Advanced Usage
 
 ### Custom Test Scenarios
+
+Run audit with specific configurations:
 ```bash
-# Test extreme Byzantine fault
-./demo-automated.sh 1 3 30
+# Long-running comprehensive test
+./audit.sh --duration 120 --validators 7
 
-# Test large honest majority
-./demo-automated.sh 8 1 30
+# Quick smoke test
+./audit.sh --duration 15 --validators 2
 
-# Test equal split (no BFT)
-./demo-automated.sh 3 3 30
+# CI-optimized test
+./audit.sh --ci --duration 20 --validators 3
 ```
 
-### Parallel Analysis
+### Analyzing Specific Phases
+
+Extract phase-specific results from JSON:
 ```bash
-# Run test in background
-./demo-automated.sh 4 2 60 &
-TEST_PID=$!
+# Check basic consensus
+cat logs/audit-*.json | jq '.phases.basic_consensus'
 
-# Do other work...
+# Check BFT with tolerance
+cat logs/audit-*.json | jq '.phases.bft_with_tolerance'
 
-# Wait for completion
-wait $TEST_PID
+# Check DPoS lifecycle
+cat logs/audit-*.json | jq '.phases.dpos_lifecycle'
 
-# Analyze
-./analyze-results.sh
+# Get all metrics
+cat logs/audit-*.json | jq '.phases | to_entries[] | {phase: .key, metrics: .value.metrics}'
 ```
 
-### Custom Reporting
-```bash
-# Extract specific metrics
-LEADER_BLOCKS=$(sqlite3 leader.db "SELECT COUNT(*) FROM blocks;")
-HONEST_BLOCKS=$(sqlite3 replica1.db "SELECT COUNT(*) FROM blocks;")
-MALICIOUS_ACTIONS=$(grep -c "MALICIOUS:" logs/malicious_1.log)
+### Comparing Multiple Runs
 
-echo "Leader: $LEADER_BLOCKS, Honest: $HONEST_BLOCKS, Malicious: $MALICIOUS_ACTIONS"
+```bash
+# Run multiple audits
+for i in {1..5}; do
+  ./audit.sh --ci --duration 30 --validators 3
+  sleep 5
+done
+
+# Compare results
+for report in logs/audit-*.json; do
+  echo "Report: $report"
+  jq '.summary' "$report"
+done
+```
+
+### Integration with Monitoring
+
+```bash
+# Export metrics to Prometheus format
+cat logs/audit-*.json | jq -r '
+  "audit_total_phases \(.summary.total_phases)",
+  "audit_passed_phases \(.summary.passed_phases)",
+  "audit_failed_phases \(.summary.failed_phases)",
+  "audit_duration_seconds \(.summary.total_duration_seconds)"
+'
+
+# Send to monitoring system
+curl -X POST http://monitoring-system/metrics \
+  -d @logs/audit-latest.json
 ```
 
 ---
 
 ## Summary
 
-These automated tools provide:
-- **Easy testing** without manual tmux management
-- **Clear output** with prefixed logs
-- **Comprehensive analysis** of BFT behavior
-- **Automated reporting** for multiple scenarios
-- **AI-friendly** output for programmatic analysis
+The audit script provides:
+- **Comprehensive testing** of all blockchain functionality
+- **Automated execution** without manual intervention
+- **Machine-parseable output** for CI/CD integration
+- **Four test phases** covering consensus, BFT, and DPoS
+- **Exit codes** for pipeline integration
+- **JSON reports** for analysis and monitoring
 
-Perfect for CI/CD, automated testing, and AI agent analysis of blockchain behavior.
+Perfect for CI/CD pipelines, automated testing, and continuous validation of blockchain functionality.
