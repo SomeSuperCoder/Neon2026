@@ -41,13 +41,13 @@
   - Exit with appropriate code (0=pass, 1=fail, 2=config error)
   - _Requirements: 1.2, 1.3, 4.3_
 
-- [ ] 2. Create devnet.sh script for local development network
+- [x] 2. Create devnet.sh script for local development network
   - Implement command parsing (start, stop, restart, status, logs, clean)
   - Implement command-line option parsing (--port, --db-dir, --log-dir, --help)
   - Create directory structure management (devnet-data/, logs/, pids/)
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 2.1 Implement devnet start command
+- [x] 2.1 Implement devnet start command
   - Build poh-node binary
   - Start leader node as background process
   - Start N-1 replica nodes as background processes
@@ -55,7 +55,7 @@
   - Display network configuration (addresses, ports, log locations)
   - _Requirements: 2.1, 2.2, 2.4, 2.5_
 
-- [ ] 2.2 Implement devnet stop command
+- [x] 2.2 Implement devnet stop command
   - Read PIDs from devnet-data/pids/
   - Send TERM signal to all processes
   - Wait for graceful shutdown (2 seconds)
@@ -63,32 +63,32 @@
   - Clean up PID files
   - _Requirements: 2.3_
 
-- [ ] 2.3 Implement devnet status command
+- [x] 2.3 Implement devnet status command
   - Check if PID files exist
   - Verify processes are running
   - Display validator status (running/stopped)
   - Show block counts from databases
   - _Requirements: 2.4_
 
-- [ ] 2.4 Implement devnet logs command
+- [x] 2.4 Implement devnet logs command
   - Display logs for specific validator or all validators
   - Support tail -f style following
   - Handle missing log files gracefully
   - _Requirements: 2.4_
 
-- [ ] 2.5 Implement devnet restart and clean commands
+- [x] 2.5 Implement devnet restart and clean commands
   - Restart: stop + start with same configuration
   - Clean: stop + remove all devnet-data and logs
   - Prompt for confirmation on clean command
   - _Requirements: 2.3_
 
-- [ ] 3. Update stop-demo.sh to handle new scripts
+- [x] 3. Update stop-demo.sh to handle new scripts
   - Add logic to stop legacy tmux sessions (poh-demo, poh-bft-demo)
   - Add logic to call devnet.sh stop if devnet is running
   - Kill any stray poh-node processes
   - _Requirements: 3.3_
 
-- [ ] 4. Update analyze-results.sh for new structure
+- [x] 4. Update analyze-results.sh for new structure
   - Add --db-dir option to analyze devnet databases
   - Update default behavior to check both audit and devnet locations
   - Preserve existing analysis functionality
