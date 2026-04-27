@@ -183,6 +183,7 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 	case OpJmpIf:
 		return bi.execJmpIf()
 	case OpCall:
+		fmt.Println("DEBUG: OpCall opcode dispatched")
 		return bi.execCall()
 	case OpRet:
 		return bi.execRet()
@@ -201,6 +202,7 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 	case OpTransfer:
 		return bi.execTransfer()
 	case OpCreateFile:
+		fmt.Println("DEBUG: OpCreateFile opcode dispatched")
 		return bi.execCreateFile()
 	case OpDeleteFile:
 		return bi.execDeleteFile()
@@ -211,6 +213,7 @@ func (bi *BytecodeInterpreter) executeInstruction() error {
 	case OpGetInstrData:
 		return bi.execGetInstrData()
 	case OpGetProgramID:
+		fmt.Println("DEBUG: OpGetProgramID opcode dispatched")
 		return bi.execGetProgramID()
 
 	// Cross-program invocation
@@ -1904,9 +1907,11 @@ func (bi *BytecodeInterpreter) GetInvokeDepth() int {
 // execCreateFile creates a new file in the FileStore
 // Stack: [fileID (FileID/bytes), data (bytes), balance (i64)] -> []
 func (bi *BytecodeInterpreter) execCreateFile() error {
+	fmt.Println("DEBUG: execCreateFile called")
 	// Pop balance from stack
 	balanceValue, err := bi.pop()
 	if err != nil {
+		fmt.Printf("DEBUG: execCreateFile failed to pop balance: %v\n", err)
 		return err
 	}
 
@@ -1915,6 +1920,7 @@ func (bi *BytecodeInterpreter) execCreateFile() error {
 	}
 
 	balance, _ := balanceValue.AsI64()
+	fmt.Printf("DEBUG: execCreateFile balance=%d\n", balance)
 
 	// Validate balance is non-negative
 	if balance < 0 {
@@ -1935,6 +1941,7 @@ func (bi *BytecodeInterpreter) execCreateFile() error {
 	if !ok {
 		return fmt.Errorf("invalid data bytes")
 	}
+	fmt.Printf("DEBUG: execCreateFile data length=%d\n", len(data))
 
 	// Pop fileID from stack
 	fileIDValue, err := bi.pop()
@@ -1958,9 +1965,11 @@ func (bi *BytecodeInterpreter) execCreateFile() error {
 			return fmt.Errorf("CREATEFILE requires FileID or bytes for fileID, got %v", fileIDValue.Type)
 		}
 	}
+	fmt.Printf("DEBUG: execCreateFile fileID=%v\n", fileID)
 
 	// Get current program ID as the owner
 	programID := bi.ctx.GetProgramID()
+	fmt.Printf("DEBUG: execCreateFile programID=%v\n", programID)
 
 	// Create the file
 	newFile := &filestore.File{
@@ -1971,9 +1980,12 @@ func (bi *BytecodeInterpreter) execCreateFile() error {
 	}
 
 	// Create the file in the FileStore
+	fmt.Printf("DEBUG: execCreateFile calling ctx.CreateFile\n")
 	if err := bi.ctx.CreateFile(newFile); err != nil {
+		fmt.Printf("DEBUG: execCreateFile ctx.CreateFile failed: %v\n", err)
 		return fmt.Errorf("failed to create file: %w", err)
 	}
+	fmt.Printf("DEBUG: execCreateFile succeeded\n")
 
 	return nil
 }

@@ -2,6 +2,7 @@ package quanticscript
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"testing"
 
@@ -123,12 +124,12 @@ func setupSystemProgramTest(t *testing.T) (*filestore.FileStore, []byte) {
 
 	// Load the System Program into the FileStore
 	storageCost := filestore.CalculateStorageCost(int64(len(bytecode)))
-	balance := storageCost + 1000000 // Give System Program plenty of balance for testing
+	balance := storageCost // System Program only needs enough for its own storage
 
 	file := &filestore.File{
 		ID:         SystemProgramID,
 		Balance:    balance,
-		TxManager:  filestore.FileID{}, // RuntimeProgramID
+		TxManager:  SystemProgramID, // System Program owns itself
 		Data:       bytecode,
 		Executable: true,
 	}
@@ -141,13 +142,14 @@ func setupSystemProgramTest(t *testing.T) (*filestore.FileStore, []byte) {
 }
 
 // encodeCreateFileInstruction encodes a CREATE_FILE instruction
-// Format: [opcode(1), fileID(32), balance(8), owner(32)]
-func encodeCreateFileInstruction(fileID filestore.FileID, balance int64, owner transaction.PublicKey) []byte {
-	data := make([]byte, 73)
+// Format: [opcode(1), fileID(32), payer(32), balance(8), owner(32)]
+func encodeCreateFileInstruction(fileID, payerID filestore.FileID, balance int64, owner transaction.PublicKey) []byte {
+	data := make([]byte, 105)
 	data[0] = 0 // CREATE_FILE opcode
 	copy(data[1:33], fileID[:])
-	binary.LittleEndian.PutUint64(data[33:41], uint64(balance))
-	copy(data[41:73], owner[:])
+	copy(data[33:65], payerID[:])
+	binary.LittleEndian.PutUint64(data[65:73], uint64(balance))
+	copy(data[73:105], owner[:])
 	return data
 }
 
@@ -186,6 +188,10 @@ func encodeCloseFileInstruction(fileID, destination filestore.FileID) []byte {
 func executeSystemProgram(t *testing.T, fs *filestore.FileStore, bytecode []byte, instrData []byte, signers []transaction.PublicKey, inputs map[string]transaction.FileAccess) error {
 	t.Helper()
 
+	t.Logf("DEBUG: executeSystemProgram called with instrData length=%d", len(instrData))
+	t.Logf("DEBUG: inputs=%+v", inputs)
+	t.Logf("DEBUG: bytecode length=%d", len(bytecode))
+
 	instr := &transaction.Instruction{
 		ProgramID: SystemProgramID,
 		Inputs:    inputs,
@@ -202,8 +208,40 @@ func executeSystemProgram(t *testing.T, fs *filestore.FileStore, bytecode []byte
 		signers: signers,
 	}
 
-	interp := NewBytecodeInterpreter(bytecode, ctx, 1000000)
-	return interp.Execute()
+	// Parse bytecode header and extract body (like runtime.go does)
+	header, err := ParseBytecodeHeader(bytecode)
+	if err != nil {
+		t.Fatalf("Failed to parse bytecode header: %v", err)
+	}
+	t.Logf("DEBUG: Bytecode header: entry offset=%d", header.EntryOffset)
+
+	body, err := GetBytecodeBody(bytecode)
+	if err != nil {
+		t.Fatalf("Failed to get bytecode body: %v", err)
+	}
+	t.Logf("DEBUG: Bytecode body length=%d", len(body))
+
+	t.Logf("DEBUG: Creating interpreter...")
+	interp := NewBytecodeInterpreter(body, ctx, 1000000)
+	if interp == nil {
+		t.Fatal("Failed to create interpreter")
+	}
+	t.Logf("DEBUG: Interpreter created, calling Execute()...")
+	err = interp.Execute()
+	t.Logf("DEBUG: interp.Execute() returned err=%v", err)
+	t.Logf("DEBUG: Stack length after execution: %d", len(interp.stack))
+
+	// Check the return value on the stack
+	if err == nil && len(interp.stack) > 0 {
+		retVal := interp.stack[len(interp.stack)-1]
+		t.Logf("DEBUG: Return value on stack: type=%v, data=%v", retVal.Type, retVal.Data)
+		if retVal.Type == TypeI64 {
+			val, _ := retVal.AsI64()
+			t.Logf("DEBUG: Return value as i64: %d (0x%x)", val, val)
+		}
+	}
+
+	return err
 }
 
 // mockExecutionContext implements ExecutionContext for testing
@@ -236,10 +274,19 @@ func (m *mockExecutionContext) UpdateFile(file *filestore.File) error {
 }
 
 func (m *mockExecutionContext) CreateFile(file *filestore.File) error {
+	fmt.Printf("DEBUG: mockExecutionContext.CreateFile called for fileID=%v\n", file.ID)
 	if err := m.ac.ValidateAccess(file.ID, transaction.Write); err != nil {
+		// Debug: log access control failure
+		fmt.Printf("DEBUG: CreateFile access control failed for %v: %v\n", file.ID, err)
 		return err
 	}
+	fmt.Printf("DEBUG: CreateFile access control passed for %v\n", file.ID)
 	_, err := m.fs.CreateFile(file)
+	if err != nil {
+		fmt.Printf("DEBUG: FileStore.CreateFile failed for %v: %v\n", file.ID, err)
+	} else {
+		fmt.Printf("DEBUG: FileStore.CreateFile succeeded for %v\n", file.ID)
+	}
 	return err
 }
 
@@ -402,39 +449,39 @@ func TestSystemCreateFile(t *testing.T) {
 		fs, bytecode := setupSystemProgramTest(t)
 
 		fileID := filestore.GenerateFileID([]byte("test-file"))
+		payerID := filestore.GenerateFileID([]byte("payer-account"))
 		var owner transaction.PublicKey
 		copy(owner[:], []byte("owner-pubkey-32-bytes-long!!"))
 
-		instrData := encodeCreateFileInstruction(fileID, 10000, owner)
-
-		inputs := map[string]transaction.FileAccess{
-			"system":   {FileID: SystemProgramID, Permission: transaction.Write},
-			"new_file": {FileID: fileID, Permission: transaction.Write},
+		// Create payer account with sufficient balance
+		payerFile := &filestore.File{
+			ID:         payerID,
+			Balance:    100000,
+			TxManager:  SystemProgramID,
+			Data:       []byte{},
+			Executable: false,
+		}
+		_, err := fs.CreateFile(payerFile)
+		if err != nil {
+			t.Fatalf("Failed to create payer: %v", err)
 		}
 
-		err := executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
+		instrData := encodeCreateFileInstruction(fileID, payerID, 10000, owner)
+
+		inputs := map[string]transaction.FileAccess{
+			"new_file": {FileID: fileID, Permission: transaction.Write},
+			"payer":    {FileID: payerID, Permission: transaction.Write},
+		}
+
+		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
 		t.Logf("Execution error: %v", err)
 		if err != nil {
 			t.Fatalf("CREATE_FILE failed: %v", err)
 		}
 
-		// Check return value on stack
-		// The System Program should return SUCCESS (0)
-		// But we can't access the stack from here, so we'll just check the file
-
-		// Debug: Check if System Program balance changed
-		systemFile, _ := fs.GetFile(SystemProgramID)
-		t.Logf("System Program balance after CREATE_FILE: %d", systemFile.Balance)
-
-		// Debug: List all files in the FileStore
-		// This is a hack to see what files exist
-		t.Logf("Checking if file exists...")
-
 		// Verify file was created
 		file, err := fs.GetFile(fileID)
 		if err != nil {
-			// Try to see if any files were created
-			t.Logf("File lookup error: %v", err)
 			t.Fatalf("File not created: %v", err)
 		}
 
@@ -445,22 +492,43 @@ func TestSystemCreateFile(t *testing.T) {
 		if file.TxManager != SystemProgramID {
 			t.Errorf("TxManager = %v, want SystemProgramID", file.TxManager)
 		}
+
+		// Verify payer balance decreased
+		payerAfter, _ := fs.GetFile(payerID)
+		if payerAfter.Balance != 90000 {
+			t.Errorf("Payer balance = %d, want 90000", payerAfter.Balance)
+		}
 	})
 
 	t.Run("CreateFileWithZeroBalance", func(t *testing.T) {
 		fs, bytecode := setupSystemProgramTest(t)
 
 		fileID := filestore.GenerateFileID([]byte("zero-balance-file"))
+		payerID := filestore.GenerateFileID([]byte("payer-account"))
 		var owner transaction.PublicKey
 		copy(owner[:], []byte("owner-pubkey-32-bytes-long!!"))
 
-		instrData := encodeCreateFileInstruction(fileID, 0, owner)
+		// Create payer account
+		payerFile := &filestore.File{
+			ID:         payerID,
+			Balance:    10000,
+			TxManager:  SystemProgramID,
+			Data:       []byte{},
+			Executable: false,
+		}
+		_, err := fs.CreateFile(payerFile)
+		if err != nil {
+			t.Fatalf("Failed to create payer: %v", err)
+		}
+
+		instrData := encodeCreateFileInstruction(fileID, payerID, 0, owner)
 
 		inputs := map[string]transaction.FileAccess{
 			"new_file": {FileID: fileID, Permission: transaction.Write},
+			"payer":    {FileID: payerID, Permission: transaction.Write},
 		}
 
-		err := executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
+		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
 		if err != nil {
 			t.Fatalf("CREATE_FILE with zero balance failed: %v", err)
 		}
@@ -622,7 +690,8 @@ func TestSystemBurn(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 3000)
 
 		inputs := map[string]transaction.FileAccess{
-			"file": {FileID: fileID, Permission: transaction.Write},
+			"file":   {FileID: fileID, Permission: transaction.Write},
+			"system": {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -662,7 +731,8 @@ func TestSystemBurn(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 5000)
 
 		inputs := map[string]transaction.FileAccess{
-			"file": {FileID: fileID, Permission: transaction.Write},
+			"file":   {FileID: fileID, Permission: transaction.Write},
+			"system": {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -707,7 +777,8 @@ func TestSystemBurn(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 6000)
 
 		inputs := map[string]transaction.FileAccess{
-			"file": {FileID: fileID, Permission: transaction.Write},
+			"file":   {FileID: fileID, Permission: transaction.Write},
+			"system": {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -857,17 +928,32 @@ func TestSystemCreateFileEdgeCases(t *testing.T) {
 		fs, bytecode := setupSystemProgramTest(t)
 
 		fileID := filestore.GenerateFileID([]byte("large-balance-file"))
+		payerID := filestore.GenerateFileID([]byte("rich-payer"))
 		var owner transaction.PublicKey
 		copy(owner[:], []byte("owner-pubkey-32-bytes-long!!"))
 
+		// Create payer with large balance
+		payerFile := &filestore.File{
+			ID:         payerID,
+			Balance:    2000000000,
+			TxManager:  SystemProgramID,
+			Data:       []byte{},
+			Executable: false,
+		}
+		_, err := fs.CreateFile(payerFile)
+		if err != nil {
+			t.Fatalf("Failed to create payer: %v", err)
+		}
+
 		// Create with very large balance
-		instrData := encodeCreateFileInstruction(fileID, 1000000000, owner)
+		instrData := encodeCreateFileInstruction(fileID, payerID, 1000000000, owner)
 
 		inputs := map[string]transaction.FileAccess{
 			"new_file": {FileID: fileID, Permission: transaction.Write},
+			"payer":    {FileID: payerID, Permission: transaction.Write},
 		}
 
-		err := executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
+		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
 		if err != nil {
 			t.Fatalf("CREATE_FILE with large balance failed: %v", err)
 		}
@@ -1067,7 +1153,8 @@ func TestSystemBurnEdgeCases(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 0)
 
 		inputs := map[string]transaction.FileAccess{
-			"file": {FileID: fileID, Permission: transaction.Write},
+			"file":   {FileID: fileID, Permission: transaction.Write},
+			"system": {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)
@@ -1100,7 +1187,8 @@ func TestSystemBurnEdgeCases(t *testing.T) {
 		instrData := encodeBurnInstruction(fileID, 10000)
 
 		inputs := map[string]transaction.FileAccess{
-			"file": {FileID: fileID, Permission: transaction.Write},
+			"file":   {FileID: fileID, Permission: transaction.Write},
+			"system": {FileID: SystemProgramID, Permission: transaction.Write},
 		}
 
 		err = executeSystemProgram(t, fs, bytecode, instrData, []transaction.PublicKey{owner}, inputs)

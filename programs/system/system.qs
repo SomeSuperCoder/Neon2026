@@ -51,10 +51,10 @@ export function entry(): i64 {
 }
 
 // CREATE_FILE: Creates a new file owned by the System Program
-// Format: [type:u8(1)][fileID:FileID(32)][balance:i64(8)][owner:PublicKey(32)] = 73 bytes
+// Format: [type:u8(1)][fileID:FileID(32)][payer:FileID(32)][balance:i64(8)][owner:PublicKey(32)] = 105 bytes
 function handleCreateFile(instrData: bytes): i64 {
     // Validate length
-    if (len(instrData) != 73) {
+    if (len(instrData) != 105) {
         return ERROR_INVALID_INSTRUCTION;
     }
     
@@ -62,30 +62,31 @@ function handleCreateFile(instrData: bytes): i64 {
     let fileIDBytes: bytes = slice(instrData, 1, 33);
     let fileID: FileID = bytesToFileID(fileIDBytes);
     
-    // Extract initial balance (bytes 33-41, little-endian)
-    let balanceBytes: bytes = slice(instrData, 33, 41);
+    // Extract payer FileID (bytes 33-65)
+    let payerBytes: bytes = slice(instrData, 33, 65);
+    let payerFileID: FileID = bytesToFileID(payerBytes);
+    
+    // Extract initial balance (bytes 65-73, little-endian)
+    let balanceBytes: bytes = slice(instrData, 65, 73);
     let balance: i64 = bytesToI64LE(balanceBytes);
     
-    // Extract owner PublicKey (bytes 41-73) - not used in current implementation
-    // let ownerBytes: bytes = slice(instrData, 41, 73);
+    // Extract owner PublicKey (bytes 73-105) - not used in current implementation
+    // let ownerBytes: bytes = slice(instrData, 73, 105);
     
     // Validate balance is non-negative
     if (balance < 0) {
         return ERROR_INVALID_AMOUNT;
     }
     
-    // Get system program's FileID
-    let systemFileID: FileID = getProgramID();
-    
     // Create new file with System Program as TxManager
     // The createFile opcode sets TxManager to the current program (System Program)
     let emptyData: bytes = slice(instrData, 0, 0);  // Empty bytes
     createFile(fileID, emptyData, 0);
     
-    // Transfer initial balance from system program to new file
-    // This will automatically validate that system program has sufficient balance
+    // Transfer initial balance from payer to new file
+    // This will automatically validate that payer has sufficient balance
     if (balance > 0) {
-        transfer(systemFileID, fileID, balance);
+        transfer(payerFileID, fileID, balance);
     }
     
     return SUCCESS;
