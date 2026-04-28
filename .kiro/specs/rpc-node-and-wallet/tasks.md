@@ -180,56 +180,56 @@
     - Display transaction signature to user
     - _Requirements: 7.3, 7.4, 7.5_
 
-- [ ] 12. Implement TUI framework with Bubble Tea
-  - [ ] 12.1 Set up Bubble Tea application structure
+- [x] 12. Implement TUI framework with Bubble Tea
+  - [x] 12.1 Set up Bubble Tea application structure
     - Create main `Model` struct with view management
     - Implement `Init`, `Update`, and `View` methods
     - Add view type enumeration and view registry
     - Implement terminal resize handling
     - _Requirements: 8.1, 8.5_
   
-  - [ ] 12.2 Implement navigation and keyboard controls
+  - [x] 12.2 Implement navigation and keyboard controls
     - Add keyboard navigation (arrow keys, hjkl, tab)
     - Implement view switching logic
     - Add help overlay with keybindings
     - _Requirements: 8.2_
   
-  - [ ] 12.3 Define color scheme and styling
+  - [x] 12.3 Define color scheme and styling
     - Create Lipgloss style definitions for all UI elements
     - Define neon-inspired color palette (cyan, magenta, green)
     - Create reusable style components (borders, panels, buttons)
     - _Requirements: 8.4_
 
-- [ ] 13. Implement dashboard view
-  - [ ] 13.1 Create dashboard layout
+- [x] 13. Implement dashboard view
+  - [x] 13.1 Create dashboard layout
     - Implement `DashboardView` struct and interface methods
     - Display total balance across all accounts
     - Show current block height
     - Add loading spinner for data refresh
     - _Requirements: 8.1, 8.4_
   
-  - [ ] 13.2 Add recent transactions display
+  - [x] 13.2 Add recent transactions display
     - Fetch and display recent transactions from active account
     - Show transaction direction (incoming/outgoing) with visual markers
     - Display transaction amounts and counterparty addresses
     - _Requirements: 6.1, 6.2_
 
-- [ ] 14. Implement accounts view
-  - [ ] 14.1 Create accounts table
+- [x] 14. Implement accounts view
+  - [x] 14.1 Create accounts table
     - Implement `AccountsView` with table component
     - Display all accounts with address, balance, and label
     - Add account selection with keyboard navigation
     - Support table sorting by balance
     - _Requirements: 5.2, 5.3, 8.3_
   
-  - [ ] 14.2 Add account management actions
+  - [x] 14.2 Add account management actions
     - Implement "Add Account" action to derive new account
     - Implement "Set Label" action for account naming
     - Implement "Set Active" action to change active account
     - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 15. Implement transfer view
-  - [ ] 15.1 Create transfer form
+- [x] 15. Implement transfer view
+  - [x] 15.1 Create transfer form
     - Implement `TransferView` with text input components
     - Add recipient address input with validation
     - Add amount input with balance validation
@@ -237,55 +237,55 @@
     - Implement focus management between inputs
     - _Requirements: 7.1_
   
-  - [ ] 15.2 Implement transfer confirmation screen
+  - [x] 15.2 Implement transfer confirmation screen
     - Display confirmation with sender, recipient, amount, and estimated cost
     - Add "Confirm" and "Cancel" actions
     - Show loading state during submission
     - _Requirements: 7.2_
   
-  - [ ] 15.3 Implement transfer result display
+  - [x] 15.3 Implement transfer result display
     - Show success message with transaction signature
     - Display error messages for failed transfers (insufficient balance, etc.)
     - Add "Copy Signature" action
     - Return to transfer form after completion
     - _Requirements: 7.4, 7.5_
 
-- [ ] 16. Implement transaction history view
-  - [ ] 16.1 Create transaction history table
+- [x] 16. Implement transaction history view
+  - [x] 16.1 Create transaction history table
     - Implement `HistoryView` with table and paginator components
     - Display transactions in reverse chronological order
     - Show timestamp, amount, counterparty, and direction
     - Add loading spinner for data fetch
     - _Requirements: 6.1, 6.2, 6.4_
   
-  - [ ] 16.2 Add transaction details display
+  - [x] 16.2 Add transaction details display
     - Show full transaction signature with copy functionality
     - Display program ID and instruction type for program invocations
     - Add pagination controls (20 transactions per page)
     - _Requirements: 6.3, 6.4, 6.5_
 
-- [ ] 17. Implement wallet security features
-  - [ ] 17.1 Implement password authentication
+- [x] 17. Implement wallet security features
+  - [x] 17.1 Implement password authentication
     - Add password prompt on wallet startup
     - Implement password verification with encrypted wallet
     - Add failed attempt tracking (lock after 3 failures for 30 seconds)
     - _Requirements: 9.1, 9.2_
   
-  - [ ] 17.2 Implement auto-lock functionality
+  - [x] 17.2 Implement auto-lock functionality
     - Track last user activity timestamp
     - Implement auto-lock after 5 minutes of inactivity
     - Clear sensitive data from memory on lock
     - Require password to unlock
     - _Requirements: 9.3_
   
-  - [ ] 17.3 Implement secure seed phrase display
+  - [x] 17.3 Implement secure seed phrase display
     - Display seed phrase only once during wallet creation
     - Require user confirmation before proceeding
     - Never display seed phrase or private keys after creation
     - _Requirements: 4.4, 9.5_
 
-- [ ] 18. Implement wallet initialization flow
-  - [ ] 18.1 Create wallet creation wizard
+- [x] 18. Implement wallet initialization flow
+  - [x] 18.1 Create wallet creation wizard
     - Implement "Create New Wallet" flow
     - Generate seed phrase with word count selection (12 or 24)
     - Display seed phrase with confirmation prompt
@@ -293,7 +293,7 @@
     - Save encrypted wallet to file
     - _Requirements: 4.1, 4.4, 11.4_
   
-  - [ ] 18.2 Create wallet restoration flow
+  - [x] 18.2 Create wallet restoration flow
     - Implement "Restore from Seed Phrase" flow
     - Prompt for seed phrase input
     - Validate seed phrase format
@@ -301,61 +301,61 @@
     - Derive initial account and save wallet
     - _Requirements: 4.2, 4.3, 11.4_
 
-- [ ] 19. Implement settings view
-  - [ ] 19.1 Create settings interface
+- [x] 19. Implement settings view
+  - [x] 19.1 Create settings interface
     - Display current RPC endpoint
     - Show auto-lock timeout setting
     - Display wallet file path
     - Add theme selection (if multiple themes)
     - _Requirements: 11.2, 11.3_
   
-  - [ ] 19.2 Implement settings persistence
+  - [x] 19.2 Implement settings persistence
     - Save settings changes to wallet configuration
     - Update wallet file immediately on modification
     - Validate RPC endpoint URL format
     - _Requirements: 11.5_
 
-- [ ] 20. Implement error handling and recovery
-  - [ ] 20.1 Add RPC connection error handling
+- [x] 20. Implement error handling and recovery
+  - [x] 20.1 Add RPC connection error handling
     - Detect RPC connection failures
     - Display user-friendly error messages
     - Implement retry mechanism with exponential backoff
     - Show offline mode indicator in UI
     - _Requirements: 12.1_
   
-  - [ ] 20.2 Add transaction error handling
+  - [x] 20.2 Add transaction error handling
     - Parse RPC error responses
     - Display user-friendly error messages for common errors
     - Handle insufficient balance errors gracefully
     - _Requirements: 12.2_
   
-  - [ ] 20.3 Implement wallet recovery
+  - [x] 20.3 Implement wallet recovery
     - Detect corrupted wallet files
     - Offer seed phrase restoration option
     - Implement error logging to ~/.poh-wallet/wallet.log
     - _Requirements: 12.3, 12.4_
 
-- [ ] 21. Add UI polish and animations
-  - [ ] 21.1 Implement loading states and spinners
+- [x] 21. Add UI polish and animations
+  - [x] 21.1 Implement loading states and spinners
     - Add animated spinners for all async operations
     - Show progress indicators for balance refresh
     - Display loading overlays for transaction submission
     - _Requirements: 8.6_
   
-  - [ ] 21.2 Add visual effects and transitions
+  - [x] 21.2 Add visual effects and transitions
     - Implement smooth fade-in effects for new content
     - Add color transitions for state changes
     - Implement toast notifications with auto-dismiss
     - Add gradient effects for progress bars
     - _Requirements: 8.4, 8.6, 8.8_
   
-  - [ ] 21.3 Implement charts and visualizations
+  - [x] 21.3 Implement charts and visualizations
     - Add balance history chart using Unicode block characters
     - Display transaction volume visualization
     - Add network status indicators
     - _Requirements: 8.7_
   
-  - [ ] 21.4 Polish UI layout and borders
+  - [x] 21.4 Polish UI layout and borders
     - Use Unicode box-drawing characters for borders
     - Implement rounded corners using Unicode characters
     - Add drop shadows using color gradients

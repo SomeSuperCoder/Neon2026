@@ -207,3 +207,39 @@ func (e *RPCError) Error() string {
 	}
 	return fmt.Sprintf("RPC error %d: %s", e.Code, e.Message)
 }
+
+// Transfer is a convenience method that builds and submits a transfer transaction
+func (w *Wallet) Transfer(rpcClient RPCClient, req *TransferRequest) (string, error) {
+	// Get active account to set From field
+	account := w.GetActiveAccount()
+	if account == nil {
+		return "", &WalletError{
+			Code:    ErrAccountNotFound,
+			Message: "no active account",
+		}
+	}
+
+	// Set From field to active account address
+	req.From = account.Address
+
+	// Build transaction
+	tx, err := w.BuildTransferTransaction(req)
+	if err != nil {
+		return "", err
+	}
+
+	// Submit transaction
+	result, err := w.SubmitTransaction(tx, rpcClient)
+	if err != nil {
+		return "", err
+	}
+
+	if !result.Success {
+		return "", &WalletError{
+			Code:    ErrTransactionSubmitFailed,
+			Message: result.Error,
+		}
+	}
+
+	return result.Signature, nil
+}

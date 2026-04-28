@@ -94,12 +94,35 @@ Conflict detection for transaction scheduling — identifies read/write conflict
 - One account per imported seed phrase
 - Duplicate seed phrase detection
 - Wallet persistence with secure file permissions (0600)
+- Transaction building and signing with Ed25519
+- RPC client integration for blockchain communication
+
+**Transaction Building** (`cmd/wallet/core/transaction.go`):
+- BuildTransferTransaction: Creates and signs transfer transactions
+- SerializeTransaction: Marshals transactions for RPC submission
+- SubmitTransaction: Submits signed transactions via RPC client
+- RPCClient interface for testability
+- Comprehensive validation (addresses, amounts)
+- User-friendly error handling
+
+**RPC Client** (`cmd/wallet/rpc/client.go`):
+- JSON-RPC 2.0 client with 10-second timeout
+- Auto-incrementing request IDs
+- Type-safe method interfaces (GetBalance, GetAccountInfo, SendTransaction, etc.)
+- Comprehensive error handling with custom RPCError type
+- Full test coverage with mock server
 
 **Configuration:**
 - Default RPC endpoint: `http://localhost:8899`
 - Auto-lock timeout: 5 minutes
 - Theme: neon
 - Wallet path: `~/.poh-wallet/wallet.dat` (configurable)
+
+**Test Coverage:**
+- ✅ 36 wallet core tests (mnemonic, derivation, encryption, wallet management)
+- ✅ 10 transaction tests (building, signing, submission, validation)
+- ✅ 14 RPC client tests (all methods, error handling, timeouts)
+- ✅ Total: 60 tests passing
 
 ## Usage Examples
 

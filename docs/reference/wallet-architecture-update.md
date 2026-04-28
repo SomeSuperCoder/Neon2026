@@ -406,6 +406,257 @@ Possible improvements:
 4. **WebSocket Support**: Real-time updates via WebSocket connection
 5. **Request Caching**: Cache frequently accessed data (block height, account info)
 
+## Transaction Building and Signing
+
+### Overview
+
+The wallet includes complete transaction building and signing functionality (`cmd/wallet/core/transaction.go`) that integrates with the RPC client for submitting transactions to the blockchain.
+
+### Core Components
+
+#### TransferRequest Structure
+
+```go
+type TransferRequest struct {
+    From   string // Sender address (hex-encoded public key)
+    To     string // Recipient address (hex-encoded public key)
+    Amount int64  // Amount to transfer
+    Memo   string // Optional memo
+}
+```
+
+#### TransferResult Structure
+
+```go
+type TransferResult struct {
+    Signature string // Transaction signature (hex-encoded)
+    Success   bool   // Whether the transfer was successful
+    Error     string // Error message if failed
+}
+```
+
+### BuildTransferTransaction
+
+Creates and signs a transfer transaction ready for RPC submission.
+
+**Signature:**
+```go
+func (w *Wallet) BuildTransferTransaction(req *TransferRequest) (*transaction.Transaction, error)
+```
+
+**Features:**
+- Validates sender and recipient addresses (must be 32-byte hex strings)
+- Validates transfer amount (must be positive)
+- Uses active account for signing
+- Creates proper transaction with input declarations via TransactionBuilder
+- Signs transaction with Ed25519 using active account's private key
+- Returns fully signed transaction ready for submission
+
+**Error Handling:**
+- `ErrAccountNotFound`: No active account set
+- `ErrInvalidAmount`: Amount is zero or negative
+- `ErrInvalidAddress`: Address format is invalid or wrong length
+- `ErrTransactionBuildFailed`: Transaction construction or signing failed
+
+**Example:**
+```go
+req := &TransferRequest{
+    From:   senderAddress,
+    To:     recipientAddress,
+    Amount: 1000000,
+    Memo:   "Payment for services",
+}
+
+tx, err := wallet.BuildTransferTransaction(req)
+if err != nil {
+    // Handle error
+}
+```
+
+### SerializeTransaction
+
+Serializes a transaction to bytes for RPC submission.
+
+**Signature:**
+```go
+func SerializeTransaction(tx *transaction.Transaction) ([]byte, error)
+```
+
+**Features:**
+- Marshals transaction to binary format
+- Handles serialization errors gracefully
+- Returns bytes ready for base64 encoding
+
+### SubmitTransaction
+
+Submits a signed transaction to the blockchain via RPC client.
+
+**Signature:**
+```go
+func (w *Wallet) SubmitTransaction(tx *transaction.Transaction, rpcClient RPCClient) (*TransferResult, error)
+```
+
+**Features:**
+- Serializes transaction for RPC submission
+- Submits via RPC client interface
+- Handles RPC errors with user-friendly messages
+- Returns transaction signature on success
+- Marks account for balance refresh after submission
+
+**Error Handling:**
+- Parses RPC errors for user-friendly messages
+- Returns `TransferResult` with error details on failure
+- Handles network errors and RPC-specific errors
+
+**Example:**
+```go
+result, err := wallet.SubmitTransaction(tx, rpcClient)
+if err != nil {
+    // Handle submission error
+}
+
+if !result.Success {
+    fmt.Printf("Transaction failed: %s\n", result.Error)
+} else {
+    fmt.Printf("Transaction submitted: %s\n", result.Signature)
+}
+```
+
+### RPCClient Interface
+
+Abstraction for RPC communication that enables testing with mock clients.
+
+**Interface:**
+```go
+type RPCClient interface {
+    SendTransaction(txData []byte) (string, error)
+    GetBalance(address string) (int64, error)
+}
+```
+
+**Benefits:**
+- Decouples transaction logic from RPC implementation
+- Enables unit testing with mock clients
+- Allows for different RPC client implementations
+
+### Complete Transfer Flow
+
+```go
+// 1. Create transfer request
+req := &TransferRequest{
+    From:   wallet.GetActiveAccount().Address,
+    To:     recipientAddress,
+    Amount: 1000000,
+}
+
+// 2. Build and sign transaction
+tx, err := wallet.BuildTransferTransaction(req)
+if err != nil {
+    return fmt.Errorf("failed to build transaction: %w", err)
+}
+
+// 3. Submit to blockchain
+result, err := wallet.SubmitTransaction(tx, rpcClient)
+if err != nil {
+    return fmt.Errorf("failed to submit transaction: %w", err)
+}
+
+// 4. Check result
+if !result.Success {
+    return fmt.Errorf("transaction failed: %s", result.Error)
+}
+
+fmt.Printf("Transaction successful: %s\n", result.Signature)
+
+// 5. Refresh balance
+wallet.RefreshBalances()
+```
+
+### Test Coverage
+
+The transaction functionality includes comprehensive unit tests (`cmd/wallet/core/transaction_test.go`):
+
+**Test Cases:**
+- ✅ `TestBuildTransferTransaction` - Valid transaction building
+- ✅ `TestBuildTransferTransaction_NoActiveAccount` - Error when no active account
+- ✅ `TestBuildTransferTransaction_InvalidAmount` - Validation of zero/negative amounts
+- ✅ `TestBuildTransferTransaction_InvalidSenderAddress` - Address validation
+- ✅ `TestBuildTransferTransaction_InvalidRecipientAddress` - Address validation
+- ✅ `TestBuildTransferTransaction_Signing` - Signature verification
+- ✅ `TestSerializeTransaction` - Transaction serialization
+- ✅ `TestSubmitTransaction_Success` - Successful submission with mock client
+- ✅ `TestSubmitTransaction_RPCError` - RPC error handling
+- ✅ `TestSubmitTransaction_NetworkError` - Network error handling
+
+**Test Results:**
+```
+✓ 10 transaction tests passing
+```
+
+**Mock RPC Client:**
+```go
+type MockRPCClient struct {
+    SendTransactionFunc func(txData []byte) (string, error)
+}
+
+func (m *MockRPCClient) SendTransaction(txData []byte) (string, error) {
+    if m.SendTransactionFunc != nil {
+        return m.SendTransactionFunc(txData)
+    }
+    return "mock-signature", nil
+}
+```
+
+### Requirements Implementation
+
+The transaction functionality implements the following requirements:
+
+**Requirement 7.1**: Transfer initiation with recipient, amount, and optional memo
+- ✅ `TransferRequest` structure with all required fields
+- ✅ Validation of all parameters
+
+**Requirement 7.2**: Confirmation screen with sender, recipient, amount, and cost
+- ✅ Transaction details available before submission
+- ✅ Fee calculation via TransactionBuilder
+
+**Requirement 7.3**: Transaction signing and RPC submission
+- ✅ Ed25519 signature with active account's private key
+- ✅ RPC submission via client interface
+
+**Requirement 7.4**: Insufficient balance error handling
+- ✅ RPC error code -32003 handled
+- ✅ User-friendly error messages
+
+**Requirement 7.5**: Success display with signature and balance update
+- ✅ Transaction signature returned in `TransferResult`
+- ✅ Account marked for balance refresh
+
+### Integration with TUI
+
+The transaction functionality will be integrated into the TUI wallet for:
+- **Transfer Screen**: User input for recipient, amount, and memo
+- **Confirmation Screen**: Display transaction details before submission
+- **Progress Indicator**: Show transaction submission status
+- **Success/Error Display**: Show result with signature or error message
+- **Balance Update**: Automatic refresh after successful transaction
+
+### Security Considerations
+
+1. **Private Key Protection**: Private keys never leave the wallet, only used for signing
+2. **Address Validation**: All addresses validated before transaction creation
+3. **Amount Validation**: Prevents zero or negative transfers
+4. **Signature Verification**: RPC node verifies signatures before processing
+5. **Error Handling**: Sensitive information not exposed in error messages
+
+### Future Enhancements
+
+Possible improvements:
+1. **Fee Estimation**: Pre-calculate and display transaction fees
+2. **Multi-Signature Support**: Support for multi-sig transactions
+3. **Batch Transfers**: Submit multiple transfers in one transaction
+4. **Transaction Templates**: Save and reuse common transfer patterns
+5. **Gas Price Adjustment**: Allow users to adjust transaction priority
+
 ## Summary
 
 The multi-seed phrase architecture provides greater flexibility and security by allowing users to import and manage multiple independent seed phrases. Each seed phrase generates exactly one account at derivation index 0, making the wallet compatible with seed phrases from other sources while maintaining strong security boundaries between accounts.
