@@ -426,22 +426,22 @@
     - Test wallet lock/unlock
     - _Requirements: All requirements_
 
-- [ ] 24. Create documentation
-  - [ ] 24.1 Write RPC API documentation
+- [x] 24. Create documentation
+  - [x] 24.1 Write RPC API documentation
     - Document all RPC methods with parameters and return types
     - Provide example requests and responses
     - Document error codes and messages
     - Add usage examples with curl
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3_
   
-  - [ ] 24.2 Write wallet user guide
+  - [x] 24.2 Write wallet user guide
     - Document wallet installation and setup
     - Provide wallet creation and restoration instructions
     - Document all wallet features and keyboard shortcuts
     - Add security best practices
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 7.1, 7.2, 8.2, 9.1, 9.3_
   
-  - [ ] 24.3 Update devnet documentation
+  - [x] 24.3 Update devnet documentation
     - Document RPC node integration in devnet.sh
     - Provide examples of using RPC with devnet
     - Document wallet usage with devnet

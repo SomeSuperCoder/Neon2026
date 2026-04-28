@@ -6,19 +6,26 @@
 
 Run a local development network with devnet.sh:
 ```bash
-# Start with default 3 validators
+# Start with default 3 validators + RPC node
 ./devnet.sh start
 
-# Start with custom number of validators
+# Start with custom number of validators + RPC node
 ./devnet.sh start 5
 
-# Check network status
+# Start with custom RPC port
+./devnet.sh start 3 --rpc-port 9899
+
+# Check network status (includes RPC node)
 ./devnet.sh status
 
-# View logs
+# View logs for all validators and RPC node
 ./devnet.sh logs
 
-# Stop the network
+# View logs for specific validator or RPC node
+./devnet.sh logs 1    # Validator 1
+./devnet.sh logs rpc  # RPC node only
+
+# Stop the network (includes RPC node)
 ./devnet.sh stop
 ```
 
@@ -48,8 +55,10 @@ The audit script tests:
 - **Persistent state**: Maintains blockchain state across restarts
 - **Background processes**: Nodes run as background processes (no tmux required)
 - **Multiple commands**: start, stop, restart, status, logs, clean
-- **Configurable**: Custom port, database directory, and log directory
-- **Easy monitoring**: View logs and status for all validators
+- **Configurable**: Custom port, database directory, log directory, and RPC port
+- **Easy monitoring**: View logs and status for all validators and RPC node
+- **Integrated RPC**: Automatically starts RPC node alongside validators
+- **Wallet ready**: RPC endpoint ready for wallet connections
 
 ### audit.sh - Comprehensive Testing
 - **Four test phases**: Basic consensus, BFT with/without tolerance, DPoS lifecycle
@@ -68,6 +77,7 @@ Start a local development network with N validators:
 
 Options:
 - `--port PORT`: Starting port number (default: 8000)
+- `--rpc-port PORT`: RPC node port (default: 8899)
 - `--db-dir DIR`: Database directory (default: ./devnet-data)
 - `--log-dir DIR`: Log directory (default: ./logs)
 
@@ -90,15 +100,17 @@ Show the status of all validators:
 ```
 
 Displays:
-- Running/stopped status for each validator
+- Running/stopped status for each validator and RPC node
 - Block counts from databases
 - Process IDs
+- RPC endpoint URL
 
 ### logs
-View logs for specific validator or all validators:
+View logs for specific validator, RPC node, or all components:
 ```bash
-./devnet.sh logs           # All validators
+./devnet.sh logs           # All validators and RPC node
 ./devnet.sh logs 1         # Validator 1 only
+./devnet.sh logs rpc       # RPC node only
 ```
 
 ### clean
@@ -131,7 +143,7 @@ This will stop both legacy tmux sessions and any running devnet.
 
 When starting the network:
 ```
-Building poh-node...
+Building poh-node binary...
 Starting devnet with 3 validators...
 
 Network Configuration:
@@ -139,12 +151,49 @@ Network Configuration:
   Validator 2:          localhost:8001 -> devnet-data/validator2.db
   Validator 3:          localhost:8002 -> devnet-data/validator3.db
 
+Starting RPC node on port 8899...
+✓ RPC node started (PID: 12345)
+  Endpoint: http://127.0.0.1:8899
+  Note: RPC uses a snapshot of the state database
+
 Logs:
   logs/devnet-validator-1.log
   logs/devnet-validator-2.log
   logs/devnet-validator-3.log
+  logs/devnet-rpc.log
 
-Devnet started successfully!
+✓ Devnet started successfully!
+
+Network Configuration:
+=====================
+  Validator 1 (leader):
+    Address:  localhost:8000
+    Database: devnet-data/validator1.db
+    Logs:     logs/devnet-validator-1.log
+    PID:      12340
+
+  Validator 2 (replica):
+    Address:  localhost:8001
+    Database: devnet-data/validator2.db
+    Logs:     logs/devnet-validator-2.log
+    PID:      12341
+
+  Validator 3 (replica):
+    Address:  localhost:8002
+    Database: devnet-data/validator3.db
+    Logs:     logs/devnet-validator-3.log
+    PID:      12342
+
+  RPC Node:
+    Endpoint: http://127.0.0.1:8899
+    Logs:     logs/devnet-rpc.log
+    PID:      12345
+
+Management Commands:
+  Status:  ./devnet.sh status
+  Logs:    ./devnet.sh logs [validator_id]
+  Stop:    ./devnet.sh stop
+  Clean:   ./devnet.sh clean
 ```
 
 ### audit.sh Output
@@ -205,8 +254,10 @@ The devnet creates the following network:
 - **Validator 2**: `localhost:8001` → `devnet-data/validator2.db`
 - **Validator 3**: `localhost:8002` → `devnet-data/validator3.db`
 - **Validator N**: `localhost:800(N-1)` → `devnet-data/validatorN.db`
+- **RPC Node**: `http://127.0.0.1:8899` → Uses leader's ledger + state snapshot
 
 All replicas connect to the leader and receive blocks via TCP.
+The RPC node provides JSON-RPC API access to blockchain data.
 
 State is persistent across restarts. Use `./devnet.sh clean` to reset.
 
@@ -305,6 +356,116 @@ sqlite3 devnet-data/validator1.db "SELECT block_height, slot, timestamp FROM blo
 cat logs/audit-20260427-120000.json | jq '.summary'
 ```
 
+## RPC Node Integration
+
+### Automatic RPC Startup
+
+The devnet script automatically starts an RPC node alongside the validators:
+
+```bash
+# RPC node starts automatically with validators
+./devnet.sh start 3
+
+# Check RPC node status
+./devnet.sh status
+
+# View RPC logs specifically
+./devnet.sh logs rpc
+```
+
+### RPC Configuration
+
+The RPC node is configured to:
+- **Port**: 8899 (configurable with `--rpc-port`)
+- **Bind Address**: 127.0.0.1 (localhost only for security)
+- **Ledger**: Uses leader's blockchain database (read-only)
+- **State**: Uses a snapshot of leader's state database
+- **CORS**: Enabled for browser access
+
+### RPC Endpoints
+
+Once devnet is running, the RPC node provides these endpoints:
+
+```bash
+# Test RPC connectivity
+curl -X POST http://localhost:8899 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"getBlockHeight","params":{},"id":1}'
+
+# Get account balance (replace with actual address)
+curl -X POST http://localhost:8899 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"getBalance","params":{"address":"your_address_here"},"id":1}'
+```
+
+### Using with Neon Wallet
+
+Start the wallet after devnet is running:
+
+```bash
+# Start devnet with RPC
+./devnet.sh start 3
+
+# In another terminal, start the wallet
+./bin/neon-wallet
+
+# Or specify custom RPC endpoint
+./bin/neon-wallet --rpc-url http://localhost:8899
+```
+
+The wallet will automatically connect to the RPC node and provide:
+- Account management and balance viewing
+- Transaction history
+- Transfer functionality
+- Real-time blockchain data
+
+### RPC Database Architecture
+
+The RPC node uses a unique architecture to avoid database locks:
+
+- **Ledger Access**: Direct read-only access to leader's SQLite database
+- **State Access**: Uses a snapshot copy of the leader's state database
+- **No Conflicts**: Multiple RPC nodes can run simultaneously
+- **Real-time Data**: Ledger data is always current
+- **Snapshot State**: State data reflects the snapshot time
+
+### Troubleshooting RPC
+
+**RPC node fails to start:**
+```bash
+# Check if leader database exists
+ls -la devnet-data/validator1.db
+
+# Check RPC logs
+./devnet.sh logs rpc
+
+# Restart devnet if needed
+./devnet.sh restart 3
+```
+
+**Connection refused:**
+```bash
+# Verify RPC is running
+./devnet.sh status
+
+# Check if port is in use
+netstat -an | grep 8899
+
+# Try different port
+./devnet.sh start 3 --rpc-port 9899
+```
+
+**Wallet cannot connect:**
+```bash
+# Test RPC manually
+curl http://localhost:8899
+
+# Check wallet RPC URL
+./bin/neon-wallet --rpc-url http://localhost:8899
+
+# Verify firewall settings
+```
+
 ### Monitoring block production
 
 ```bash
@@ -342,9 +503,11 @@ After running the scripts:
 ### With devnet.sh
 1. Observe block production: `./devnet.sh logs`
 2. Check network status: `./devnet.sh status`
-3. Submit transactions via CLI (see [CLI Usage Guide](cli-usage.md))
-4. Inspect databases: `sqlite3 devnet-data/validator1.db`
-5. Test state persistence: `./devnet.sh restart`
+3. Test RPC connectivity: `curl -X POST http://localhost:8899 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"getBlockHeight","params":{},"id":1}'`
+4. Start the wallet: `./bin/neon-wallet`
+5. Submit transactions via CLI (see [CLI Usage Guide](cli-usage.md))
+6. Inspect databases: `sqlite3 devnet-data/validator1.db`
+7. Test state persistence: `./devnet.sh restart`
 
 ### With audit.sh
 1. Review the JSON report: `cat logs/audit-TIMESTAMP.json`
@@ -355,5 +518,7 @@ After running the scripts:
 ### General
 1. Run integration tests: `go test -v ./internal`
 2. Explore the codebase and modify features
-3. Read the [QuanticScript Guide](quanticscript.md)
-4. Check out the [Testing Guide](../testing/automated-testing.md)
+3. Read the [Wallet User Guide](wallet-usage.md)
+4. Read the [RPC API Reference](../reference/rpc-api.md)
+5. Read the [QuanticScript Guide](quanticscript.md)
+6. Check out the [Testing Guide](../testing/automated-testing.md)
