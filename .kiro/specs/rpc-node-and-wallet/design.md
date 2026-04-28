@@ -189,22 +189,21 @@ func (q *QueryEngine) GetTransactionStatus(signature string) (*TransactionStatus
 
 ```go
 type Wallet struct {
-    seedPhrase   string
-    masterKey    ed25519.PrivateKey
-    accounts     []*Account
+    seedPhrases  []string           // Multiple imported seed phrases
+    accounts     []*Account         // One account per seed phrase
     activeIndex  int
     config       *WalletConfig
     encrypted    bool
 }
 
 type Account struct {
-    Index      uint32
-    PublicKey  [32]byte
-    PrivateKey ed25519.PrivateKey
-    Address    string
-    Label      string
-    Balance    int64
-    LastUpdate time.Time
+    SeedPhraseIndex int              // Index into seedPhrases array
+    PublicKey       [32]byte
+    PrivateKey      ed25519.PrivateKey
+    Address         string
+    Label           string
+    Balance         int64
+    LastUpdate      time.Time
 }
 
 type WalletConfig struct {
@@ -213,9 +212,9 @@ type WalletConfig struct {
     AutoLock    time.Duration
 }
 
-func NewWallet(seedPhrase string, config *WalletConfig) (*Wallet, error)
+func NewWallet(config *WalletConfig) (*Wallet, error)
 func GenerateSeedPhrase(wordCount int) (string, error)
-func (w *Wallet) DeriveAccount(index uint32) (*Account, error)
+func (w *Wallet) ImportSeedPhrase(seedPhrase string, label string) (*Account, error)
 func (w *Wallet) GetActiveAccount() *Account
 func (w *Wallet) SetActiveAccount(index int) error
 func (w *Wallet) RefreshBalances() error
@@ -393,7 +392,7 @@ func MnemonicToSeed(mnemonic string, password string) []byte {
 Since Ed25519 doesn't have standard BIP32 support, we'll use SLIP-0010 for Ed25519 key derivation:
 
 ```go
-// Derivation path: m/44'/501'/0'/0'/index'
+// Derivation path: m/44'/501'/0'/0'/0' (fixed at index 0 for each seed phrase)
 // 501 is Solana's coin type (we'll use the same for compatibility)
 
 type HDKey struct {
@@ -403,7 +402,7 @@ type HDKey struct {
 
 func DeriveKey(seed []byte, path string) (*HDKey, error) {
     // Implement SLIP-0010 Ed25519 derivation
-    // Path format: m/44'/501'/0'/0'/index'
+    // Path format: m/44'/501'/0'/0'/0' (always index 0)
 }
 
 func (k *HDKey) ToEd25519() (ed25519.PublicKey, ed25519.PrivateKey) {
@@ -419,13 +418,18 @@ type EncryptedWallet struct {
     Cipher     string `json:"cipher"`  // "AES-256-GCM"
     Salt       string `json:"salt"`    // Base64 encoded
     IV         string `json:"iv"`      // Base64 encoded
-    Ciphertext string `json:"ciphertext"` // Base64 encoded
-    Accounts   []EncryptedAccount `json:"accounts"`
+type EncryptedWallet struct {
+    Version      int    `json:"version"`
+    Cipher       string `json:"cipher"`  // "AES-256-GCM"
+    Salt         string `json:"salt"`    // Base64 encoded
+    IV           string `json:"iv"`      // Base64 encoded
+    Ciphertext   string `json:"ciphertext"` // Base64 encoded (contains all seed phrases)
+    Accounts     []EncryptedAccount `json:"accounts"`
 }
 
 type EncryptedAccount struct {
-    Index  uint32 `json:"index"`
-    Label  string `json:"label"`
+    SeedPhraseIndex int    `json:"seedPhraseIndex"`
+    Label           string `json:"label"`
 }
 
 func EncryptWallet(wallet *Wallet, password string) (*EncryptedWallet, error)

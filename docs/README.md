@@ -30,6 +30,7 @@ Complete documentation for the Proof of History blockchain implementation.
 ### Implementation
 - **[Implementation Summary](reference/implementation-summary.md)** - Architecture and features
 - **[RPC API Reference](reference/rpc-api.md)** - JSON-RPC 2.0 API documentation
+- **[Wallet Configuration](reference/wallet-config.md)** - Wallet configuration reference
 - **[Transaction Builder API](reference/transaction-builder.md)** - Programmatic transaction construction
 - **[DPoS Genesis Reference](reference/dpos-genesis.md)** - Genesis initialization process
 - **[DPoS Node Integration](reference/dpos-node-integration.md)** - Node startup and configuration
@@ -58,6 +59,9 @@ docs/
     ├── cost-model.md                  # Cost model details
     ├── security-model.md              # Security mechanisms and restrictions
     ├── implementation-summary.md      # Implementation overview
+    ├── rpc-api.md                     # JSON-RPC 2.0 API
+    ├── wallet-config.md               # Wallet configuration
+    ├── transaction-builder.md         # Transaction builder API
     ├── bft-fix-summary.md             # BFT fixes technical details
     └── parser-infinite-loop-fix.md    # Parser error handling improvements
 ```

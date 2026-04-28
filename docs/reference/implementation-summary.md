@@ -83,6 +83,24 @@ Conflict detection for transaction scheduling — identifies read/write conflict
 - Demo scripts: `demo.sh`, `demo-bft.sh`, `demo-automated.sh`, `test-launcher.sh`
 - BFT formula: Honest > 2 × Malicious
 
+## Wallet Implementation
+
+**Wallet Core** (`cmd/wallet/core/`):
+- Configuration management with default settings
+- BIP39 mnemonic generation (12/24 words)
+- BIP44 key derivation for Ed25519 (SLIP-0010) at fixed index 0
+- AES-256-GCM encryption with PBKDF2 key derivation
+- Multi-seed phrase management (import multiple independent seed phrases)
+- One account per imported seed phrase
+- Duplicate seed phrase detection
+- Wallet persistence with secure file permissions (0600)
+
+**Configuration:**
+- Default RPC endpoint: `http://localhost:8899`
+- Auto-lock timeout: 5 minutes
+- Theme: neon
+- Wallet path: `~/.poh-wallet/wallet.dat` (configurable)
+
 ## Usage Examples
 
 ### Quick Demo

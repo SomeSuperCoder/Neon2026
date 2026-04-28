@@ -59,6 +59,21 @@ go mod download
 ```
 .
 ├── cmd/                    # Application entry points
+│   ├── main.go            # Main CLI with node operations and subcommands
+│   ├── validator-tui/     # Validator TUI dashboard
+│   │   └── main.go
+│   └── wallet/            # Wallet implementation
+│       └── core/          # Wallet core functionality
+│           ├── config.go       # Configuration management
+│           ├── mnemonic.go     # BIP39 seed phrase generation
+│           ├── mnemonic_test.go
+│           ├── derivation.go   # BIP44 key derivation
+│           ├── derivation_test.go
+│           ├── encryption.go   # AES-256-GCM encryption
+│           ├── encryption_test.go
+│           ├── types.go        # Core wallet types
+│           ├── wallet.go       # Wallet management
+│           └── wallet_test.go
 ├── internal/
 │   ├── poh/               # PoH clock generator
 │   ├── blockchain/        # Core blockchain data structures and serialization
@@ -74,6 +89,11 @@ go mod download
 │   ├── system/            # Go-side system program
 │   ├── genesis/           # Genesis bootstrap (loads builtin programs, initializes DPoS)
 │   ├── parallel/          # Parallel execution conflict analysis
+│   ├── rpc/               # JSON-RPC 2.0 server and query engine
+│   │   ├── server.go      # HTTP server with CORS support
+│   │   ├── handler.go     # Request handler and method routing
+│   │   ├── query.go       # Query engine with caching
+│   │   └── types.go       # JSON-RPC types
 │   └── quanticscript/     # QuanticScript language implementation
 │       ├── lexer.go        # Tokenization with source locations
 │       ├── parser.go       # AST construction
@@ -349,11 +369,24 @@ This project is under active development. See `.kiro/specs/` for feature specifi
 
 ### In Development
 
+- **RPC Node and Wallet** — JSON-RPC 2.0 API for blockchain queries and transaction submission, TUI wallet with BIP39/44 support (see `.kiro/specs/rpc-node-and-wallet/`)
+  - ✅ RPC server with HTTP transport and CORS support
+  - ✅ Query engine with caching for blockchain data
+  - ✅ Transaction submission with signature verification
+  - ✅ Wallet configuration management
+  - ✅ BIP39 mnemonic generation and validation
+  - ✅ BIP44 key derivation for Ed25519
+  - ✅ AES-256-GCM wallet encryption
+  - 🚧 Multi-account management (in progress)
+  - 🚧 RPC client for wallet (in progress)
+  - 🚧 Transaction building and signing (in progress)
+  - 🚧 TUI with Bubble Tea framework (in progress)
+
 - **Delegated Proof of Stake (DPoS)** — validator registration, stake delegation, epoch scheduling, reward distribution, and slashing (see `.kiro/specs/delegated-proof-of-stake/`)
   - ✅ Genesis initialization with configurable validators
   - ✅ ConsensusManager integration with FileStore and Runtime
   - ✅ Automatic DPoS state initialization on node startup
-  - 🚧 Validator TUI dashboard (completed, see `cmd/validator-tui/`)
+  - ✅ Validator TUI dashboard
   - 🚧 Demo script implementation (in progress)
 
 ### Completed

@@ -61,22 +61,23 @@ This document specifies the requirements for a production-ready RPC (Remote Proc
 #### Acceptance Criteria
 
 1. WHEN the TUI_Wallet generates a new wallet, THE TUI_Wallet SHALL create a 12-word or 24-word BIP39-compliant Seed_Phrase
-2. WHEN a user provides a valid Seed_Phrase, THE TUI_Wallet SHALL derive the master keypair using BIP44 derivation path m/44'/501'/0'/0'
-3. WHEN a user enters an invalid Seed_Phrase, THE TUI_Wallet SHALL display an error message "Invalid seed phrase" and prevent wallet creation
+2. WHEN a user provides a valid Seed_Phrase for import, THE TUI_Wallet SHALL derive the keypair at index 0 using BIP44 derivation path m/44'/501'/0'/0'/0'
+3. WHEN a user enters an invalid Seed_Phrase, THE TUI_Wallet SHALL display an error message "Invalid seed phrase" and prevent wallet creation or import
 4. THE TUI_Wallet SHALL display the Seed_Phrase exactly once during wallet creation with a confirmation prompt
-5. WHEN the TUI_Wallet stores wallet data, THE TUI_Wallet SHALL encrypt the seed phrase using AES-256-GCM with a user-provided password
+5. WHEN the TUI_Wallet stores wallet data, THE TUI_Wallet SHALL encrypt all seed phrases using AES-256-GCM with a user-provided password
 
-### Requirement 5: Multi-Account Management
+### Requirement 5: Multi-Seed Phrase Management
 
-**User Story:** As a wallet user, I want to manage multiple accounts from a single seed phrase, so that I can organize my funds across different addresses.
+**User Story:** As a wallet user, I want to import and manage multiple seed phrases in one wallet, so that I can organize my funds across different accounts from different sources.
 
 #### Acceptance Criteria
 
-1. WHEN a user creates a new account, THE TUI_Wallet SHALL derive the keypair from the Seed_Phrase using the next sequential derivation index
-2. THE TUI_Wallet SHALL display all accounts with their public keys, balances, and optional user-defined labels
+1. WHEN a user imports a new Seed_Phrase, THE TUI_Wallet SHALL derive one keypair at index 0 using BIP44 derivation path m/44'/501'/0'/0'/0'
+2. THE TUI_Wallet SHALL display all imported accounts with their public keys, balances, and optional user-defined labels
 3. WHEN a user selects an account, THE TUI_Wallet SHALL set that account as the active account for transactions
-4. THE TUI_Wallet SHALL support a minimum of 100 derived accounts per wallet
+4. THE TUI_Wallet SHALL support a minimum of 100 imported seed phrases per wallet
 5. WHEN the TUI_Wallet queries account balances, THE TUI_Wallet SHALL refresh all account balances within 2 seconds
+6. WHEN a user imports a Seed_Phrase that already exists in the wallet, THE TUI_Wallet SHALL display an error message "Seed phrase already imported" and prevent duplicate import
 
 ### Requirement 6: Transaction History Display
 

@@ -103,45 +103,47 @@
     - Add RPC logs to `show_devnet_logs`
     - _Requirements: 10.8_
 
-- [ ] 8. Implement wallet core with BIP39/44 support
-  - [ ] 8.1 Create wallet package structure
+- [x] 8. Implement wallet core with BIP39/44 support
+  - [x] 8.1 Create wallet package structure
     - Create `cmd/wallet/` directory with core, rpc, and ui subdirectories
     - Define wallet configuration structures
     - Implement wallet file format with versioning
     - _Requirements: 4.1, 4.2, 11.1, 11.2_
   
-  - [ ] 8.2 Implement BIP39 seed phrase generation
+  - [x] 8.2 Implement BIP39 seed phrase generation
     - Integrate go-bip39 library for mnemonic generation
     - Implement 12-word and 24-word seed phrase generation
     - Add seed phrase validation
     - Implement mnemonic to seed conversion
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
   
-  - [ ] 8.3 Implement BIP44 key derivation for Ed25519
+  - [x] 8.3 Implement BIP44 key derivation for Ed25519
     - Implement SLIP-0010 Ed25519 key derivation
     - Use derivation path m/44'/501'/0'/0'/index'
     - Implement HDKey structure with chain code
     - Convert HD keys to Ed25519 keypairs
     - _Requirements: 4.2, 5.1, 5.2_
   
-  - [ ] 8.4 Implement wallet encryption and persistence
+  - [x] 8.4 Implement wallet encryption and persistence
     - Implement AES-256-GCM encryption for wallet data
     - Use PBKDF2 for password-based key derivation (100k iterations)
     - Implement wallet save/load with encryption
     - Set file permissions to 0600 for security
     - _Requirements: 4.5, 9.1, 9.4, 11.1, 11.5_
 
-- [ ] 9. Implement multi-account management
-  - [ ] 9.1 Implement account derivation and storage
-    - Implement `DeriveAccount` method with sequential indexing
-    - Store account metadata (index, label, balance)
-    - Support minimum of 100 accounts per wallet
-    - _Requirements: 5.1, 5.2, 5.4_
+- [x] 9. Implement multi-seed phrase management
+  - [x] 9.1 Implement seed phrase import and storage
+    - Implement `ImportSeedPhrase` method with duplicate detection
+    - Store seed phrase metadata (index, label, balance)
+    - Support minimum of 100 imported seed phrases per wallet
+    - Derive one account at index 0 per seed phrase
+    - _Requirements: 5.1, 5.2, 5.4, 5.6_
   
-  - [ ] 9.2 Implement account selection and balance refresh
+  - [x] 9.2 Implement account selection and balance refresh
     - Implement active account tracking
-    - Implement `RefreshBalances` method using RPC client
+    - Implement `RefreshBalances` method using RPC client (placeholder)
     - Update all account balances within 2 seconds
+    - Add `GetAccountBySeedPhraseIndex` method
     - _Requirements: 5.3, 5.5_
 
 - [ ] 10. Implement RPC client for wallet
