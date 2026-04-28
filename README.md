@@ -141,6 +141,9 @@ go run cmd/main.go submit --tx transaction.json --state state.db
 # Check transaction status
 go run cmd/main.go status --tx <tx-id> --state state.db
 
+# Start RPC node for blockchain queries and transaction submission
+go run cmd/main.go rpc --ledger-path ./validator1.db --state-path ./validator1_state.db
+
 # Show help
 go run cmd/main.go help
 ```
@@ -625,6 +628,7 @@ Complete documentation is available in the [docs/](docs/) directory:
 - **[Language Reference](docs/reference/language-reference.md)** - QuanticScript syntax and semantics
 - **[Standard Library Reference](docs/reference/stdlib-reference.md)** - Built-in functions and modules
 - **[Security Model](docs/reference/security-model.md)** - Security mechanisms and privilege restrictions
+- **[RPC API Reference](docs/reference/rpc-api.md)** - JSON-RPC 2.0 API documentation
 - **[Inline Assembly Guide](docs/reference/inline-assembly.md)** - Low-level assembly programming
 - **[Bytecode Reference](docs/reference/bytecode-reference.md)** - Bytecode format and opcodes
 - **[Cost Model Guide](docs/reference/cost-model.md)** - Understanding computational costs

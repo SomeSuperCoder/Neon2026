@@ -5,6 +5,7 @@ set -e
 COMMAND=${1:-start}
 NUM_VALIDATORS=3
 PORT_START=8000
+RPC_PORT=8899
 DB_DIR="./devnet-data"
 LOG_DIR="./logs"
 PID_DIR="$DB_DIR/pids"
@@ -22,6 +23,10 @@ parse_options() {
     case $1 in
       --port)
         PORT_START="$2"
+        shift 2
+        ;;
+      --rpc-port)
+        RPC_PORT="$2"
         shift 2
         ;;
       --db-dir)
@@ -54,11 +59,12 @@ Commands:
   stop                  Stop running devnet
   restart [N]           Restart devnet with N validators
   status                Show devnet status
-  logs [VALIDATOR_ID]   Show logs for specific validator (or all)
+  logs [VALIDATOR_ID]   Show logs for specific validator, RPC node, or all
   clean                 Stop devnet and clean all data
 
 Options:
   --port PORT           Starting port number (default: 8000)
+  --rpc-port PORT       RPC node port (default: 8899)
   --db-dir DIR          Database directory (default: ./devnet-data)
   --log-dir DIR         Log directory (default: ./logs)
   --help                Show this help message
@@ -66,9 +72,11 @@ Options:
 Examples:
   ./devnet.sh start 3                    # Start 3 validators
   ./devnet.sh start 5 --port 9000        # Start 5 validators on port 9000
+  ./devnet.sh start 3 --rpc-port 9899    # Start with RPC on port 9899
   ./devnet.sh status                     # Check devnet status
   ./devnet.sh logs 1                     # Show logs for validator 1
-  ./devnet.sh logs                       # Show logs for all validators
+  ./devnet.sh logs rpc                   # Show logs for RPC node
+  ./devnet.sh logs                       # Show logs for all validators and RPC
   ./devnet.sh stop                       # Stop devnet
   ./devnet.sh clean                      # Stop and clean all data
 
@@ -121,10 +129,74 @@ start_devnet() {
   done
   
   # Wait a moment for nodes to initialize
-  sleep 2
+  sleep 3
+  
+  # Start RPC node
+  start_rpc_node
   
   # Display network info
   show_network_info $num
+}
+
+# Start RPC node
+start_rpc_node() {
+  echo -e "${BLUE}Starting RPC node on port $RPC_PORT...${NC}"
+  
+  # Use leader's databases
+  local leader_db="$DB_DIR/validator1.db"
+  local leader_state="$DB_DIR/validator1_state.db"
+  local rpc_state="$DB_DIR/rpc_state.db"
+  
+  # Wait for leader databases to be created and available
+  local max_wait=10
+  local wait_count=0
+  while [ ! -f "$leader_db" ] && [ $wait_count -lt $max_wait ]; do
+    echo "Waiting for leader database to be created..."
+    sleep 1
+    wait_count=$((wait_count + 1))
+  done
+  
+  if [ ! -f "$leader_db" ]; then
+    echo -e "${RED}Error: Leader database not found after waiting: $leader_db${NC}"
+    return 1
+  fi
+  
+  # Create a copy of the state database for RPC node to avoid lock conflicts
+  echo "Creating RPC state database copy..."
+  if [ -d "$leader_state" ]; then
+    # Remove existing RPC state database if it exists
+    rm -rf "$rpc_state" 2>/dev/null || true
+    # Copy the leader's state database
+    cp -r "$leader_state" "$rpc_state"
+  else
+    # If state database doesn't exist yet, create an empty one
+    mkdir -p "$rpc_state"
+  fi
+  
+  # Start RPC node with its own state database copy
+  ./bin/poh-node rpc \
+    --rpc-port=$RPC_PORT \
+    --rpc-bind=127.0.0.1 \
+    --ledger-path="$leader_db" \
+    --state-path="$rpc_state" \
+    > "$LOG_DIR/devnet-rpc.log" 2>&1 &
+  
+  local rpc_pid=$!
+  echo $rpc_pid > "$PID_DIR/rpc.pid"
+  
+  # Give RPC node time to start
+  sleep 1
+  
+  # Check if RPC node started successfully
+  if kill -0 $rpc_pid 2>/dev/null; then
+    echo -e "${GREEN}✓ RPC node started (PID: $rpc_pid)${NC}"
+    echo "  Endpoint: http://127.0.0.1:$RPC_PORT"
+    echo "  Note: RPC uses a snapshot of the state database"
+  else
+    echo -e "${RED}✗ RPC node failed to start${NC}"
+    echo "  Check logs: $LOG_DIR/devnet-rpc.log"
+    return 1
+  fi
 }
 
 # Show network information
@@ -152,6 +224,18 @@ show_network_info() {
     echo ""
   done
   
+  # Show RPC node info if running
+  if [ -f "$PID_DIR/rpc.pid" ]; then
+    local rpc_pid=$(cat "$PID_DIR/rpc.pid" 2>/dev/null)
+    if [ -n "$rpc_pid" ] && kill -0 $rpc_pid 2>/dev/null; then
+      echo -e "  RPC Node:"
+      echo "    Endpoint: http://127.0.0.1:$RPC_PORT"
+      echo "    Logs:     $LOG_DIR/devnet-rpc.log"
+      echo "    PID:      $rpc_pid"
+      echo ""
+    fi
+  fi
+  
   echo "Management Commands:"
   echo "  Status:  ./devnet.sh status"
   echo "  Logs:    ./devnet.sh logs [validator_id]"
@@ -174,10 +258,14 @@ stop_devnet() {
   for pid_file in "$PID_DIR"/*.pid; do
     if [ -f "$pid_file" ]; then
       local pid=$(cat "$pid_file")
-      local validator_name=$(basename "$pid_file" .pid)
+      local process_name=$(basename "$pid_file" .pid)
       
       if kill -0 $pid 2>/dev/null; then
-        echo "Stopping $validator_name (PID: $pid)..."
+        if [ "$process_name" = "rpc" ]; then
+          echo "Stopping RPC node (PID: $pid)..."
+        else
+          echo "Stopping $process_name (PID: $pid)..."
+        fi
         kill -TERM $pid 2>/dev/null || true
         stopped=$((stopped + 1))
       fi
@@ -230,23 +318,37 @@ show_devnet_status() {
   for pid_file in "$PID_DIR"/*.pid; do
     if [ -f "$pid_file" ]; then
       local pid=$(cat "$pid_file")
-      local validator_name=$(basename "$pid_file" .pid)
-      local validator_num=$(echo "$validator_name" | grep -o '[0-9]\+')
-      local port=$((PORT_START + validator_num - 1))
+      local process_name=$(basename "$pid_file" .pid)
       
-      if kill -0 $pid 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} $validator_name (PID: $pid, Port: $port) - RUNNING"
-        running=$((running + 1))
-        
-        # Try to get block count from database
-        local db_file="$DB_DIR/$validator_name.db"
-        if [ -f "$db_file" ]; then
-          local block_count=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM blocks;" 2>/dev/null || echo "N/A")
-          echo "    Blocks: $block_count"
+      if [ "$process_name" = "rpc" ]; then
+        # Handle RPC node
+        if kill -0 $pid 2>/dev/null; then
+          echo -e "${GREEN}✓${NC} RPC Node (PID: $pid, Port: $RPC_PORT) - RUNNING"
+          running=$((running + 1))
+          echo "    Endpoint: http://127.0.0.1:$RPC_PORT"
+        else
+          echo -e "${RED}✗${NC} RPC Node (PID: $pid) - STOPPED"
+          stopped=$((stopped + 1))
         fi
       else
-        echo -e "${RED}✗${NC} $validator_name (PID: $pid) - STOPPED"
-        stopped=$((stopped + 1))
+        # Handle validator nodes
+        local validator_num=$(echo "$process_name" | grep -o '[0-9]\+')
+        local port=$((PORT_START + validator_num - 1))
+        
+        if kill -0 $pid 2>/dev/null; then
+          echo -e "${GREEN}✓${NC} $process_name (PID: $pid, Port: $port) - RUNNING"
+          running=$((running + 1))
+          
+          # Try to get block count from database
+          local db_file="$DB_DIR/$process_name.db"
+          if [ -f "$db_file" ]; then
+            local block_count=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM blocks;" 2>/dev/null || echo "N/A")
+            echo "    Blocks: $block_count"
+          fi
+        else
+          echo -e "${RED}✗${NC} $process_name (PID: $pid) - STOPPED"
+          stopped=$((stopped + 1))
+        fi
       fi
       echo ""
     fi
@@ -262,7 +364,7 @@ show_devnet_logs() {
   
   if [ -z "$validator_id" ]; then
     # Show all logs
-    echo "Showing logs for all validators (Ctrl+C to exit)..."
+    echo "Showing logs for all validators and RPC node (Ctrl+C to exit)..."
     echo ""
     
     local log_files=()
@@ -272,20 +374,41 @@ show_devnet_logs() {
       fi
     done
     
+    # Add RPC log if it exists
+    if [ -f "$LOG_DIR/devnet-rpc.log" ]; then
+      log_files+=("$LOG_DIR/devnet-rpc.log")
+    fi
+    
     if [ ${#log_files[@]} -eq 0 ]; then
       echo -e "${YELLOW}No log files found${NC}"
       return 1
     fi
     
     tail -f "${log_files[@]}"
+  elif [ "$validator_id" = "rpc" ]; then
+    # Show RPC log
+    local log_file="$LOG_DIR/devnet-rpc.log"
+    
+    if [ ! -f "$log_file" ]; then
+      echo -e "${RED}RPC log file not found: $log_file${NC}"
+      echo "Make sure the RPC node is running or has been started"
+      return 1
+    fi
+    
+    echo "Showing logs for RPC node (Ctrl+C to exit)..."
+    echo ""
+    tail -f "$log_file"
   else
     # Show specific validator log
     local log_file="$LOG_DIR/devnet-validator-$validator_id.log"
     
     if [ ! -f "$log_file" ]; then
       echo -e "${RED}Log file not found: $log_file${NC}"
-      echo "Available validators:"
+      echo "Available options:"
       ls -1 "$LOG_DIR"/devnet-validator-*.log 2>/dev/null | sed 's/.*validator-\([0-9]\+\).*/  \1/' || echo "  None"
+      if [ -f "$LOG_DIR/devnet-rpc.log" ]; then
+        echo "  rpc"
+      fi
       return 1
     fi
     
@@ -331,6 +454,7 @@ clean_devnet() {
   if [ -d "$LOG_DIR" ]; then
     echo "Removing devnet logs from $LOG_DIR..."
     rm -f "$LOG_DIR"/devnet-validator-*.log
+    rm -f "$LOG_DIR"/devnet-rpc.log
   fi
   
   echo -e "${GREEN}✓ Devnet cleaned${NC}"
@@ -343,7 +467,13 @@ main() {
   shift || true
   
   local num=$NUM_VALIDATORS
-  if [[ $1 =~ ^[0-9]+$ ]]; then
+  local logs_param=""
+  
+  # Special handling for logs command
+  if [ "$cmd" = "logs" ]; then
+    logs_param=$1
+    shift || true
+  elif [[ $1 =~ ^[0-9]+$ ]]; then
     num=$1
     shift || true
   fi
@@ -365,7 +495,7 @@ main() {
       show_devnet_status
       ;;
     logs)
-      show_devnet_logs $num
+      show_devnet_logs $logs_param
       ;;
     clean)
       clean_devnet

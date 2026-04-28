@@ -593,6 +593,57 @@ curl -X POST http://monitoring-system/metrics \
 
 ---
 
+## Unit Testing
+
+### RPC Handler Tests
+
+The RPC handler includes comprehensive unit tests covering:
+
+**Test Coverage:**
+- Method routing to correct handlers
+- Request validation (JSON-RPC version, method name)
+- HTTP request handling and JSON parsing
+- Error response generation
+- Request logging with timing
+- Content-Type headers
+- Transaction submission parameter validation
+- Transaction deserialization (base64 decoding)
+- Transaction signature verification
+
+**Running RPC Tests:**
+```bash
+# Run all RPC tests
+go test ./internal/rpc/...
+
+# Run with verbose output
+go test -v ./internal/rpc/...
+
+# Run specific test
+go test -v ./internal/rpc -run TestHandleRequest_MethodRouting
+
+# Run sendTransaction tests
+go test -v ./internal/rpc -run TestHandleSendTransaction
+
+# Run with coverage
+go test -cover ./internal/rpc/...
+```
+
+**Test Files:**
+- `internal/rpc/handler_test.go` - Handler and HTTP tests (24 test cases)
+- `internal/rpc/types_test.go` - Type marshaling tests (13 test cases)
+- `internal/rpc/query_test.go` - Query engine tests (15 test cases)
+
+**Key Test Cases:**
+- Valid and invalid JSON-RPC requests
+- All method routing (getBalance, getAccountInfo, sendTransaction, etc.)
+- Error codes (ParseError, InvalidRequest, MethodNotFound, InvalidParams, MalformedTransaction, InvalidSignature)
+- HTTP status codes and response format
+- Request/response logging
+- Transaction parameter validation (missing, invalid base64, malformed)
+- Signature verification with corrupted signatures
+
+---
+
 ## Summary
 
 The audit script provides:

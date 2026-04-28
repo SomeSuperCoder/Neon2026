@@ -146,7 +146,83 @@ Transaction Status Check:
 
 **Note:** Full transaction history tracking is not yet implemented. This command currently only verifies database accessibility.
 
-### 6. Help
+### 6. RPC Node
+
+Start an RPC node for blockchain queries and transaction submission:
+
+```bash
+./poh-blockchain rpc --ledger-path <path> --state-path <path> [--rpc-port <port>] [--rpc-bind <address>]
+```
+
+**Required parameters:**
+- `--ledger-path`: Path to the blockchain ledger database
+- `--state-path`: Path to the state database
+
+**Optional parameters:**
+- `--rpc-port`: HTTP listening port (default: 8899)
+- `--rpc-bind`: Bind address (default: 127.0.0.1)
+
+**Example:**
+```bash
+./poh-blockchain rpc --ledger-path ./validator1.db --state-path ./validator1_state.db
+```
+
+**With custom port and bind address:**
+```bash
+./poh-blockchain rpc --ledger-path ./validator1.db --state-path ./validator1_state.db --rpc-port 9000 --rpc-bind 0.0.0.0
+```
+
+This command:
+- Starts an HTTP JSON-RPC 2.0 server
+- Provides blockchain query endpoints (balance, account info, block height, etc.)
+- Accepts transaction submissions
+- Supports CORS for browser access
+- Opens the FileStore in read-only mode for safe concurrent access
+
+**Output:**
+```
+Starting RPC node...
+  Ledger: ./validator1.db
+  State: ./validator1_state.db
+  Bind: 127.0.0.1:8899
+Initializing ledger...
+Initializing FileStore (read-only)...
+Initializing transaction processor...
+Creating RPC server...
+Starting RPC server...
+RPC server started successfully on http://127.0.0.1:8899
+Press Ctrl+C to stop...
+```
+
+**Available RPC Methods:**
+- `getBalance` - Get account balance
+- `getAccountInfo` - Get full account information
+- `getTransactionHistory` - Get transaction history with pagination
+- `getBlockHeight` - Get current blockchain height
+- `getRecentBlockhash` - Get recent block hash
+- `sendTransaction` - Submit a signed transaction
+- `getTransactionStatus` - Check transaction confirmation status
+
+**Example RPC Request:**
+```bash
+curl -X POST http://127.0.0.1:8899 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "getBlockHeight",
+    "params": [],
+    "id": 1
+  }'
+```
+
+**Graceful Shutdown:**
+Press `Ctrl+C` to stop the RPC server. The server will:
+- Stop accepting new requests
+- Complete in-flight requests
+- Close database connections cleanly
+- Exit gracefully
+
+### 7. Help
 
 Display help information:
 

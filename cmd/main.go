@@ -21,6 +21,7 @@ import (
 	"github.com/poh-blockchain/internal/poh"
 	"github.com/poh-blockchain/internal/processor"
 	"github.com/poh-blockchain/internal/quanticscript"
+	"github.com/poh-blockchain/internal/rpc"
 	"github.com/poh-blockchain/internal/runtime"
 	"github.com/poh-blockchain/internal/storage"
 	"github.com/poh-blockchain/internal/transaction"
@@ -49,6 +50,9 @@ func main() {
 			return
 		case "qsc":
 			handleQuanticScriptCommand()
+			return
+		case "rpc":
+			handleRPCCommand()
 			return
 		case "help":
 			printHelp()
@@ -464,6 +468,9 @@ func printHelp() {
 	fmt.Println("      disassemble --input <bytecode.qsb> --output <assembly.qsa>")
 	fmt.Println("        Disassemble bytecode to QuanticScript assembly")
 	fmt.Println()
+	fmt.Println("  rpc --rpc-port <port> --rpc-bind <address> --ledger-path <path> --state-path <path>")
+	fmt.Println("    Start RPC node for blockchain queries and transaction submission")
+	fmt.Println()
 	fmt.Println("  help")
 	fmt.Println("    Show this help message")
 	fmt.Println()
@@ -809,6 +816,102 @@ func handleStatusCommand() {
 	fmt.Printf("  Transaction ID: %s\n", *txID)
 	fmt.Printf("  Note: Transaction history tracking not yet implemented\n")
 	fmt.Printf("  State database: %s (accessible)\n", *stateDB)
+}
+
+// handleRPCCommand starts the RPC node
+func handleRPCCommand() {
+	fs := flag.NewFlagSet("rpc", flag.ExitOnError)
+	rpcPort := fs.Int("rpc-port", 8899, "RPC HTTP listening port")
+	rpcBind := fs.String("rpc-bind", "127.0.0.1", "RPC bind address")
+	ledgerPath := fs.String("ledger-path", "", "Path to ledger database (required)")
+	statePath := fs.String("state-path", "", "Path to state database (required)")
+
+	fs.Parse(os.Args[2:])
+
+	// Validate required parameters
+	if *ledgerPath == "" || *statePath == "" {
+		fmt.Println("Error: --ledger-path and --state-path are required")
+		fmt.Println()
+		fmt.Println("Usage: rpc --ledger-path <path> --state-path <path> [--rpc-port <port>] [--rpc-bind <address>]")
+		fmt.Println()
+		fmt.Println("Example:")
+		fmt.Println("  poh-blockchain rpc --ledger-path ./validator1.db --state-path ./validator1_state.db")
+		os.Exit(1)
+	}
+
+	log.Printf("Starting RPC node...")
+	log.Printf("  Ledger: %s", *ledgerPath)
+	log.Printf("  State: %s", *statePath)
+	log.Printf("  Bind: %s:%d", *rpcBind, *rpcPort)
+
+	// Initialize ledger
+	log.Println("Initializing ledger...")
+	ledger, err := storage.NewLedger(*ledgerPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize ledger: %v", err)
+	}
+	defer ledger.Close()
+
+	// Initialize FileStore
+	log.Println("Initializing FileStore...")
+	fileStore, err := initFileStore(*statePath)
+	if err != nil {
+		log.Fatalf("Failed to initialize FileStore: %v", err)
+	}
+	defer fileStore.Close()
+
+	// Initialize Runtime and TxProcessor
+	log.Println("Initializing transaction processor...")
+	rt := runtime.NewRuntime()
+	txProcessor := processor.NewTxProcessor(fileStore, rt)
+
+	// Create RPC server configuration
+	config := &rpc.ServerConfig{
+		BindAddress: *rpcBind,
+		Port:        *rpcPort,
+		LedgerPath:  *ledgerPath,
+		StatePath:   *statePath,
+	}
+
+	// Create RPC server
+	log.Println("Creating RPC server...")
+	rpcServer, err := rpc.NewRPCServer(config, ledger, fileStore, txProcessor, log.Default())
+	if err != nil {
+		log.Fatalf("Failed to create RPC server: %v", err)
+	}
+
+	// Start RPC server
+	log.Println("Starting RPC server...")
+	if err := rpcServer.Start(); err != nil {
+		log.Fatalf("Failed to start RPC server: %v", err)
+	}
+
+	log.Printf("RPC server started successfully on http://%s:%d", *rpcBind, *rpcPort)
+	log.Println("Press Ctrl+C to stop...")
+
+	// Setup graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for shutdown signal
+	<-sigChan
+	log.Println("Shutdown signal received, stopping RPC server...")
+
+	// Stop RPC server
+	if err := rpcServer.Stop(); err != nil {
+		log.Printf("Error stopping RPC server: %v", err)
+	}
+
+	// Close database connections
+	log.Println("Closing database connections...")
+	if err := fileStore.Close(); err != nil {
+		log.Printf("Error closing FileStore: %v", err)
+	}
+	if err := ledger.Close(); err != nil {
+		log.Printf("Error closing ledger: %v", err)
+	}
+
+	log.Println("RPC node shutdown complete")
 }
 
 // publicKeyToFileID converts a public key to a file ID

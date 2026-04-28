@@ -44,6 +44,11 @@ Uniform abstraction for accounts, programs, and data (inspired by Solana's accou
 - Transaction Processor with atomic execution and rollback
 - ExecutionContext providing programs access to FileStore, signers, and instruction data
 
+**FileStore API:**
+- `NewFileStore(dbPath)` — creates a read-write FileStore for validator nodes
+- `NewReadOnlyFileStore(dbPath)` — creates a read-only FileStore for RPC nodes and query services
+- Read-only mode allows multiple processes to safely query the same state database without conflicts
+
 ### 4. QuanticScript Language
 
 TypeScript-like smart contract language compiling to stack-based bytecode.

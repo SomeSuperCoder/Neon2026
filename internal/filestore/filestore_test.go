@@ -2,6 +2,7 @@ package filestore
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 	"time"
 )
@@ -479,6 +480,109 @@ func TestNewFileStore(t *testing.T) {
 	}
 	if fs.cache == nil {
 		t.Error("FileStore cache is nil")
+	}
+}
+
+func TestNewReadOnlyFileStore(t *testing.T) {
+	// Create a temporary directory for the test database
+	dbPath := t.TempDir() + "/testdb"
+
+	// First create a regular FileStore and add some data
+	fs, err := NewFileStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewFileStore failed: %v", err)
+	}
+
+	// Create a test file
+	txManagerID := GenerateFileID([]byte("tx_manager"))
+	file := &File{
+		Balance:    10000,
+		TxManager:  txManagerID,
+		Data:       []byte("test data"),
+		Executable: false,
+	}
+
+	fileID, err := fs.CreateFile(file)
+	if err != nil {
+		t.Fatalf("CreateFile failed: %v", err)
+	}
+
+	// Close the regular FileStore
+	fs.Close()
+
+	// Now open as read-only
+	readOnlyFS, err := NewReadOnlyFileStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewReadOnlyFileStore failed: %v", err)
+	}
+	defer readOnlyFS.Close()
+
+	if readOnlyFS.db == nil {
+		t.Error("ReadOnly FileStore database is nil")
+	}
+	if readOnlyFS.cache == nil {
+		t.Error("ReadOnly FileStore cache is nil")
+	}
+
+	// Verify we can read the existing file
+	retrievedFile, err := readOnlyFS.GetFile(fileID)
+	if err != nil {
+		t.Fatalf("GetFile from read-only store failed: %v", err)
+	}
+
+	if retrievedFile.Balance != 10000 {
+		t.Errorf("Balance mismatch: expected 10000, got %d", retrievedFile.Balance)
+	}
+	if string(retrievedFile.Data) != "test data" {
+		t.Errorf("Data mismatch: expected 'test data', got '%s'", string(retrievedFile.Data))
+	}
+}
+
+func TestNewReadOnlyFileStore_NonExistentDB(t *testing.T) {
+	// Try to open a non-existent database in read-only mode
+	dbPath := t.TempDir() + "/nonexistent"
+
+	_, err := NewReadOnlyFileStore(dbPath)
+	if err == nil {
+		t.Error("Expected error for non-existent database in read-only mode")
+	}
+}
+
+func TestReadOnlyFileStore_WriteOperationsShouldFail(t *testing.T) {
+	// Create a temporary directory for the test database
+	dbPath := t.TempDir() + "/testdb"
+
+	// First create a regular FileStore
+	fs, err := NewFileStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewFileStore failed: %v", err)
+	}
+	fs.Close()
+
+	// Open as read-only
+	readOnlyFS, err := NewReadOnlyFileStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewReadOnlyFileStore failed: %v", err)
+	}
+	defer readOnlyFS.Close()
+
+	// Try to create a file (should fail)
+	txManagerID := GenerateFileID([]byte("tx_manager"))
+	file := &File{
+		Balance:    10000,
+		TxManager:  txManagerID,
+		Data:       []byte("test data"),
+		Executable: false,
+	}
+
+	_, err = readOnlyFS.CreateFile(file)
+	if err == nil {
+		t.Error("Expected error when trying to create file in read-only store")
+	}
+
+	// The error should indicate read-only mode
+	if !strings.Contains(err.Error(), "read-only") && !strings.Contains(err.Error(), "readonly") {
+		t.Errorf("Expected read-only error, got: %v", err)
 	}
 }
 

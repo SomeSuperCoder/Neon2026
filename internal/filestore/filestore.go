@@ -235,6 +235,27 @@ func NewFileStore(dbPath string) (*FileStore, error) {
 	return fs, nil
 }
 
+// NewReadOnlyFileStore initializes a new read-only FileStore with BadgerDB at the specified path
+// This is used by RPC nodes that only need to query state without modifying it
+func NewReadOnlyFileStore(dbPath string) (*FileStore, error) {
+	// Open BadgerDB with read-only options
+	opts := badger.DefaultOptions(dbPath)
+	opts.Logger = nil // Disable BadgerDB logging to avoid noise
+	opts.ReadOnly = true
+
+	db, err := badger.Open(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open BadgerDB at %s in read-only mode: %w", dbPath, err)
+	}
+
+	fs := &FileStore{
+		db:    db,
+		cache: make(map[FileID]*File),
+	}
+
+	return fs, nil
+}
+
 // Close closes the FileStore and releases all resources
 func (fs *FileStore) Close() error {
 	fs.mu.Lock()

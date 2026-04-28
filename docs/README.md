@@ -29,6 +29,7 @@ Complete documentation for the Proof of History blockchain implementation.
 
 ### Implementation
 - **[Implementation Summary](reference/implementation-summary.md)** - Architecture and features
+- **[RPC API Reference](reference/rpc-api.md)** - JSON-RPC 2.0 API documentation
 - **[Transaction Builder API](reference/transaction-builder.md)** - Programmatic transaction construction
 - **[DPoS Genesis Reference](reference/dpos-genesis.md)** - Genesis initialization process
 - **[DPoS Node Integration](reference/dpos-node-integration.md)** - Node startup and configuration
