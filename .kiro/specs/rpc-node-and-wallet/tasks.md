@@ -362,51 +362,63 @@
     - Implement hover effects for interactive elements
     - _Requirements: 8.1, 8.9_
 
-- [ ] 22. Create wallet main entry point
-  - [ ] 22.1 Implement wallet CLI
+- [x] 22. Create wallet main entry point
+  - [x] 22.1 Implement wallet CLI
     - Create `cmd/wallet/main.go` with flag parsing
-    - Add --wallet-path flag for custom wallet location
-    - Add --rpc-url flag for RPC endpoint configuration
-    - Implement wallet initialization check
+    - Add --wallet-path flag for custom wallet location (default: ~/.poh-wallet/wallet.dat)
+    - Add --rpc-url flag for RPC endpoint configuration (default: http://localhost:8899)
+    - Implement wallet initialization check with fileExists
+    - Implement expandPath for tilde expansion in wallet path
+    - Add password prompt for existing wallets
     - _Requirements: 11.2, 11.3, 11.4_
   
-  - [ ] 22.2 Wire up all components
+  - [x] 22.2 Wire up all components
     - Initialize wallet core with configuration
     - Create RPC client with endpoint
+    - Run wallet creation wizard for new wallets
+    - Load existing wallet with password authentication
     - Initialize Bubble Tea application with all views
-    - Start TUI event loop
+    - Start TUI event loop with alt screen
+    - Add graceful error handling and exit codes
     - _Requirements: 8.1_
+  
+  - [x] 22.3 Add unit tests for main.go
+    - Test expandPath function with various inputs
+    - Test fileExists function
+    - Test default constants
+    - All tests passing
+    - _Requirements: 11.1, 11.2_
 
 - [ ] 23. Write comprehensive tests
-  - [ ] 23.1 Write RPC node unit tests
+  - [x] 23.1 Write RPC node unit tests
     - Test JSON-RPC request/response parsing
     - Test method routing and error handling
     - Test query engine with mock databases
     - Test concurrent request handling
     - _Requirements: 1.1, 1.2, 1.3, 1.4_
   
-  - [ ] 23.2 Write RPC integration tests
+  - [x] 23.2 Write RPC integration tests
     - Test all RPC methods with real ledger and filestore
     - Test transaction submission flow
     - Test error scenarios (invalid addresses, missing data)
     - Test RPC server lifecycle
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3_
   
-  - [ ] 23.3 Write wallet core unit tests
+  - [x] 23.3 Write wallet core unit tests
     - Test seed phrase generation and validation
     - Test BIP44 key derivation
     - Test wallet encryption/decryption
     - Test account derivation and management
     - _Requirements: 4.1, 4.2, 4.3, 4.5, 5.1, 5.2_
   
-  - [ ] 23.4 Write wallet integration tests
+  - [x] 23.4 Write wallet integration tests
     - Test full wallet creation flow
     - Test wallet restoration from seed phrase
     - Test transaction building and signing
     - Test RPC client with mock server
     - _Requirements: 7.1, 7.2, 7.3, 11.4_
   
-  - [ ] 23.5 Write end-to-end tests
+  - [x] 23.5 Write end-to-end tests
     - Start devnet with RPC node
     - Create wallet and generate accounts
     - Execute transfers and verify balances

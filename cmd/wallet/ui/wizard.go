@@ -557,3 +557,8 @@ type wizardCompleteMsg struct {
 	success bool
 	error   string
 }
+
+// GetResult returns the wizard result
+func (v *WizardView) GetResult() *WizardResult {
+	return v.result
+}

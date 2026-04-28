@@ -97,6 +97,24 @@ Conflict detection for transaction scheduling — identifies read/write conflict
 - Transaction building and signing with Ed25519
 - RPC client integration for blockchain communication
 
+**Wallet Application** (`cmd/wallet/main.go`):
+- Command-line interface with flags for wallet path and RPC URL
+- Automatic wallet detection and initialization
+- Wallet Creation Wizard for first-time setup
+- Password-based authentication
+- Integration with Bubble Tea TUI framework
+- Graceful error handling and user feedback
+
+**Wallet Creation Wizard** (`cmd/wallet/ui/wizard.go`):
+- Interactive multi-step wizard for wallet setup
+- Create new wallet or restore from seed phrase
+- Seed phrase length selection (12 or 24 words)
+- Secure seed phrase display (shown only once)
+- Seed phrase confirmation flow
+- Password strength validation
+- Password confirmation with mismatch detection
+- Automatic wallet encryption and persistence
+
 **Transaction Building** (`cmd/wallet/core/transaction.go`):
 - BuildTransferTransaction: Creates and signs transfer transactions
 - SerializeTransaction: Marshals transactions for RPC submission
@@ -114,9 +132,10 @@ Conflict detection for transaction scheduling — identifies read/write conflict
 
 **Configuration:**
 - Default RPC endpoint: `http://localhost:8899`
+- Default wallet path: `~/.poh-wallet/wallet.dat`
 - Auto-lock timeout: 5 minutes
 - Theme: neon
-- Wallet path: `~/.poh-wallet/wallet.dat` (configurable)
+- Configurable via command-line flags
 
 **Test Coverage:**
 - ✅ 36 wallet core tests (mnemonic, derivation, encryption, wallet management)

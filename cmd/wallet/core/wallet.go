@@ -121,6 +121,11 @@ func (w *Wallet) GetActiveAccount() *Account {
 	return w.accounts[w.activeIndex]
 }
 
+// GetActiveAccountIndex returns the index of the currently active account
+func (w *Wallet) GetActiveAccountIndex() int {
+	return w.activeIndex
+}
+
 // SetActiveAccount sets the active account by index
 func (w *Wallet) SetActiveAccount(index int) error {
 	if index < 0 || index >= len(w.accounts) {

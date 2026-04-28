@@ -170,6 +170,39 @@ go run cmd/main.go help
 
 See [docs/guides/cli-usage.md](docs/guides/cli-usage.md) for detailed CLI documentation.
 
+### Neon Wallet (TUI)
+
+The Neon Wallet provides a modern Terminal User Interface for managing accounts, viewing transaction history, and executing transfers:
+
+```bash
+# Build the wallet
+go build -o bin/neon-wallet ./cmd/wallet
+
+# Start with default settings
+./bin/neon-wallet
+
+# Custom wallet path and RPC endpoint
+./bin/neon-wallet --wallet-path ./my-wallet.dat --rpc-url http://localhost:9000
+```
+
+**Features:**
+- BIP39 seed phrase generation (12 or 24 words)
+- BIP44 key derivation for Ed25519
+- AES-256-GCM wallet encryption
+- Multi-seed phrase management
+- Transaction building and signing
+- RPC client integration
+- Modern TUI with Bubble Tea framework
+
+**First-Time Setup:**
+When you run the wallet for the first time, the Wallet Creation Wizard guides you through:
+1. Creating a new wallet or restoring from seed phrase
+2. Choosing seed phrase length (12 or 24 words)
+3. Securely displaying your seed phrase (only shown once!)
+4. Setting a strong password to encrypt your wallet
+
+See [docs/guides/wallet-usage.md](docs/guides/wallet-usage.md) for complete wallet documentation.
+
 ### Storage Cost Calculator
 
 Calculate the storage cost for any file before deploying it to the blockchain:
