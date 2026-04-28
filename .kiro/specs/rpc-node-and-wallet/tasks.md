@@ -146,31 +146,34 @@
     - Add `GetAccountBySeedPhraseIndex` method
     - _Requirements: 5.3, 5.5_
 
-- [ ] 10. Implement RPC client for wallet
-  - [ ] 10.1 Create RPC client with HTTP transport
+- [x] 10. Implement RPC client for wallet
+  - [x] 10.1 Create RPC client with HTTP transport
     - Implement `RPCClient` struct with http.Client
     - Implement JSON-RPC request building with auto-incrementing IDs
     - Add request timeout handling (10 seconds)
+    - Add comprehensive unit tests for client functionality
     - _Requirements: 11.3, 12.1_
   
-  - [ ] 10.2 Implement RPC client methods
+  - [x] 10.2 Implement RPC client methods
     - Implement `GetBalance` method
     - Implement `GetAccountInfo` method
     - Implement `GetTransactionHistory` method
     - Implement `SendTransaction` method
     - Implement `GetTransactionStatus` method
     - Implement `GetBlockHeight` method
+    - Add unit tests for all RPC methods with mock server
+    - Test error handling (timeouts, invalid responses, RPC errors)
     - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.3_
 
-- [ ] 11. Implement transaction building and signing in wallet
-  - [ ] 11.1 Implement transfer transaction builder
+- [x] 11. Implement transaction building and signing in wallet
+  - [x] 11.1 Implement transfer transaction builder
     - Create `TransferRequest` structure
     - Implement `BuildTransferTransaction` using transaction.Builder
     - Add transfer instruction with proper input declarations
     - Sign transaction with active account's private key
     - _Requirements: 7.1, 7.2, 7.3_
   
-  - [ ] 11.2 Implement transaction submission flow
+  - [x] 11.2 Implement transaction submission flow
     - Serialize signed transaction for RPC submission
     - Handle submission errors with user-friendly messages
     - Update account balance after successful transfer

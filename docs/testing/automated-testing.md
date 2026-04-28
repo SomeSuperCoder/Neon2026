@@ -642,6 +642,46 @@ go test -cover ./internal/rpc/...
 - Transaction parameter validation (missing, invalid base64, malformed)
 - Signature verification with corrupted signatures
 
+### Wallet RPC Client Tests
+
+The wallet RPC client includes comprehensive unit tests with mock server:
+
+**Test Coverage:**
+- Client creation and configuration
+- Request building with auto-incrementing IDs
+- HTTP request/response handling
+- Timeout handling (15s delay test)
+- Successful RPC calls with mock server
+- RPC error handling
+- Invalid endpoint handling
+- Invalid JSON response handling
+- All RPC methods (GetBalance, GetAccountInfo, GetTransactionHistory, SendTransaction, GetTransactionStatus, GetBlockHeight)
+
+**Running Wallet RPC Client Tests:**
+```bash
+# Run wallet RPC client tests
+go test ./cmd/wallet/rpc/...
+
+# Run with verbose output
+go test -v ./cmd/wallet/rpc/...
+
+# Run with coverage
+go test -cover ./cmd/wallet/rpc/...
+```
+
+**Test Files:**
+- `cmd/wallet/rpc/client_test.go` - RPC client tests (14 test cases)
+
+**Key Test Cases:**
+- Client initialization with correct timeout and configuration
+- Auto-incrementing request IDs across multiple requests
+- Request timeout handling with delayed server response
+- Successful RPC call with proper JSON-RPC formatting
+- RPC error response handling with error code extraction
+- Network error handling (invalid endpoint)
+- Invalid JSON response handling
+- All public RPC methods with mock server responses
+
 ---
 
 ## Summary

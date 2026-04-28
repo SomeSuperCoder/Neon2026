@@ -377,8 +377,8 @@ This project is under active development. See `.kiro/specs/` for feature specifi
   - ✅ BIP39 mnemonic generation and validation
   - ✅ BIP44 key derivation for Ed25519
   - ✅ AES-256-GCM wallet encryption
-  - 🚧 Multi-account management (in progress)
-  - 🚧 RPC client for wallet (in progress)
+  - ✅ Multi-seed phrase management (import multiple independent seed phrases)
+  - ✅ RPC client for wallet (JSON-RPC 2.0 client with comprehensive error handling)
   - 🚧 Transaction building and signing (in progress)
   - 🚧 TUI with Bubble Tea framework (in progress)
 

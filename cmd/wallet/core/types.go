@@ -57,14 +57,18 @@ func (e *WalletError) Error() string {
 
 // Error codes
 const (
-	ErrInvalidSeedPhrase   = "INVALID_SEED_PHRASE"
-	ErrDuplicateSeedPhrase = "DUPLICATE_SEED_PHRASE"
-	ErrWalletLocked        = "WALLET_LOCKED"
-	ErrInvalidPassword     = "INVALID_PASSWORD"
-	ErrAccountNotFound     = "ACCOUNT_NOT_FOUND"
-	ErrInsufficientFunds   = "INSUFFICIENT_FUNDS"
-	ErrRPCConnection       = "RPC_CONNECTION_ERROR"
-	ErrTransactionFailed   = "TRANSACTION_FAILED"
-	ErrEncryptionFailed    = "ENCRYPTION_FAILED"
-	ErrDecryptionFailed    = "DECRYPTION_FAILED"
+	ErrInvalidSeedPhrase       = "INVALID_SEED_PHRASE"
+	ErrDuplicateSeedPhrase     = "DUPLICATE_SEED_PHRASE"
+	ErrWalletLocked            = "WALLET_LOCKED"
+	ErrInvalidPassword         = "INVALID_PASSWORD"
+	ErrAccountNotFound         = "ACCOUNT_NOT_FOUND"
+	ErrInsufficientFunds       = "INSUFFICIENT_FUNDS"
+	ErrRPCConnection           = "RPC_CONNECTION_ERROR"
+	ErrTransactionFailed       = "TRANSACTION_FAILED"
+	ErrEncryptionFailed        = "ENCRYPTION_FAILED"
+	ErrDecryptionFailed        = "DECRYPTION_FAILED"
+	ErrInvalidAmount           = "INVALID_AMOUNT"
+	ErrInvalidAddress          = "INVALID_ADDRESS"
+	ErrTransactionBuildFailed  = "TRANSACTION_BUILD_FAILED"
+	ErrTransactionSubmitFailed = "TRANSACTION_SUBMIT_FAILED"
 )

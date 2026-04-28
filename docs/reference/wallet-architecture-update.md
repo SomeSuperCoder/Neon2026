@@ -249,6 +249,165 @@ Possible future additions:
 3. **Seed Phrase Removal**: Allow removing imported seed phrases (with confirmation)
 4. **Seed Phrase Metadata**: Store additional metadata per seed phrase (source, import date, etc.)
 
+## RPC Client Integration
+
+### Overview
+
+The wallet includes a JSON-RPC 2.0 client (`cmd/wallet/rpc/client.go`) for communicating with the blockchain RPC node. This client provides a clean, type-safe interface for all blockchain operations.
+
+### RPC Client Structure
+
+```go
+type RPCClient struct {
+    endpoint   string
+    httpClient *http.Client
+    requestID  uint64  // Auto-incrementing request ID
+}
+```
+
+**Features:**
+- 10-second request timeout
+- Auto-incrementing request IDs for tracking
+- Automatic JSON-RPC 2.0 request/response handling
+- Type-safe method interfaces
+- Comprehensive error handling
+
+### Available Methods
+
+1. **GetBalance(address string) (int64, error)**
+   - Retrieves account balance in electrons
+   - Returns 0 for non-existent accounts
+
+2. **GetAccountInfo(address string) (*rpc.AccountInfo, error)**
+   - Returns full account information (balance, owner, data length, executable status)
+   - Returns nil for non-existent accounts
+
+3. **GetTransactionHistory(address string, limit int) ([]rpc.TransactionRecord, error)**
+   - Retrieves transaction history with pagination
+   - Returns transactions in reverse chronological order
+   - Default limit: 20 transactions
+
+4. **SendTransaction(txData []byte) (string, error)**
+   - Submits a signed transaction to the blockchain
+   - Returns transaction signature on success
+   - Handles signature verification errors
+
+5. **GetTransactionStatus(signature string) (*rpc.TransactionStatus, error)**
+   - Checks transaction confirmation status
+   - Returns block height and slot if confirmed
+
+6. **GetBlockHeight() (int64, error)**
+   - Returns current blockchain height
+
+### Error Handling
+
+The client includes a custom `RPCError` type that wraps RPC errors:
+
+```go
+type RPCError struct {
+    Code    int
+    Message string
+    Data    interface{}
+}
+```
+
+**Common Error Codes:**
+- `-32700`: Parse error (invalid JSON)
+- `-32600`: Invalid request
+- `-32601`: Method not found
+- `-32602`: Invalid params
+- `-32001`: Invalid signature
+- `-32002`: Malformed transaction
+- `-32003`: Insufficient balance
+
+### Usage Example
+
+```go
+// Create RPC client
+client := rpc.NewRPCClient("http://localhost:8899")
+
+// Query balance
+balance, err := client.GetBalance(address)
+if err != nil {
+    // Handle error
+}
+
+// Get account info
+info, err := client.GetAccountInfo(address)
+if err != nil {
+    // Handle error
+}
+
+// Send transaction
+signature, err := client.SendTransaction(txBytes)
+if err != nil {
+    if rpcErr, ok := err.(*rpc.RPCError); ok {
+        // Handle specific RPC error
+        switch rpcErr.Code {
+        case -32001:
+            // Invalid signature
+        case -32003:
+            // Insufficient balance
+        }
+    }
+}
+```
+
+### Test Coverage
+
+The RPC client includes comprehensive unit tests (`cmd/wallet/rpc/client_test.go`):
+
+**Test Cases:**
+- Client creation and configuration
+- Request building with auto-incrementing IDs
+- HTTP request/response handling
+- Timeout handling (15s delay test)
+- Successful RPC calls with mock server
+- RPC error handling
+- Invalid endpoint handling
+- Invalid JSON response handling
+- All RPC methods with various parameters
+
+**Test Results:**
+```
+✓ TestNewRPCClient
+✓ TestRPCClient_BuildRequest
+✓ TestRPCClient_AutoIncrementingID
+✓ TestRPCClient_RequestTimeout
+✓ TestRPCClient_Call_Success
+✓ TestRPCClient_Call_RPCError
+✓ TestRPCClient_Call_InvalidEndpoint
+✓ TestRPCClient_Call_InvalidJSON
+Total: 8 tests passing
+```
+
+### Integration with Wallet
+
+The RPC client will be integrated into the wallet for:
+- **Balance Refresh**: `RefreshBalances()` will use `GetBalance()` for all accounts
+- **Transaction History**: History view will use `GetTransactionHistory()`
+- **Transfer Operations**: Transfer flow will use `SendTransaction()`
+- **Transaction Status**: Status tracking will use `GetTransactionStatus()`
+- **Block Height Display**: Dashboard will use `GetBlockHeight()`
+
+### Configuration
+
+The RPC endpoint is configurable via:
+1. Wallet configuration file (default: `http://localhost:8899`)
+2. Command-line flag: `--rpc-url`
+3. Environment variable: `POH_WALLET_RPC_ENDPOINT`
+
+### Future Enhancements
+
+Possible improvements:
+1. **Connection Pooling**: Reuse HTTP connections for better performance
+2. **Retry Logic**: Automatic retry with exponential backoff
+3. **Batch Requests**: Support JSON-RPC batch requests for multiple queries
+4. **WebSocket Support**: Real-time updates via WebSocket connection
+5. **Request Caching**: Cache frequently accessed data (block height, account info)
+
 ## Summary
 
 The multi-seed phrase architecture provides greater flexibility and security by allowing users to import and manage multiple independent seed phrases. Each seed phrase generates exactly one account at derivation index 0, making the wallet compatible with seed phrases from other sources while maintaining strong security boundaries between accounts.
+
+The integrated RPC client provides a robust, type-safe interface for all blockchain operations, with comprehensive error handling and test coverage. This foundation enables the wallet to interact seamlessly with the blockchain for balance queries, transaction submission, and history retrieval.
