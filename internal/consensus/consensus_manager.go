@@ -628,6 +628,11 @@ func (cm *ConsensusManager) ShouldProduceBlock(slot int64) bool {
 	return cm.IsLeader(slot)
 }
 
+// GetLocalValidatorID returns the local validator's FileID
+func (cm *ConsensusManager) GetLocalValidatorID() filestore.FileID {
+	return cm.localValidatorID
+}
+
 // WaitForBlockOrTimeout waits for a block to be received within the specified timeout
 // Returns true if a block was received, false if timeout occurred
 // This is used to implement the 200ms wait logic for scheduled validator blocks
@@ -636,4 +641,163 @@ func (cm *ConsensusManager) WaitForBlockOrTimeout(slot int64, timeoutMs int64) b
 	// integrate with the network layer to wait for block reception
 	// For now, we'll simulate that no block is received (timeout)
 	return false
+}
+
+// RecordBlockProduction increments the blocksProducedThisEpoch counter in a validator's Validator Record
+// Requirement 8.4
+func (cm *ConsensusManager) RecordBlockProduction(validatorID filestore.FileID) error {
+	if cm.fileStore == nil {
+		return fmt.Errorf("fileStore not initialized")
+	}
+
+	// Get the validator record
+	validatorFile, err := cm.fileStore.GetFile(validatorID)
+	if err != nil {
+		return fmt.Errorf("failed to get validator record: %w", err)
+	}
+
+	// Deserialize validator record
+	pubkey, commission, totalStake, status, blocksProduced, missedBlocks, slashedThisEpoch, err := quanticscript.DeserializeValidatorRecord(validatorFile.Data)
+	if err != nil {
+		return fmt.Errorf("failed to deserialize validator record: %w", err)
+	}
+
+	// Increment blocks produced counter
+	blocksProduced++
+
+	// Serialize updated validator record
+	updatedData, err := quanticscript.SerializeValidatorRecord(
+		pubkey,
+		commission,
+		totalStake,
+		status,
+		blocksProduced,
+		missedBlocks,
+		slashedThisEpoch,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to serialize validator record: %w", err)
+	}
+
+	// Update the file
+	validatorFile.Data = updatedData
+	if err := cm.fileStore.UpdateFile(validatorID, validatorFile); err != nil {
+		return fmt.Errorf("failed to update validator record: %w", err)
+	}
+
+	log.Printf("consensus: recorded block production for validator %s (total blocks: %d)",
+		validatorID.String(), blocksProduced)
+
+	return nil
+}
+
+// ResetBlockProductionCounter resets the blocksProducedThisEpoch counter to zero for a single validator
+// Called at epoch boundaries
+// Requirement 8.4
+func (cm *ConsensusManager) ResetBlockProductionCounter(validatorID filestore.FileID) error {
+	if cm.fileStore == nil {
+		return fmt.Errorf("fileStore not initialized")
+	}
+
+	// Get the validator record
+	validatorFile, err := cm.fileStore.GetFile(validatorID)
+	if err != nil {
+		return fmt.Errorf("failed to get validator record: %w", err)
+	}
+
+	// Deserialize validator record
+	pubkey, commission, totalStake, status, _, missedBlocks, slashedThisEpoch, err := quanticscript.DeserializeValidatorRecord(validatorFile.Data)
+	if err != nil {
+		return fmt.Errorf("failed to deserialize validator record: %w", err)
+	}
+
+	// Reset blocks produced counter to zero
+	blocksProduced := int64(0)
+
+	// Serialize updated validator record
+	updatedData, err := quanticscript.SerializeValidatorRecord(
+		pubkey,
+		commission,
+		totalStake,
+		status,
+		blocksProduced,
+		missedBlocks,
+		slashedThisEpoch,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to serialize validator record: %w", err)
+	}
+
+	// Update the file
+	validatorFile.Data = updatedData
+	if err := cm.fileStore.UpdateFile(validatorID, validatorFile); err != nil {
+		return fmt.Errorf("failed to update validator record: %w", err)
+	}
+
+	return nil
+}
+
+// ResetAllBlockProductionCounters resets the blocksProducedThisEpoch counter to zero for all validators
+// Called at epoch boundaries
+// Requirement 8.4
+func (cm *ConsensusManager) ResetAllBlockProductionCounters() error {
+	if cm.fileStore == nil {
+		return fmt.Errorf("fileStore not initialized")
+	}
+
+	// Get all file IDs from the FileStore
+	allFileIDs, err := cm.fileStore.GetAllFileIDs()
+	if err != nil {
+		return fmt.Errorf("failed to get all file IDs: %w", err)
+	}
+
+	// Iterate through all files and reset block production counters for Validator Records
+	for _, fileID := range allFileIDs {
+		// Try to get the file
+		file, err := cm.fileStore.GetFile(fileID)
+		if err != nil {
+			continue // Skip files that can't be read
+		}
+
+		// Check if this is a Validator Record by attempting to deserialize it
+		// Validator Records are exactly 66 bytes
+		if len(file.Data) != 66 {
+			continue
+		}
+
+		// Try to deserialize as a Validator Record
+		pubkey, commission, totalStake, status, _, missedBlocks, slashedThisEpoch, err := quanticscript.DeserializeValidatorRecord(file.Data)
+		if err != nil {
+			continue // Not a valid Validator Record
+		}
+
+		// Reset blocks produced counter to zero
+		blocksProduced := int64(0)
+
+		// Serialize updated validator record
+		updatedData, err := quanticscript.SerializeValidatorRecord(
+			pubkey,
+			commission,
+			totalStake,
+			status,
+			blocksProduced,
+			missedBlocks,
+			slashedThisEpoch,
+		)
+		if err != nil {
+			log.Printf("consensus: warning - failed to serialize validator record %s: %v", fileID.String(), err)
+			continue
+		}
+
+		// Update the file
+		file.Data = updatedData
+		if err := cm.fileStore.UpdateFile(fileID, file); err != nil {
+			log.Printf("consensus: warning - failed to update validator record %s: %v", fileID.String(), err)
+			continue
+		}
+	}
+
+	log.Printf("consensus: reset block production counters for all validators at epoch boundary")
+
+	return nil
 }

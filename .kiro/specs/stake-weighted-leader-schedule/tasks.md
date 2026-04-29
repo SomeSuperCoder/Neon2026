@@ -140,36 +140,36 @@
   - Test keypair selection prompt with multiple keypairs
   - _Requirements: 1.1, 1.2, 1.4, 1.6_
 
-- [ ] 9. Remove all static leader/replica logic from codebase
+- [x] 9. Remove all static leader/replica logic from codebase
   - Remove `network.NodeType` enum from `internal/network/network_node.go`
   - Remove all references to `LEADER`, `REPLICA`, `OBSERVER` constants
   - Remove `--type` flag from `cmd/main.go`
   - Search codebase for "leader node", "replica node", "node type" and remove/refactor
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.6_
 
-- [ ] 9.1 Add migration error messages for deprecated flags
+- [x] 9.1 Add migration error messages for deprecated flags
   - When `--type=leader` is used, print error: "Error: --type flag is deprecated. Use --wallet <name> instead. Create a wallet with: poh-blockchain wallet create --name <name>"
   - When `--type=replica` is used, print error: "Error: --type flag is deprecated. Use --wallet <name> for validation, or omit for observer mode."
   - Exit with non-zero code
   - _Requirements: 10.1, 10.2, 10.3_
 
-- [ ] 9.2 Write tests for migration error messages
+- [x] 9.2 Write tests for migration error messages
   - Test `--type=leader` flag is rejected with correct error message
   - Test `--type=replica` flag is rejected with correct error message
   - _Requirements: 10.1, 10.2_
 
-- [ ] 10. Update all integration tests to use wallet-based identity
+- [x] 10. Update all integration tests to use wallet-based identity
   - Update `internal/builtin_programs_integration_test.go` to create test wallets instead of using node types
   - Update `internal/staking_integration_test.go` to use wallet-based validators
   - Update all other integration tests that reference `network.LEADER` or `network.REPLICA`
   - _Requirements: 7.5_
 
-- [ ] 11. Implement block production counter increment
+- [x] 11. Implement block production counter increment
   - When a validator produces a block, increment `blocksProducedThisEpoch` in the validator's Validator Record
   - Ensure counter is reset to zero at epoch boundaries
   - _Requirements: 8.4_
 
-- [ ] 11.1 Write unit tests for block production counter
+- [x] 11.1 Write unit tests for block production counter
   - Test counter increments when validator produces block
   - Test counter resets at epoch boundary
   - _Requirements: 8.4_

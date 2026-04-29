@@ -11,19 +11,10 @@ import (
 	"github.com/poh-blockchain/internal/blockchain"
 )
 
-// NodeType represents the type of node in the network
-type NodeType int
-
-const (
-	LEADER NodeType = iota
-	REPLICA
-)
-
 // NetworkNode handles peer-to-peer communication between nodes
 type NetworkNode struct {
 	host         string
 	port         int
-	nodeType     NodeType
 	connections  []*net.Conn
 	listener     net.Listener
 	messageQueue chan []byte
@@ -32,11 +23,10 @@ type NetworkNode struct {
 }
 
 // NewNetworkNode creates a new network node instance
-func NewNetworkNode(host string, port int, nodeType NodeType) *NetworkNode {
+func NewNetworkNode(host string, port int) *NetworkNode {
 	return &NetworkNode{
 		host:         host,
 		port:         port,
-		nodeType:     nodeType,
 		connections:  make([]*net.Conn, 0),
 		messageQueue: make(chan []byte, 100),
 		stopChan:     make(chan struct{}),

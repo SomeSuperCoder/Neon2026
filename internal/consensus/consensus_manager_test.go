@@ -1874,3 +1874,287 @@ func TestSlotSkipLogic(t *testing.T) {
 		t.Errorf("expected validator2 missed counter=0, got %d", missedCounters[1])
 	}
 }
+
+// TestRecordBlockProductionIncrementsValidatorRecord tests that block production counter increments in Validator Record
+func TestRecordBlockProductionIncrementsValidatorRecord(t *testing.T) {
+	// Create a temporary FileStore
+	tmpDir := t.TempDir()
+	fs, err := filestore.NewFileStore(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to create FileStore: %v", err)
+	}
+	defer fs.Close()
+
+	// Create ConsensusManager
+	config := GenesisConfig{
+		EpochLength: 100,
+		GenesisValidators: []GenesisValidator{
+			{
+				PublicKey:   [32]byte{1},
+				StakeAmount: 1000000,
+			},
+		},
+	}
+
+	pk := [32]byte{1}
+	validatorID := filestore.GenerateFileID(append([]byte("validator:"), pk[:]...))
+	cm := NewConsensusManagerWithGenesis(validatorID, nil, config)
+	cm.SetFileStore(fs)
+
+	// Create test validator record
+	pk1 := [32]byte{1, 2, 3}
+	validator1ID := filestore.GenerateFileID(append([]byte("validator:"), pk1[:]...))
+
+	validator1Data, err := quanticscript.SerializeValidatorRecord(
+		pk1[:],
+		0,       // commission
+		2000000, // totalStake (2 Neon)
+		1,       // status (active)
+		0,       // blocksProduced (initial)
+		0,       // missedBlocks
+		0,       // slashedThisEpoch
+	)
+	if err != nil {
+		t.Fatalf("failed to serialize validator1: %v", err)
+	}
+
+	storageCost := filestore.CalculateStorageCost(int64(len(validator1Data)))
+	validator1File := &filestore.File{
+		ID:        validator1ID,
+		Balance:   storageCost + 1000,
+		TxManager: filestore.FileID{},
+		Data:      validator1Data,
+	}
+	_, err = fs.CreateFile(validator1File)
+	if err != nil {
+		t.Fatalf("failed to create validator1 file: %v", err)
+	}
+
+	// Record a block production
+	err = cm.RecordBlockProduction(validator1ID)
+	if err != nil {
+		t.Fatalf("RecordBlockProduction failed: %v", err)
+	}
+
+	// Verify block production counter was incremented in Validator Record
+	updatedValidatorFile, err := fs.GetFile(validator1ID)
+	if err != nil {
+		t.Fatalf("failed to get updated validator file: %v", err)
+	}
+
+	_, _, _, _, blocksProduced, _, _, err := quanticscript.DeserializeValidatorRecord(updatedValidatorFile.Data)
+	if err != nil {
+		t.Fatalf("failed to deserialize validator record: %v", err)
+	}
+
+	if blocksProduced != 1 {
+		t.Errorf("expected blocksProduced=1 after first block, got %d", blocksProduced)
+	}
+
+	// Record another block production
+	err = cm.RecordBlockProduction(validator1ID)
+	if err != nil {
+		t.Fatalf("RecordBlockProduction failed on second call: %v", err)
+	}
+
+	// Verify counter incremented again
+	updatedValidatorFile, err = fs.GetFile(validator1ID)
+	if err != nil {
+		t.Fatalf("failed to get updated validator file: %v", err)
+	}
+
+	_, _, _, _, blocksProduced, _, _, err = quanticscript.DeserializeValidatorRecord(updatedValidatorFile.Data)
+	if err != nil {
+		t.Fatalf("failed to deserialize validator record: %v", err)
+	}
+
+	if blocksProduced != 2 {
+		t.Errorf("expected blocksProduced=2 after second block, got %d", blocksProduced)
+	}
+}
+
+// TestBlockProductionCounterResetAtEpochBoundary tests that block production counter resets at epoch boundary
+func TestBlockProductionCounterResetAtEpochBoundary(t *testing.T) {
+	// Create a temporary FileStore
+	tmpDir := t.TempDir()
+	fs, err := filestore.NewFileStore(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to create FileStore: %v", err)
+	}
+	defer fs.Close()
+
+	// Create ConsensusManager
+	config := GenesisConfig{
+		EpochLength: 100,
+		GenesisValidators: []GenesisValidator{
+			{
+				PublicKey:   [32]byte{1},
+				StakeAmount: 1000000,
+			},
+		},
+	}
+
+	pk := [32]byte{1}
+	validatorID := filestore.GenerateFileID(append([]byte("validator:"), pk[:]...))
+	cm := NewConsensusManagerWithGenesis(validatorID, nil, config)
+	cm.SetFileStore(fs)
+
+	// Create test validator record
+	pk1 := [32]byte{1, 2, 3}
+	validator1ID := filestore.GenerateFileID(append([]byte("validator:"), pk1[:]...))
+
+	validator1Data, err := quanticscript.SerializeValidatorRecord(
+		pk1[:],
+		0,       // commission
+		2000000, // totalStake (2 Neon)
+		1,       // status (active)
+		5,       // blocksProduced (from previous epoch)
+		0,       // missedBlocks
+		0,       // slashedThisEpoch
+	)
+	if err != nil {
+		t.Fatalf("failed to serialize validator1: %v", err)
+	}
+
+	storageCost := filestore.CalculateStorageCost(int64(len(validator1Data)))
+	validator1File := &filestore.File{
+		ID:        validator1ID,
+		Balance:   storageCost + 1000,
+		TxManager: filestore.FileID{},
+		Data:      validator1Data,
+	}
+	_, err = fs.CreateFile(validator1File)
+	if err != nil {
+		t.Fatalf("failed to create validator1 file: %v", err)
+	}
+
+	// Reset block production counter at epoch boundary
+	err = cm.ResetBlockProductionCounter(validator1ID)
+	if err != nil {
+		t.Fatalf("ResetBlockProductionCounter failed: %v", err)
+	}
+
+	// Verify block production counter was reset to zero
+	updatedValidatorFile, err := fs.GetFile(validator1ID)
+	if err != nil {
+		t.Fatalf("failed to get updated validator file: %v", err)
+	}
+
+	_, _, _, _, blocksProduced, _, _, err := quanticscript.DeserializeValidatorRecord(updatedValidatorFile.Data)
+	if err != nil {
+		t.Fatalf("failed to deserialize validator record: %v", err)
+	}
+
+	if blocksProduced != 0 {
+		t.Errorf("expected blocksProduced=0 after reset, got %d", blocksProduced)
+	}
+}
+
+// TestResetAllBlockProductionCountersAtEpochBoundary tests resetting all validators' block production counters at epoch boundary
+func TestResetAllBlockProductionCountersAtEpochBoundary(t *testing.T) {
+	// Create a temporary FileStore
+	tmpDir := t.TempDir()
+	fs, err := filestore.NewFileStore(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to create FileStore: %v", err)
+	}
+	defer fs.Close()
+
+	// Create ConsensusManager
+	config := GenesisConfig{
+		EpochLength: 100,
+		GenesisValidators: []GenesisValidator{
+			{
+				PublicKey:   [32]byte{1},
+				StakeAmount: 1000000,
+			},
+		},
+	}
+
+	pk := [32]byte{1}
+	validatorID := filestore.GenerateFileID(append([]byte("validator:"), pk[:]...))
+	cm := NewConsensusManagerWithGenesis(validatorID, nil, config)
+	cm.SetFileStore(fs)
+
+	// Create test validator records with non-zero block production counters
+	pk1 := [32]byte{1, 2, 3}
+	pk2 := [32]byte{4, 5, 6}
+	pk3 := [32]byte{7, 8, 9}
+	validator1ID := filestore.GenerateFileID(append([]byte("validator:"), pk1[:]...))
+	validator2ID := filestore.GenerateFileID(append([]byte("validator:"), pk2[:]...))
+	validator3ID := filestore.GenerateFileID(append([]byte("validator:"), pk3[:]...))
+
+	// Create validator 1 with 5 blocks produced
+	validator1Data, err := quanticscript.SerializeValidatorRecord(
+		pk1[:], 0, 2000000, 1, 5, 0, 0,
+	)
+	if err != nil {
+		t.Fatalf("failed to serialize validator1: %v", err)
+	}
+
+	storageCost := filestore.CalculateStorageCost(int64(len(validator1Data)))
+	validator1File := &filestore.File{
+		ID: validator1ID, Balance: storageCost + 1000, TxManager: filestore.FileID{}, Data: validator1Data,
+	}
+	_, err = fs.CreateFile(validator1File)
+	if err != nil {
+		t.Fatalf("failed to create validator1 file: %v", err)
+	}
+
+	// Create validator 2 with 3 blocks produced
+	validator2Data, err := quanticscript.SerializeValidatorRecord(
+		pk2[:], 0, 3000000, 1, 3, 0, 0,
+	)
+	if err != nil {
+		t.Fatalf("failed to serialize validator2: %v", err)
+	}
+
+	storageCost = filestore.CalculateStorageCost(int64(len(validator2Data)))
+	validator2File := &filestore.File{
+		ID: validator2ID, Balance: storageCost + 1000, TxManager: filestore.FileID{}, Data: validator2Data,
+	}
+	_, err = fs.CreateFile(validator2File)
+	if err != nil {
+		t.Fatalf("failed to create validator2 file: %v", err)
+	}
+
+	// Create validator 3 with 7 blocks produced
+	validator3Data, err := quanticscript.SerializeValidatorRecord(
+		pk3[:], 0, 1000000, 1, 7, 0, 0,
+	)
+	if err != nil {
+		t.Fatalf("failed to serialize validator3: %v", err)
+	}
+
+	storageCost = filestore.CalculateStorageCost(int64(len(validator3Data)))
+	validator3File := &filestore.File{
+		ID: validator3ID, Balance: storageCost + 1000, TxManager: filestore.FileID{}, Data: validator3Data,
+	}
+	_, err = fs.CreateFile(validator3File)
+	if err != nil {
+		t.Fatalf("failed to create validator3 file: %v", err)
+	}
+
+	// Reset all block production counters
+	err = cm.ResetAllBlockProductionCounters()
+	if err != nil {
+		t.Fatalf("ResetAllBlockProductionCounters failed: %v", err)
+	}
+
+	// Verify all counters were reset to zero
+	for _, validatorID := range []filestore.FileID{validator1ID, validator2ID, validator3ID} {
+		updatedValidatorFile, err := fs.GetFile(validatorID)
+		if err != nil {
+			t.Fatalf("failed to get updated validator file: %v", err)
+		}
+
+		_, _, _, _, blocksProduced, _, _, err := quanticscript.DeserializeValidatorRecord(updatedValidatorFile.Data)
+		if err != nil {
+			t.Fatalf("failed to deserialize validator record: %v", err)
+		}
+
+		if blocksProduced != 0 {
+			t.Errorf("expected blocksProduced=0 after reset for validator %s, got %d", validatorID.String(), blocksProduced)
+		}
+	}
+}

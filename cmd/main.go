@@ -81,24 +81,6 @@ func main() {
 		}
 	}
 
-	// Determine node type for backward compatibility (will be removed in future)
-	var nodeType network.NodeType
-	if *walletName != "" {
-		nodeType = network.LEADER
-		if *malicious {
-			log.Println("Starting node as MALICIOUS LEADER")
-		} else {
-			log.Println("Starting node as LEADER")
-		}
-	} else {
-		nodeType = network.REPLICA
-		if *malicious {
-			log.Println("Starting node as MALICIOUS REPLICA")
-		} else {
-			log.Println("Starting node as REPLICA")
-		}
-	}
-
 	// Initialize PoH Clock with genesis seed
 	log.Println("Initializing PoH Clock...")
 	pohClock := poh.NewPohClock([]byte("genesis-seed"))
@@ -109,7 +91,7 @@ func main() {
 
 	// Initialize Network Node
 	log.Printf("Initializing Network Node on port %d...\n", *port)
-	networkNode := network.NewNetworkNode("0.0.0.0", *port, nodeType)
+	networkNode := network.NewNetworkNode("0.0.0.0", *port)
 
 	// Start network node
 	if err := networkNode.Start(); err != nil {
@@ -226,14 +208,20 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start node logic based on type
+	// Start node logic based on validator identity
 	stopChan := make(chan struct{})
 
-	if nodeType == network.LEADER {
-		log.Println("Starting leader node logic...")
+	if localValidatorID != (filestore.FileID{}) {
+		// Node is configured as a validator
+		if *malicious {
+			log.Println("Starting node as MALICIOUS VALIDATOR")
+		} else {
+			log.Println("Starting node as VALIDATOR")
+		}
 		go runLeaderNode(consensusManager, blockProducer, networkNode, ledger, chainHeight, *malicious, stopChan)
 	} else {
-		log.Println("Starting replica node logic...")
+		// Node is in observer mode
+		log.Println("Starting node in OBSERVER mode")
 		go runReplicaNode(consensusManager, verifier, networkNode, ledger, *malicious, stopChan)
 	}
 
@@ -329,6 +317,12 @@ func runLeaderNode(cm *consensus.ConsensusManager, bp *blockchain.BlockProducer,
 						continue
 					}
 					log.Printf("Leader node: Block stored to ledger - height=%d\n", block.Header.BlockHeight)
+
+					// Record block production in validator record (Requirement 8.4)
+					if err := cm.RecordBlockProduction(cm.GetLocalValidatorID()); err != nil {
+						log.Printf("Leader node: Error recording block production: %v\n", err)
+						// Continue even if recording fails - block is already stored
+					}
 				} else {
 					log.Printf("MALICIOUS: Skipping storage of corrupted block %d\n", blockHeight)
 				}
@@ -359,6 +353,16 @@ func runLeaderNode(cm *consensus.ConsensusManager, bp *blockchain.BlockProducer,
 					}
 				} else {
 					log.Printf("Leader node: Block received for slot %d from scheduled validator\n", currentSlot)
+				}
+			}
+
+			// Check if we've reached an epoch boundary
+			if cm.IsEpochBoundary(currentSlot) {
+				log.Printf("Leader node: Epoch boundary reached at slot %d\n", currentSlot)
+
+				// Reset block production counters for all validators (Requirement 8.4)
+				if err := cm.ResetAllBlockProductionCounters(); err != nil {
+					log.Printf("Leader node: Error resetting block production counters: %v\n", err)
 				}
 			}
 		}

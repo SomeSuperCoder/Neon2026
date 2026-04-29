@@ -121,7 +121,7 @@ func TestLeaderReplicaCommunication(t *testing.T) {
 	defer leaderLedger.Close()
 
 	leaderConsensus := consensus.NewConsensusManager(filestore.FileID{}, nil)
-	leaderNetwork := network.NewNetworkNode("127.0.0.1", 9001, network.LEADER)
+	leaderNetwork := network.NewNetworkNode("127.0.0.1", 9001)
 	if err := leaderNetwork.Start(); err != nil {
 		t.Fatalf("Failed to start leader network: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestLeaderReplicaCommunication(t *testing.T) {
 
 	replicaConsensus := consensus.NewConsensusManager(filestore.FileID{}, nil)
 	replicaVerifier := verification.NewVerifier()
-	replicaNetwork := network.NewNetworkNode("127.0.0.1", 9002, network.REPLICA)
+	replicaNetwork := network.NewNetworkNode("127.0.0.1", 9002)
 	if err := replicaNetwork.Start(); err != nil {
 		t.Fatalf("Failed to start replica network: %v", err)
 	}
