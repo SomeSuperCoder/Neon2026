@@ -87,6 +87,7 @@ go mod download
 │   ├── processor/         # Atomic transaction processing with rollback
 │   ├── runtime/           # Program execution runtime and builtin registry
 │   ├── system/            # Go-side system program
+│   ├── wallet/            # Validator wallet (encrypted Ed25519 keypair storage)
 │   ├── genesis/           # Genesis bootstrap (loads builtin programs, initializes DPoS)
 │   ├── parallel/          # Parallel execution conflict analysis
 │   ├── rpc/               # JSON-RPC 2.0 server and query engine
@@ -202,6 +203,50 @@ When you run the wallet for the first time, the Wallet Creation Wizard guides yo
 4. Setting a strong password to encrypt your wallet
 
 See [docs/guides/wallet-usage.md](docs/guides/wallet-usage.md) for complete wallet documentation.
+
+### Validator Wallet
+
+The validator wallet system (`internal/wallet`) provides secure, encrypted storage for Ed25519 keypairs used by validator nodes for identity and block signing. This is separate from the user-facing Neon Wallet.
+
+**Features:**
+- AES-256-GCM encryption with Argon2id key derivation
+- Platform-specific secure storage (Linux/macOS/Windows)
+- Ed25519 keypair generation and management
+- Export/import for backup and migration
+- Password-protected with minimum 8-character requirement
+
+**Usage:**
+
+```go
+import "github.com/poh-blockchain/internal/wallet"
+
+// Create new validator wallet
+w, err := wallet.Create("validator1", "strong-password")
+
+// Open existing wallet
+w, err := wallet.Open("validator1", "strong-password")
+
+// List all wallets
+wallets, err := wallet.List()
+
+// Export for backup
+err := w.Export("/secure/backup.json")
+
+// Import from backup
+w, err := wallet.Import("/secure/backup.json", "validator2", "password")
+```
+
+**Node Integration:**
+
+```bash
+# Start validator with wallet identity
+./poh-blockchain --wallet validator1
+
+# Start in observer mode (no wallet)
+./poh-blockchain
+```
+
+See [docs/reference/validator-wallet.md](docs/reference/validator-wallet.md) for complete validator wallet documentation.
 
 ### Storage Cost Calculator
 

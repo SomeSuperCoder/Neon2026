@@ -8,9 +8,9 @@ import (
 	"github.com/poh-blockchain/internal/blockchain"
 	"github.com/poh-blockchain/internal/filestore"
 	"github.com/poh-blockchain/internal/genesis"
-	"github.com/poh-blockchain/internal/network"
 	"github.com/poh-blockchain/internal/quanticscript"
 	"github.com/poh-blockchain/internal/runtime"
+	"github.com/poh-blockchain/internal/wallet"
 )
 
 // GenesisValidator represents a validator in the genesis configuration.
@@ -33,9 +33,10 @@ type GenesisConfig struct {
 
 // ConsensusManager handles consensus protocol and slot timing
 type ConsensusManager struct {
-	nodeType         network.NodeType
-	slotDurationMs   int64
-	genesisTimestamp time.Time
+	localValidatorID   filestore.FileID
+	localValidatorKeys *wallet.Keypair
+	slotDurationMs     int64
+	genesisTimestamp   time.Time
 
 	// DPoS fields
 	epochLength       int64
@@ -47,26 +48,28 @@ type ConsensusManager struct {
 }
 
 // NewConsensusManager creates a new consensus manager with 400ms slot duration
-func NewConsensusManager(nodeType network.NodeType) *ConsensusManager {
+func NewConsensusManager(localValidatorID filestore.FileID, localKeys *wallet.Keypair) *ConsensusManager {
 	return &ConsensusManager{
-		nodeType:         nodeType,
-		slotDurationMs:   400,
-		genesisTimestamp: time.Now(),
-		epochLength:      432000, // default epoch length
-		currentEpoch:     0,
+		localValidatorID:   localValidatorID,
+		localValidatorKeys: localKeys,
+		slotDurationMs:     400,
+		genesisTimestamp:   time.Now(),
+		epochLength:        432000, // default epoch length
+		currentEpoch:       0,
 	}
 }
 
 // NewConsensusManagerWithGenesis creates a new consensus manager with DPoS genesis configuration
-func NewConsensusManagerWithGenesis(nodeType network.NodeType, config GenesisConfig) *ConsensusManager {
+func NewConsensusManagerWithGenesis(localValidatorID filestore.FileID, localKeys *wallet.Keypair, config GenesisConfig) *ConsensusManager {
 	return &ConsensusManager{
-		nodeType:          nodeType,
-		slotDurationMs:    400,
-		genesisTimestamp:  time.Now(),
-		epochLength:       config.EpochLength,
-		genesisValidators: config.GenesisValidators,
-		currentEpoch:      0,
-		validatorSchedule: make([]filestore.FileID, 0),
+		localValidatorID:   localValidatorID,
+		localValidatorKeys: localKeys,
+		slotDurationMs:     400,
+		genesisTimestamp:   time.Now(),
+		epochLength:        config.EpochLength,
+		genesisValidators:  config.GenesisValidators,
+		currentEpoch:       0,
+		validatorSchedule:  make([]filestore.FileID, 0),
 	}
 }
 
@@ -87,18 +90,19 @@ func (cm *ConsensusManager) WaitForSlotStart(slot int64) {
 }
 
 // IsLeader returns true if this node is the leader for the given slot
-// With DPoS, checks if the scheduled validator for this slot matches the node type
-// Requirement 3.4, 3.5
+// With stake-weighted scheduling, checks if the local validator is scheduled for this slot
+// Requirements: 3.1, 3.2, 3.3, 3.4, 3.5
 func (cm *ConsensusManager) IsLeader(slot int64) bool {
-	// If no schedule is set, fall back to node type check
-	if len(cm.validatorSchedule) == 0 {
-		return cm.nodeType == network.LEADER
+	// Observer mode: no validator identity configured
+	if cm.localValidatorID == (filestore.FileID{}) {
+		return false
 	}
 
-	// For LEADER nodes, always return true (they produce blocks when scheduled)
-	// For REPLICA nodes, always return false (they don't produce blocks)
-	// The actual scheduling is handled by GetScheduledValidator
-	return cm.nodeType == network.LEADER
+	// Get the scheduled validator for this slot
+	scheduledValidator := cm.GetScheduledValidator(slot)
+
+	// Return true if the scheduled validator matches the local validator
+	return scheduledValidator == cm.localValidatorID
 }
 
 // ValidateBlock performs basic block validation
@@ -211,16 +215,21 @@ func (cm *ConsensusManager) RecordMissedBlock(slot int64, validatorID filestore.
 		return fmt.Errorf("failed to deserialize epoch state: %w", err)
 	}
 
-	// Find the validator index in the schedule
-	validatorIndex := -1
-	for i, schedValidator := range validatorSchedule {
-		if schedValidator == validatorID {
-			validatorIndex = i
-			break
+	// Build unique validator list to find the correct index for missed block counters
+	uniqueValidators := make(map[filestore.FileID]int)
+	var orderedValidators []filestore.FileID
+
+	for _, schedValidatorBytes := range validatorSchedule {
+		schedValidatorID := filestore.FileID(schedValidatorBytes)
+		if _, exists := uniqueValidators[schedValidatorID]; !exists {
+			uniqueValidators[schedValidatorID] = len(orderedValidators)
+			orderedValidators = append(orderedValidators, schedValidatorID)
 		}
 	}
 
-	if validatorIndex >= 0 && validatorIndex < len(missedBlockCounters) {
+	// Find the validator index in the unique validator list
+	validatorIndex, exists := uniqueValidators[validatorID]
+	if exists && validatorIndex < len(missedBlockCounters) {
 		missedBlockCounters[validatorIndex]++
 	}
 
@@ -266,6 +275,55 @@ func (cm *ConsensusManager) SetValidatorSchedule(schedule []filestore.FileID) {
 // SetCurrentEpoch sets the current epoch number
 func (cm *ConsensusManager) SetCurrentEpoch(epoch int64) {
 	cm.currentEpoch = epoch
+}
+
+// enumerateActiveValidators reads all Validator Records from FileStore and filters by status=active and stake>=1,000,000 electrons
+// Returns a list of ValidatorEntry structs containing FileID and stake for each active validator
+// Requirements: 2.1, 2.2
+func (cm *ConsensusManager) enumerateActiveValidators() ([]ValidatorEntry, error) {
+	if cm.fileStore == nil {
+		return nil, fmt.Errorf("fileStore not initialized")
+	}
+
+	// Get all file IDs from the FileStore
+	allFileIDs, err := cm.fileStore.GetAllFileIDs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all file IDs: %w", err)
+	}
+
+	var activeValidators []ValidatorEntry
+	const minStake = int64(1000000) // 1 Neon = 1,000,000 electrons
+
+	// Iterate through all files and identify Validator Records
+	for _, fileID := range allFileIDs {
+		// Try to get the file
+		file, err := cm.fileStore.GetFile(fileID)
+		if err != nil {
+			continue // Skip files that can't be read
+		}
+
+		// Check if this is a Validator Record by attempting to deserialize it
+		// Validator Records are exactly 66 bytes
+		if len(file.Data) != 66 {
+			continue
+		}
+
+		// Try to deserialize as a Validator Record
+		_, _, totalStake, status, _, _, _, err := quanticscript.DeserializeValidatorRecord(file.Data)
+		if err != nil {
+			continue // Not a valid Validator Record
+		}
+
+		// Filter by status=active (1) and stake >= 1,000,000 electrons
+		if status == 1 && totalStake >= minStake {
+			activeValidators = append(activeValidators, ValidatorEntry{
+				FileID: fileID,
+				Stake:  totalStake,
+			})
+		}
+	}
+
+	return activeValidators, nil
 }
 
 // ComputeValidatorSchedule computes a deterministic stake-weighted validator schedule
@@ -340,6 +398,124 @@ func (cm *ConsensusManager) ProcessEpochBoundary(slot int64) error {
 
 	// Increment epoch
 	cm.currentEpoch++
+
+	return nil
+}
+
+// ProcessEpochBoundaryWithHash processes the epoch boundary with schedule recalculation
+// Enumerates active validators, computes new leader schedule, and persists to Epoch State File
+// Requirements: 4.1, 4.2, 4.3, 4.4
+func (cm *ConsensusManager) ProcessEpochBoundaryWithHash(slot int64, lastBlockHash [32]byte) error {
+	if !cm.IsEpochBoundary(slot) {
+		return fmt.Errorf("slot %d is not an epoch boundary", slot)
+	}
+
+	if cm.fileStore == nil {
+		return fmt.Errorf("fileStore not initialized")
+	}
+
+	log.Printf("consensus: processing epoch boundary at slot %d", slot)
+
+	// 1. Enumerate all active validators with stake >= 1 Neon
+	validators, err := cm.enumerateActiveValidators()
+	if err != nil {
+		return fmt.Errorf("failed to enumerate active validators: %w", err)
+	}
+
+	if len(validators) == 0 {
+		log.Printf("consensus: warning - no active validators found at epoch boundary")
+		// Keep existing schedule if no validators found
+		cm.currentEpoch++
+		return nil
+	}
+
+	// Calculate total stake for logging
+	totalStake := int64(0)
+	for _, v := range validators {
+		totalStake += v.Stake
+	}
+
+	log.Printf("consensus: epoch %d -> %d: %d active validators, total stake: %d electrons",
+		cm.currentEpoch, cm.currentEpoch+1, len(validators), totalStake)
+
+	// 2. Compute new leader schedule using last block hash as seed
+	newSchedule := cm.ComputeValidatorSchedule(lastBlockHash[:], validators)
+
+	// 3. Update validatorSchedule and currentEpoch fields
+	cm.validatorSchedule = newSchedule
+	cm.currentEpoch++
+
+	// 4. Persist new schedule to Epoch State File using compact format
+	if err := cm.persistEpochState(slot); err != nil {
+		return fmt.Errorf("failed to persist epoch state: %w", err)
+	}
+
+	log.Printf("consensus: computed new schedule for epoch %d (%d slots)",
+		cm.currentEpoch, len(newSchedule))
+
+	return nil
+}
+
+// persistEpochState persists the current epoch state to the Epoch State File
+func (cm *ConsensusManager) persistEpochState(epochStartSlot int64) error {
+	if cm.fileStore == nil {
+		return fmt.Errorf("fileStore not initialized")
+	}
+
+	// Convert []filestore.FileID to [][32]byte for serialization
+	validatorSchedule := make([][32]byte, len(cm.validatorSchedule))
+	for i, fileID := range cm.validatorSchedule {
+		copy(validatorSchedule[i][:], fileID[:])
+	}
+
+	// Build unique validator list for missed block counters
+	uniqueValidators := make(map[filestore.FileID]int)
+	var orderedValidators []filestore.FileID
+
+	for _, fileID := range cm.validatorSchedule {
+		if _, exists := uniqueValidators[fileID]; !exists {
+			uniqueValidators[fileID] = len(orderedValidators)
+			orderedValidators = append(orderedValidators, fileID)
+		}
+	}
+
+	// Initialize missed block counters (all zeros for new epoch)
+	missedBlockCounters := make([]int64, len(orderedValidators))
+
+	// Serialize epoch state
+	epochStateData, err := quanticscript.SerializeEpochState(
+		cm.currentEpoch,
+		epochStartSlot,
+		cm.epochLength,
+		validatorSchedule,
+		missedBlockCounters,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to serialize epoch state: %w", err)
+	}
+
+	// Check if Epoch State File exists
+	epochStateFile, err := cm.fileStore.GetFile(genesis.EpochStateFileID)
+	if err != nil {
+		// File doesn't exist, create it
+		storageCost := filestore.CalculateStorageCost(int64(len(epochStateData)))
+		epochStateFile = &filestore.File{
+			ID:        genesis.EpochStateFileID,
+			Balance:   storageCost + 1000, // Add some buffer
+			TxManager: filestore.FileID{},
+			Data:      epochStateData,
+		}
+		_, err = cm.fileStore.CreateFile(epochStateFile)
+		if err != nil {
+			return fmt.Errorf("failed to create Epoch State File: %w", err)
+		}
+	} else {
+		// File exists, update it
+		epochStateFile.Data = epochStateData
+		if err := cm.fileStore.UpdateFile(genesis.EpochStateFileID, epochStateFile); err != nil {
+			return fmt.Errorf("failed to update Epoch State File: %w", err)
+		}
+	}
 
 	return nil
 }
@@ -427,4 +603,37 @@ func (cm *ConsensusManager) reinitializeGenesisFromConfig(config GenesisConfig) 
 	log.Printf("consensus: initialized DPoS genesis (epoch=%d, validators=%d)",
 		epochNumber, len(schedule))
 	return nil
+}
+
+// ProcessSlotSkip processes a slot skip when the scheduled validator misses their slot
+// Records the missed block for the scheduled validator
+// Requirements: 5.1, 5.2, 5.5
+func (cm *ConsensusManager) ProcessSlotSkip(slot int64) error {
+	// Get the scheduled validator for this slot
+	scheduledValidator := cm.GetScheduledValidator(slot)
+
+	// If no validator is scheduled, nothing to do
+	if scheduledValidator == (filestore.FileID{}) {
+		return nil
+	}
+
+	// Record the missed block for the scheduled validator
+	return cm.RecordMissedBlock(slot, scheduledValidator)
+}
+
+// ShouldProduceBlock returns true if the local node should produce a block for the given slot
+// This ensures local node does NOT produce a block if not the scheduled leader
+// Requirements: 5.1, 5.2, 5.5
+func (cm *ConsensusManager) ShouldProduceBlock(slot int64) bool {
+	return cm.IsLeader(slot)
+}
+
+// WaitForBlockOrTimeout waits for a block to be received within the specified timeout
+// Returns true if a block was received, false if timeout occurred
+// This is used to implement the 200ms wait logic for scheduled validator blocks
+func (cm *ConsensusManager) WaitForBlockOrTimeout(slot int64, timeoutMs int64) bool {
+	// This is a placeholder implementation - in a real system, this would
+	// integrate with the network layer to wait for block reception
+	// For now, we'll simulate that no block is received (timeout)
+	return false
 }

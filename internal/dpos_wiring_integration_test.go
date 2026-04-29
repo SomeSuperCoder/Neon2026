@@ -7,7 +7,6 @@ import (
 	"github.com/poh-blockchain/internal/consensus"
 	"github.com/poh-blockchain/internal/filestore"
 	"github.com/poh-blockchain/internal/genesis"
-	"github.com/poh-blockchain/internal/network"
 	"github.com/poh-blockchain/internal/runtime"
 	"github.com/poh-blockchain/programs"
 )
@@ -46,7 +45,10 @@ func TestDPoSWiringIntegration(t *testing.T) {
 	}
 
 	// Create ConsensusManager with genesis config
-	cm := consensus.NewConsensusManagerWithGenesis(network.LEADER, genesisConfig)
+	// Use the first genesis validator's ID for this test
+	pk := genesisConfig.GenesisValidators[0].PublicKey
+	validatorID := filestore.GenerateFileID(append([]byte("validator:"), pk[:]...))
+	cm := consensus.NewConsensusManagerWithGenesis(validatorID, nil, genesisConfig)
 
 	// Initialize Runtime
 	rt := runtime.NewRuntime()

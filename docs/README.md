@@ -8,6 +8,8 @@ Complete documentation for the Proof of History blockchain implementation.
 - **[Demo Guide](guides/demo.md)** - Interactive demos with tmux
 - **[DPoS Demo Guide](guides/dpos-demo.md)** - Delegated Proof of Stake demonstration
 - **[Validator TUI Guide](guides/validator-tui.md)** - Terminal dashboard for validators
+- **[Validator Wallet Quick Start](guides/validator-wallet-quickstart.md)** - Create and manage validator wallets
+- **[Wallet Usage Guide](guides/wallet-usage.md)** - Neon Wallet TUI for end users
 - **[CLI Usage Guide](guides/cli-usage.md)** - Command-line interface reference
 - **[QuanticScript Guide](guides/quanticscript.md)** - Smart contract language overview
 
@@ -30,7 +32,9 @@ Complete documentation for the Proof of History blockchain implementation.
 ### Implementation
 - **[Implementation Summary](reference/implementation-summary.md)** - Architecture and features
 - **[RPC API Reference](reference/rpc-api.md)** - JSON-RPC 2.0 API documentation
+- **[Validator Wallet Reference](reference/validator-wallet.md)** - Encrypted keypair storage for validators
 - **[Wallet Configuration](reference/wallet-config.md)** - Wallet configuration reference
+- **[Wallet RPC Client](reference/wallet-rpc-client.md)** - RPC client for wallet integration
 - **[Transaction Builder API](reference/transaction-builder.md)** - Programmatic transaction construction
 - **[DPoS Genesis Reference](reference/dpos-genesis.md)** - Genesis initialization process
 - **[DPoS Node Integration](reference/dpos-node-integration.md)** - Node startup and configuration
@@ -45,6 +49,10 @@ docs/
 ├── guides/                            # User guides
 │   ├── quickstart.md                  # 30-second quick start
 │   ├── demo.md                        # Interactive demo guide
+│   ├── dpos-demo.md                   # DPoS demonstration
+│   ├── validator-tui.md               # Validator dashboard guide
+│   ├── validator-wallet-quickstart.md # Validator wallet quick start
+│   ├── wallet-usage.md                # Neon Wallet TUI guide
 │   ├── cli-usage.md                   # CLI reference
 │   └── quanticscript.md               # QuanticScript overview
 ├── testing/                           # Testing documentation
@@ -60,8 +68,12 @@ docs/
     ├── security-model.md              # Security mechanisms and restrictions
     ├── implementation-summary.md      # Implementation overview
     ├── rpc-api.md                     # JSON-RPC 2.0 API
+    ├── validator-wallet.md            # Validator wallet reference
     ├── wallet-config.md               # Wallet configuration
+    ├── wallet-rpc-client.md           # Wallet RPC client
     ├── transaction-builder.md         # Transaction builder API
+    ├── dpos-genesis.md                # DPoS genesis reference
+    ├── dpos-node-integration.md       # DPoS node integration
     ├── bft-fix-summary.md             # BFT fixes technical details
     └── parser-infinite-loop-fix.md    # Parser error handling improvements
 ```

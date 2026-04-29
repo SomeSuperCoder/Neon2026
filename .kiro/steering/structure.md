@@ -42,6 +42,9 @@ inclusion: always
 │   ├── system/                   # System program
 │   │   ├── system.go            # Account management operations
 │   │   └── system_test.go
+│   ├── wallet/                   # Validator wallet
+│   │   ├── wallet.go            # Encrypted Ed25519 keypair storage
+│   │   └── wallet_test.go       # Comprehensive wallet tests
 │   ├── quanticscript/            # QuanticScript language implementation
 │   │   ├── types.go             # Core type system and runtime values
 │   │   ├── token.go             # Token definitions

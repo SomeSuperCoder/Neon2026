@@ -1,6 +1,7 @@
 package genesis
 
 import (
+	"os"
 	"testing"
 
 	"github.com/poh-blockchain/internal/filestore"
@@ -460,4 +461,212 @@ func TestRewardPoolFileStructure(t *testing.T) {
 	if lastDistributedEpoch != 0 {
 		t.Errorf("expected last distributed epoch 0, got %d", lastDistributedEpoch)
 	}
+}
+
+// TestLoadGenesisConfig verifies that LoadGenesisConfig correctly parses a genesis configuration JSON file
+// Requirements: 6.1, 6.2
+func TestLoadGenesisConfig(t *testing.T) {
+	// Create a temporary directory for the test file
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/genesis.json"
+
+	// Create a genesis configuration JSON file
+	configJSON := `{
+  "epochLength": 432000,
+  "validators": [
+    {
+      "publicKey": "0100000000000000000000000000000000000000000000000000000000000001",
+      "stake": 10000000
+    },
+    {
+      "publicKey": "0200000000000000000000000000000000000000000000000000000000000002",
+      "stake": 5000000
+    },
+    {
+      "publicKey": "0300000000000000000000000000000000000000000000000000000000000003",
+      "stake": 2000000
+    }
+  ]
+}`
+
+	// Write the JSON file
+	err := writeFile(configPath, []byte(configJSON))
+	if err != nil {
+		t.Fatalf("failed to write genesis config file: %v", err)
+	}
+
+	// Load the genesis configuration
+	config, err := LoadGenesisConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadGenesisConfig failed: %v", err)
+	}
+
+	// Verify the configuration
+	if config.EpochLength != 432000 {
+		t.Errorf("expected epoch length 432000, got %d", config.EpochLength)
+	}
+
+	if len(config.GenesisValidators) != 3 {
+		t.Errorf("expected 3 validators, got %d", len(config.GenesisValidators))
+	}
+
+	// Verify first validator
+	if config.GenesisValidators[0].StakeAmount != 10000000 {
+		t.Errorf("validator 0: expected stake 10000000, got %d", config.GenesisValidators[0].StakeAmount)
+	}
+
+	// Verify second validator
+	if config.GenesisValidators[1].StakeAmount != 5000000 {
+		t.Errorf("validator 1: expected stake 5000000, got %d", config.GenesisValidators[1].StakeAmount)
+	}
+
+	// Verify third validator
+	if config.GenesisValidators[2].StakeAmount != 2000000 {
+		t.Errorf("validator 2: expected stake 2000000, got %d", config.GenesisValidators[2].StakeAmount)
+	}
+}
+
+// TestLoadGenesisConfigZeroValidators verifies that LoadGenesisConfig rejects a config with zero validators
+// Requirement: 6.2
+func TestLoadGenesisConfigZeroValidators(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/genesis.json"
+
+	configJSON := `{
+  "epochLength": 432000,
+  "validators": []
+}`
+
+	err := writeFile(configPath, []byte(configJSON))
+	if err != nil {
+		t.Fatalf("failed to write genesis config file: %v", err)
+	}
+
+	_, err = LoadGenesisConfig(configPath)
+	if err == nil {
+		t.Fatalf("expected error for zero validators, got nil")
+	}
+}
+
+// TestLoadGenesisConfigInvalidJSON verifies that LoadGenesisConfig rejects invalid JSON
+// Requirement: 6.1
+func TestLoadGenesisConfigInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/genesis.json"
+
+	invalidJSON := `{
+  "epochLength": 432000,
+  "validators": [
+    {
+      "publicKey": "0x01...",
+      "stake": 10000000
+    }
+  ]
+  // Missing closing brace
+`
+
+	err := writeFile(configPath, []byte(invalidJSON))
+	if err != nil {
+		t.Fatalf("failed to write genesis config file: %v", err)
+	}
+
+	_, err = LoadGenesisConfig(configPath)
+	if err == nil {
+		t.Fatalf("expected error for invalid JSON, got nil")
+	}
+}
+
+// TestLoadGenesisConfigInvalidPublicKey verifies that LoadGenesisConfig rejects invalid public keys
+// Requirement: 6.1
+func TestLoadGenesisConfigInvalidPublicKey(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/genesis.json"
+
+	configJSON := `{
+  "epochLength": 432000,
+  "validators": [
+    {
+      "publicKey": "invalid_hex_string",
+      "stake": 10000000
+    }
+  ]
+}`
+
+	err := writeFile(configPath, []byte(configJSON))
+	if err != nil {
+		t.Fatalf("failed to write genesis config file: %v", err)
+	}
+
+	_, err = LoadGenesisConfig(configPath)
+	if err == nil {
+		t.Fatalf("expected error for invalid public key, got nil")
+	}
+}
+
+// TestLoadGenesisConfigInvalidStake verifies that LoadGenesisConfig rejects invalid stakes
+// Requirement: 6.1
+func TestLoadGenesisConfigInvalidStake(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/genesis.json"
+
+	configJSON := `{
+  "epochLength": 432000,
+  "validators": [
+    {
+      "publicKey": "0100000000000000000000000000000000000000000000000000000000000001",
+      "stake": 0
+    }
+  ]
+}`
+
+	err := writeFile(configPath, []byte(configJSON))
+	if err != nil {
+		t.Fatalf("failed to write genesis config file: %v", err)
+	}
+
+	_, err = LoadGenesisConfig(configPath)
+	if err == nil {
+		t.Fatalf("expected error for zero stake, got nil")
+	}
+}
+
+// TestLoadGenesisConfigFileNotFound verifies that LoadGenesisConfig handles missing files
+// Requirement: 6.1
+func TestLoadGenesisConfigFileNotFound(t *testing.T) {
+	_, err := LoadGenesisConfig("/nonexistent/path/genesis.json")
+	if err == nil {
+		t.Fatalf("expected error for missing file, got nil")
+	}
+}
+
+// TestLoadGenesisConfigInvalidEpochLength verifies that LoadGenesisConfig rejects invalid epoch lengths
+// Requirement: 6.1
+func TestLoadGenesisConfigInvalidEpochLength(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/genesis.json"
+
+	configJSON := `{
+  "epochLength": 0,
+  "validators": [
+    {
+      "publicKey": "0100000000000000000000000000000000000000000000000000000000000001",
+      "stake": 10000000
+    }
+  ]
+}`
+
+	err := writeFile(configPath, []byte(configJSON))
+	if err != nil {
+		t.Fatalf("failed to write genesis config file: %v", err)
+	}
+
+	_, err = LoadGenesisConfig(configPath)
+	if err == nil {
+		t.Fatalf("expected error for zero epoch length, got nil")
+	}
+}
+
+// Helper function to write a file
+func writeFile(path string, data []byte) error {
+	return os.WriteFile(path, data, 0644)
 }

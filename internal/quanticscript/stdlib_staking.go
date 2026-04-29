@@ -202,14 +202,80 @@ func DeserializeStakeAccount(data []byte) ([]byte, []byte, int64, int64, uint8, 
 
 // EpochState serialization functions
 
-// SerializeEpochState serializes an EpochState to bytes
+// ScheduleEntry represents a compact schedule entry (validator FileID + slot count)
+type ScheduleEntry struct {
+	ValidatorFileID [32]byte
+	AssignedSlots   int64
+}
+
+// compactSchedule converts a full slot-indexed schedule to compact format
+// Compact format: validator FileID + count of consecutive slots
+func compactSchedule(fullSchedule [][32]byte) []ScheduleEntry {
+	if len(fullSchedule) == 0 {
+		return []ScheduleEntry{}
+	}
+
+	var compact []ScheduleEntry
+	currentValidator := fullSchedule[0]
+	currentCount := int64(1)
+
+	for i := 1; i < len(fullSchedule); i++ {
+		if fullSchedule[i] == currentValidator {
+			currentCount++
+		} else {
+			// Save current run
+			compact = append(compact, ScheduleEntry{
+				ValidatorFileID: currentValidator,
+				AssignedSlots:   currentCount,
+			})
+			// Start new run
+			currentValidator = fullSchedule[i]
+			currentCount = 1
+		}
+	}
+
+	// Save final run
+	compact = append(compact, ScheduleEntry{
+		ValidatorFileID: currentValidator,
+		AssignedSlots:   currentCount,
+	})
+
+	return compact
+}
+
+// expandSchedule converts compact format to full slot-indexed array
+func expandSchedule(compactSchedule []ScheduleEntry) [][32]byte {
+	// Calculate total slots
+	totalSlots := int64(0)
+	for _, entry := range compactSchedule {
+		totalSlots += entry.AssignedSlots
+	}
+
+	if totalSlots == 0 {
+		return [][32]byte{}
+	}
+
+	fullSchedule := make([][32]byte, totalSlots)
+	slotIndex := 0
+
+	for _, entry := range compactSchedule {
+		for i := int64(0); i < entry.AssignedSlots; i++ {
+			fullSchedule[slotIndex] = entry.ValidatorFileID
+			slotIndex++
+		}
+	}
+
+	return fullSchedule
+}
+
+// SerializeEpochState serializes an EpochState to bytes using compact format
 // Format (compact):
 //   - Bytes 0-7: epochNumber (i64 LE)
 //   - Bytes 8-15: epochStartSlot (i64 LE)
 //   - Bytes 16-23: totalSlotsInEpoch (i64 LE)
-//   - Bytes 24-31: validatorCount (i64 LE, V)
-//   - Bytes 32+: validatorSchedule entries (V * 32 bytes each)
-//   - After schedule: missedBlockCounters (V * 8 bytes each)
+//   - Bytes 24-31: compactEntryCount (i64 LE, C)
+//   - Bytes 32+: compact schedule entries (C * 40 bytes each: validatorFileID(32) + assignedSlots(8))
+//   - After schedule: missedBlockCounters for unique validators (V * 40 bytes: validatorFileID(32) + counter(8))
 func SerializeEpochState(
 	epochNumber int64,
 	epochStartSlot int64,
@@ -217,14 +283,36 @@ func SerializeEpochState(
 	validatorSchedule [][32]byte,
 	missedBlockCounters []int64,
 ) ([]byte, error) {
-	if len(validatorSchedule) != len(missedBlockCounters) {
-		return nil, fmt.Errorf("validatorSchedule and missedBlockCounters must have same length")
+	// Convert full schedule to compact format
+	compactSched := compactSchedule(validatorSchedule)
+
+	// Build unique validator list for missed block counters
+	uniqueValidators := make(map[[32]byte]int)
+	var orderedValidators [][32]byte
+
+	for _, entry := range compactSched {
+		if _, exists := uniqueValidators[entry.ValidatorFileID]; !exists {
+			uniqueValidators[entry.ValidatorFileID] = len(orderedValidators)
+			orderedValidators = append(orderedValidators, entry.ValidatorFileID)
+		}
 	}
 
-	validatorCount := int64(len(validatorSchedule))
+	uniqueValidatorCount := int64(len(orderedValidators))
 
-	// Calculate total size
-	size := 32 + (validatorCount * 32) + (validatorCount * 8)
+	// Ensure missedBlockCounters matches unique validators
+	if len(missedBlockCounters) != len(orderedValidators) {
+		// Pad or truncate missedBlockCounters to match
+		newCounters := make([]int64, uniqueValidatorCount)
+		for i := int64(0); i < uniqueValidatorCount && i < int64(len(missedBlockCounters)); i++ {
+			newCounters[i] = missedBlockCounters[i]
+		}
+		missedBlockCounters = newCounters
+	}
+
+	compactEntryCount := int64(len(compactSched))
+
+	// Calculate total size: header(32) + compact entries(C*40) + missed block counters(V*40)
+	size := 32 + (compactEntryCount * 40) + (uniqueValidatorCount * 40)
 	data := make([]byte, size)
 	offset := 0
 
@@ -240,19 +328,23 @@ func SerializeEpochState(
 	binary.LittleEndian.PutUint64(data[offset:offset+8], uint64(totalSlotsInEpoch))
 	offset += 8
 
-	// Write validatorCount
-	binary.LittleEndian.PutUint64(data[offset:offset+8], uint64(validatorCount))
+	// Write compactEntryCount
+	binary.LittleEndian.PutUint64(data[offset:offset+8], uint64(compactEntryCount))
 	offset += 8
 
-	// Write validatorSchedule
-	for _, fileID := range validatorSchedule {
-		copy(data[offset:offset+32], fileID[:])
+	// Write compact schedule entries (preserving order)
+	for _, entry := range compactSched {
+		copy(data[offset:offset+32], entry.ValidatorFileID[:])
 		offset += 32
+		binary.LittleEndian.PutUint64(data[offset:offset+8], uint64(entry.AssignedSlots))
+		offset += 8
 	}
 
-	// Write missedBlockCounters
-	for _, counter := range missedBlockCounters {
-		binary.LittleEndian.PutUint64(data[offset:offset+8], uint64(counter))
+	// Write missed block counters for unique validators
+	for i, validatorID := range orderedValidators {
+		copy(data[offset:offset+32], validatorID[:])
+		offset += 32
+		binary.LittleEndian.PutUint64(data[offset:offset+8], uint64(missedBlockCounters[i]))
 		offset += 8
 	}
 
@@ -260,7 +352,7 @@ func SerializeEpochState(
 }
 
 // DeserializeEpochState deserializes an EpochState from bytes
-// Returns: epochNumber, epochStartSlot, totalSlotsInEpoch, validatorSchedule, missedBlockCounters, error
+// Returns: epochNumber, epochStartSlot, totalSlotsInEpoch, validatorSchedule (expanded), missedBlockCounters, error
 func DeserializeEpochState(data []byte) (int64, int64, int64, [][32]byte, []int64, error) {
 	if len(data) < 32 {
 		return 0, 0, 0, nil, nil, fmt.Errorf("EpochState data too short: need at least 32 bytes, got %d", len(data))
@@ -280,29 +372,37 @@ func DeserializeEpochState(data []byte) (int64, int64, int64, [][32]byte, []int6
 	totalSlotsInEpoch := int64(binary.LittleEndian.Uint64(data[offset : offset+8]))
 	offset += 8
 
-	// Read validatorCount
-	validatorCount := int64(binary.LittleEndian.Uint64(data[offset : offset+8]))
+	// Read compactEntryCount
+	compactEntryCount := int64(binary.LittleEndian.Uint64(data[offset : offset+8]))
 	offset += 8
 
-	// Validate remaining data size
-	expectedSize := 32 + (validatorCount * 32) + (validatorCount * 8)
-	if int64(len(data)) != expectedSize {
-		return 0, 0, 0, nil, nil, fmt.Errorf("EpochState data size mismatch: expected %d bytes, got %d", expectedSize, len(data))
-	}
-
-	// Read validatorSchedule
-	validatorSchedule := make([][32]byte, validatorCount)
-	for i := int64(0); i < validatorCount; i++ {
-		copy(validatorSchedule[i][:], data[offset:offset+32])
+	// Read compact schedule entries
+	compactSched := make([]ScheduleEntry, compactEntryCount)
+	for i := int64(0); i < compactEntryCount; i++ {
+		copy(compactSched[i].ValidatorFileID[:], data[offset:offset+32])
 		offset += 32
+		compactSched[i].AssignedSlots = int64(binary.LittleEndian.Uint64(data[offset : offset+8]))
+		offset += 8
 	}
 
-	// Read missedBlockCounters
-	missedBlockCounters := make([]int64, validatorCount)
-	for i := int64(0); i < validatorCount; i++ {
+	// Calculate unique validator count from remaining data
+	remainingBytes := len(data) - offset
+	if remainingBytes%40 != 0 {
+		return 0, 0, 0, nil, nil, fmt.Errorf("invalid remaining data size for missed block counters: %d bytes", remainingBytes)
+	}
+	uniqueValidatorCount := int64(remainingBytes / 40)
+
+	// Read missed block counters
+	missedBlockCounters := make([]int64, uniqueValidatorCount)
+	for i := int64(0); i < uniqueValidatorCount; i++ {
+		// Skip validator ID (already in compact schedule)
+		offset += 32
 		missedBlockCounters[i] = int64(binary.LittleEndian.Uint64(data[offset : offset+8]))
 		offset += 8
 	}
+
+	// Expand schedule to full slot-indexed array
+	validatorSchedule := expandSchedule(compactSched)
 
 	return epochNumber, epochStartSlot, totalSlotsInEpoch, validatorSchedule, missedBlockCounters, nil
 }

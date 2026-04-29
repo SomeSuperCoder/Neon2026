@@ -1,8 +1,10 @@
 package genesis
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/poh-blockchain/internal/filestore"
 	"github.com/poh-blockchain/internal/quanticscript"
@@ -87,7 +89,7 @@ func LoadBuiltinPrograms(fs *filestore.FileStore, systemBytecode, tokenBytecode,
 		return fmt.Errorf("failed to load Token_Program: %w", err)
 	}
 
-	if stakingBytecode != nil && len(stakingBytecode) > 0 {
+	if len(stakingBytecode) > 0 {
 		if err := loadProgram(fs, StakingProgramID, stakingBytecode, "Staking_Program"); err != nil {
 			return fmt.Errorf("failed to load Staking_Program: %w", err)
 		}
@@ -262,4 +264,82 @@ func InitializeDPoSGenesis(fs *filestore.FileStore, config GenesisConfig) error 
 		RewardPoolFileID.String())
 
 	return nil
+}
+
+// genesisConfigJSON is used for JSON deserialization of genesis configuration
+type genesisConfigJSON struct {
+	EpochLength int64 `json:"epochLength"`
+	Validators  []struct {
+		PublicKey string `json:"publicKey"`
+		Stake     int64  `json:"stake"`
+	} `json:"validators"`
+}
+
+// LoadGenesisConfig loads a genesis configuration from a JSON file
+// The JSON file should have the following format:
+//
+//	{
+//	  "epochLength": 432000,
+//	  "validators": [
+//	    {
+//	      "publicKey": "0x1234...abcd",
+//	      "stake": 10000000
+//	    },
+//	    ...
+//	  ]
+//	}
+//
+// Requirements: 6.1, 6.2
+func LoadGenesisConfig(path string) (*GenesisConfig, error) {
+	// Read the file
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read genesis config file: %w", err)
+	}
+
+	// Parse JSON
+	var configJSON genesisConfigJSON
+	if err := json.Unmarshal(data, &configJSON); err != nil {
+		return nil, fmt.Errorf("failed to parse genesis config JSON: %w", err)
+	}
+
+	// Validate epoch length
+	if configJSON.EpochLength <= 0 {
+		return nil, fmt.Errorf("epochLength must be positive, got %d", configJSON.EpochLength)
+	}
+
+	// Convert validators
+	genesisValidators := make([]GenesisValidator, len(configJSON.Validators))
+	for i, v := range configJSON.Validators {
+		// Parse public key from hex string
+		pubkeyBytes, err := filestore.FileIDFromString(v.PublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("invalid public key for validator %d: %w", i, err)
+		}
+
+		// Validate stake
+		if v.Stake <= 0 {
+			return nil, fmt.Errorf("validator %d has invalid stake: %d", i, v.Stake)
+		}
+
+		genesisValidators[i] = GenesisValidator{
+			PublicKey:   pubkeyBytes,
+			StakeAmount: v.Stake,
+		}
+	}
+
+	// Validate that we have at least one validator (from JSON)
+	if len(configJSON.Validators) == 0 {
+		return nil, fmt.Errorf("genesis config must have at least one validator")
+	}
+
+	config := &GenesisConfig{
+		EpochLength:       configJSON.EpochLength,
+		GenesisValidators: genesisValidators,
+	}
+
+	log.Printf("genesis: loaded config from %s (epochLength=%d, validators=%d)",
+		path, config.EpochLength, len(config.GenesisValidators))
+
+	return config, nil
 }

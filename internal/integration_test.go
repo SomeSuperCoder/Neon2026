@@ -7,6 +7,7 @@ import (
 
 	"github.com/poh-blockchain/internal/blockchain"
 	"github.com/poh-blockchain/internal/consensus"
+	"github.com/poh-blockchain/internal/filestore"
 	"github.com/poh-blockchain/internal/network"
 	"github.com/poh-blockchain/internal/poh"
 	"github.com/poh-blockchain/internal/storage"
@@ -37,7 +38,8 @@ func TestFullNodeBlockProductionAndVerification(t *testing.T) {
 	verifier := verification.NewVerifier()
 
 	// Initialize Consensus Manager
-	consensusManager := consensus.NewConsensusManager(network.LEADER)
+	// Use observer mode (zero validator ID) for this test
+	consensusManager := consensus.NewConsensusManager(filestore.FileID{}, nil)
 
 	// Produce first block (genesis)
 	currentSlot := consensusManager.GetCurrentSlot()
@@ -118,7 +120,7 @@ func TestLeaderReplicaCommunication(t *testing.T) {
 	}
 	defer leaderLedger.Close()
 
-	leaderConsensus := consensus.NewConsensusManager(network.LEADER)
+	leaderConsensus := consensus.NewConsensusManager(filestore.FileID{}, nil)
 	leaderNetwork := network.NewNetworkNode("127.0.0.1", 9001, network.LEADER)
 	if err := leaderNetwork.Start(); err != nil {
 		t.Fatalf("Failed to start leader network: %v", err)
@@ -132,7 +134,7 @@ func TestLeaderReplicaCommunication(t *testing.T) {
 	}
 	defer replicaLedger.Close()
 
-	replicaConsensus := consensus.NewConsensusManager(network.REPLICA)
+	replicaConsensus := consensus.NewConsensusManager(filestore.FileID{}, nil)
 	replicaVerifier := verification.NewVerifier()
 	replicaNetwork := network.NewNetworkNode("127.0.0.1", 9002, network.REPLICA)
 	if err := replicaNetwork.Start(); err != nil {
@@ -226,7 +228,7 @@ func TestLedgerPersistenceAndRecovery(t *testing.T) {
 			t.Fatalf("Failed to initialize ledger: %v", err)
 		}
 
-		consensusManager := consensus.NewConsensusManager(network.LEADER)
+		consensusManager := consensus.NewConsensusManager(filestore.FileID{}, nil)
 
 		// Produce and store 3 blocks
 		var previousBlock blockchain.Block

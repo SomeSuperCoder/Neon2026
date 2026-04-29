@@ -54,6 +54,9 @@ func main() {
 		case "rpc":
 			handleRPCCommand()
 			return
+		case "wallet":
+			handleWalletCommand()
+			return
 		case "help":
 			printHelp()
 			return
@@ -61,32 +64,39 @@ func main() {
 	}
 
 	// Parse command-line flags for node operation
-	nodeTypeStr := flag.String("type", "replica", "Node type: leader or replica")
+	nodeTypeStr := flag.String("type", "", "DEPRECATED: Node type (use --wallet instead)")
 	port := flag.Int("port", 8080, "Port to listen on")
 	peersStr := flag.String("peers", "", "Comma-separated list of peer addresses (host:port)")
 	dbPath := flag.String("db", "blockchain.db", "Path to the database file")
 	malicious := flag.Bool("malicious", false, "Run node in malicious mode (for BFT testing)")
+	walletName := flag.String("wallet", "", "Wallet name for validator identity (omit for observer mode)")
 	flag.Parse()
 
-	// Determine node type
+	// Check for deprecated --type flag
+	if *nodeTypeStr != "" {
+		if strings.ToLower(*nodeTypeStr) == "leader" {
+			log.Fatal("Error: --type flag is deprecated. Use --wallet <name> instead. Create a wallet with: poh-blockchain wallet create --name <name>")
+		} else if strings.ToLower(*nodeTypeStr) == "replica" {
+			log.Fatal("Error: --type flag is deprecated. Use --wallet <name> for validation, or omit for observer mode.")
+		}
+	}
+
+	// Determine node type for backward compatibility (will be removed in future)
 	var nodeType network.NodeType
-	switch strings.ToLower(*nodeTypeStr) {
-	case "leader":
+	if *walletName != "" {
 		nodeType = network.LEADER
 		if *malicious {
 			log.Println("Starting node as MALICIOUS LEADER")
 		} else {
 			log.Println("Starting node as LEADER")
 		}
-	case "replica":
+	} else {
 		nodeType = network.REPLICA
 		if *malicious {
 			log.Println("Starting node as MALICIOUS REPLICA")
 		} else {
 			log.Println("Starting node as REPLICA")
 		}
-	default:
-		log.Fatalf("Invalid node type: %s (must be 'leader' or 'replica')", *nodeTypeStr)
 	}
 
 	// Initialize PoH Clock with genesis seed
@@ -123,6 +133,22 @@ func main() {
 		}
 	}
 
+	// Initialize FileStore first (needed for validator identity initialization)
+	stateDBPath := strings.TrimSuffix(*dbPath, ".db") + "_state.db"
+	log.Printf("Initializing FileStore (database: %s)...\n", stateDBPath)
+	fileStore, err := initFileStore(stateDBPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize FileStore: %v", err)
+	}
+	defer fileStore.Close()
+
+	// Initialize validator identity from wallet
+	log.Println("Initializing validator identity...")
+	localValidatorID, localValidatorKeys, err := initializeValidatorIdentity(*walletName, fileStore)
+	if err != nil {
+		log.Fatalf("Failed to initialize validator identity: %v", err)
+	}
+
 	// Initialize Consensus Manager with DPoS genesis configuration
 	log.Println("Initializing Consensus Manager...")
 
@@ -143,7 +169,7 @@ func main() {
 		},
 	}
 
-	consensusManager := consensus.NewConsensusManagerWithGenesis(nodeType, genesisConfig)
+	consensusManager := consensus.NewConsensusManagerWithGenesis(localValidatorID, localValidatorKeys, genesisConfig)
 
 	// Initialize Ledger
 	log.Printf("Initializing Ledger (database: %s)...\n", *dbPath)
@@ -152,15 +178,6 @@ func main() {
 		log.Fatalf("Failed to initialize ledger: %v", err)
 	}
 	defer ledger.Close()
-
-	// Initialize FileStore for state management
-	stateDBPath := strings.TrimSuffix(*dbPath, ".db") + "_state.db"
-	log.Printf("Initializing FileStore (database: %s)...\n", stateDBPath)
-	fileStore, err := initFileStore(stateDBPath)
-	if err != nil {
-		log.Fatalf("Failed to initialize FileStore: %v", err)
-	}
-	defer fileStore.Close()
 
 	// Initialize Runtime for program execution
 	log.Println("Initializing Runtime...")
@@ -259,73 +276,90 @@ func runLeaderNode(cm *consensus.ConsensusManager, bp *blockchain.BlockProducer,
 			cm.WaitForSlotStart(currentSlot)
 
 			// Check if we're the leader for this slot
-			if !cm.IsLeader(currentSlot) {
-				log.Printf("Leader node: Not leader for slot %d, skipping\n", currentSlot)
-				continue
-			}
+			if cm.ShouldProduceBlock(currentSlot) {
+				log.Printf("Leader node: Producing block for slot %d\n", currentSlot)
 
-			log.Printf("Leader node: Producing block for slot %d\n", currentSlot)
-
-			// Produce block (with empty state root for now)
-			block, err := bp.ProduceBlock(currentSlot, []byte{})
-			if err != nil {
-				log.Printf("Leader node: Error producing block: %v\n", err)
-				continue
-			}
-
-			// Set block height and previous block hash
-			blockHeight++
-			block.Header.BlockHeight = blockHeight
-
-			// Get previous block hash if not genesis
-			if blockHeight > 1 {
-				prevBlock, err := ledger.GetBlockByHeight(blockHeight - 1)
+				// Produce block (with empty state root for now)
+				block, err := bp.ProduceBlock(currentSlot, []byte{})
 				if err != nil {
-					log.Printf("Leader node: Error getting previous block: %v\n", err)
-					blockHeight-- // Rollback height increment
+					log.Printf("Leader node: Error producing block: %v\n", err)
 					continue
 				}
-				block.Header.PreviousBlockHash = prevBlock.Header.MerkleRoot
-			}
 
-			// MALICIOUS BEHAVIOR: Corrupt blocks periodically
-			if malicious {
-				maliciousCounter++
-				if maliciousCounter%3 == 0 {
-					// Corrupt the block by modifying entries
-					if len(block.Entries) > 0 {
-						block.Entries[0].NumHashes = 1 // Invalid hash count
-						log.Printf("MALICIOUS: Corrupted block %d by setting invalid hash count\n", blockHeight)
+				// Set block height and previous block hash
+				blockHeight++
+				block.Header.BlockHeight = blockHeight
+
+				// Get previous block hash if not genesis
+				if blockHeight > 1 {
+					prevBlock, err := ledger.GetBlockByHeight(blockHeight - 1)
+					if err != nil {
+						log.Printf("Leader node: Error getting previous block: %v\n", err)
+						blockHeight-- // Rollback height increment
+						continue
+					}
+					block.Header.PreviousBlockHash = prevBlock.Header.MerkleRoot
+				}
+
+				// MALICIOUS BEHAVIOR: Corrupt blocks periodically
+				if malicious {
+					maliciousCounter++
+					if maliciousCounter%3 == 0 {
+						// Corrupt the block by modifying entries
+						if len(block.Entries) > 0 {
+							block.Entries[0].NumHashes = 1 // Invalid hash count
+							log.Printf("MALICIOUS: Corrupted block %d by setting invalid hash count\n", blockHeight)
+						}
+					}
+					if maliciousCounter%5 == 0 {
+						// Send block with wrong previous hash
+						block.Header.PreviousBlockHash = []byte("corrupted-hash")
+						log.Printf("MALICIOUS: Corrupted block %d with wrong previous hash\n", blockHeight)
 					}
 				}
-				if maliciousCounter%5 == 0 {
-					// Send block with wrong previous hash
-					block.Header.PreviousBlockHash = []byte("corrupted-hash")
-					log.Printf("MALICIOUS: Corrupted block %d with wrong previous hash\n", blockHeight)
+
+				log.Printf("Leader node: Block produced - height=%d, slot=%d, entries=%d\n",
+					block.Header.BlockHeight, block.Header.Slot, len(block.Entries))
+
+				// Store block to ledger (only if not malicious or not corrupted)
+				if !malicious || maliciousCounter%3 != 0 {
+					if err := ledger.StoreBlock(block); err != nil {
+						log.Printf("Leader node: Error storing block: %v\n", err)
+						blockHeight-- // Rollback height increment
+						continue
+					}
+					log.Printf("Leader node: Block stored to ledger - height=%d\n", block.Header.BlockHeight)
+				} else {
+					log.Printf("MALICIOUS: Skipping storage of corrupted block %d\n", blockHeight)
 				}
-			}
 
-			log.Printf("Leader node: Block produced - height=%d, slot=%d, entries=%d\n",
-				block.Header.BlockHeight, block.Header.Slot, len(block.Entries))
-
-			// Store block to ledger (only if not malicious or not corrupted)
-			if !malicious || maliciousCounter%3 != 0 {
-				if err := ledger.StoreBlock(block); err != nil {
-					log.Printf("Leader node: Error storing block: %v\n", err)
-					blockHeight-- // Rollback height increment
-					continue
+				// Broadcast block to network (including corrupted ones)
+				if err := nn.BroadcastBlock(block); err != nil {
+					log.Printf("Leader node: Error broadcasting block: %v\n", err)
+					// Continue even if broadcast fails - block is already stored
+				} else {
+					log.Printf("Leader node: Block broadcasted to peers - height=%d\n", block.Header.BlockHeight)
 				}
-				log.Printf("Leader node: Block stored to ledger - height=%d\n", block.Header.BlockHeight)
 			} else {
-				log.Printf("MALICIOUS: Skipping storage of corrupted block %d\n", blockHeight)
-			}
+				// We're not the scheduled leader for this slot
+				scheduledValidator := cm.GetScheduledValidator(currentSlot)
+				log.Printf("Leader node: Not leader for slot %d (scheduled: %s), waiting for block\n",
+					currentSlot, scheduledValidator.String())
 
-			// Broadcast block to network (including corrupted ones)
-			if err := nn.BroadcastBlock(block); err != nil {
-				log.Printf("Leader node: Error broadcasting block: %v\n", err)
-				// Continue even if broadcast fails - block is already stored
-			} else {
-				log.Printf("Leader node: Block broadcasted to peers - height=%d\n", block.Header.BlockHeight)
+				// Wait 200ms for scheduled validator's block
+				blockReceived := cm.WaitForBlockOrTimeout(currentSlot, 200)
+
+				if !blockReceived {
+					// No block received within 200ms, record missed block
+					log.Printf("Leader node: No block received for slot %d, recording missed block for validator %s\n",
+						currentSlot, scheduledValidator.String())
+
+					if err := cm.ProcessSlotSkip(currentSlot); err != nil {
+						log.Printf("Leader node: Error processing slot skip: %v\n", err)
+					}
+				} else {
+					log.Printf("Leader node: Block received for slot %d from scheduled validator\n", currentSlot)
+				}
 			}
 		}
 	}
@@ -443,6 +477,19 @@ func printHelp() {
 	fmt.Println("\nUsage:")
 	fmt.Println("  poh-blockchain [command] [options]")
 	fmt.Println("\nCommands:")
+	fmt.Println("  wallet <subcommand> [options]")
+	fmt.Println("    Wallet management commands:")
+	fmt.Println("      create --name <wallet-name>")
+	fmt.Println("        Create a new password-protected wallet")
+	fmt.Println("      list")
+	fmt.Println("        List all available wallets")
+	fmt.Println("      show --name <wallet-name>")
+	fmt.Println("        Display wallet information")
+	fmt.Println("      export --name <wallet-name> --output <file>")
+	fmt.Println("        Export wallet to unencrypted JSON")
+	fmt.Println("      import --input <file> --name <wallet-name>")
+	fmt.Println("        Import wallet from unencrypted JSON")
+	fmt.Println()
 	fmt.Println("  account create --balance <amount> --output <file>")
 	fmt.Println("    Create a new account with initial balance")
 	fmt.Println("    Generates a new keypair and saves it to the output file")
