@@ -261,7 +261,18 @@ func (tp *TxProcessor) ExecuteInstruction(instr *transaction.Instruction, signer
 	}
 
 	// Validate all input files exist (Requirement 4.5)
+	// SPECIAL CASE: For CREATE_FILE operations, the "new_file" input doesn't need to exist yet
+	isCreateFileOp := len(instr.Data) > 0 && instr.Data[0] == 0
 	for key, fileAccess := range instr.Inputs {
+		// Skip existence check for the file being created in CREATE_FILE operations
+		if isCreateFileOp && key == "new_file" {
+			// Verify the file doesn't already exist (can't create a file that exists)
+			if _, err := tp.fileStore.GetFile(fileAccess.FileID); err == nil {
+				return fmt.Errorf("cannot create file %s: file already exists", fileAccess.FileID.String())
+			}
+			continue
+		}
+
 		if _, err := tp.fileStore.GetFile(fileAccess.FileID); err != nil {
 			return fmt.Errorf("input file %s (key: %s) not found: %w", fileAccess.FileID.String(), key, err)
 		}

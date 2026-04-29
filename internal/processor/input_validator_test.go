@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/poh-blockchain/internal/filestore"
@@ -429,4 +430,163 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// TestValidateInstructionInputs_CreateFileSpecialCase tests that CREATE_FILE instructions
+// don't require the new file to exist yet
+func TestValidateInstructionInputs_CreateFileSpecialCase(t *testing.T) {
+	// Setup
+	fs, err := filestore.NewFileStore(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("Failed to create file store: %v", err)
+	}
+	defer fs.Close()
+
+	// Create system program (executable)
+	systemProgramID := filestore.FileID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+	systemProgram := &filestore.File{
+		ID:         systemProgramID,
+		Balance:    10000,
+		TxManager:  filestore.FileID{},
+		Data:       []byte{1, 2, 3},
+		Executable: true,
+	}
+	if _, err := fs.CreateFile(systemProgram); err != nil {
+		t.Fatalf("Failed to create system program: %v", err)
+	}
+
+	// Create payer account
+	payerID := filestore.FileID{0x02}
+	payer := &filestore.File{
+		ID:         payerID,
+		Balance:    100000,
+		TxManager:  systemProgramID,
+		Data:       []byte{},
+		Executable: false,
+	}
+	if _, err := fs.CreateFile(payer); err != nil {
+		t.Fatalf("Failed to create payer: %v", err)
+	}
+
+	// New file ID (does NOT exist yet - this is the file being created)
+	newFileID := filestore.FileID{0x03}
+
+	// Create CREATE_FILE instruction
+	// Format: [type:u8(0)][fileID:FileID(32)][payer:FileID(32)][balance:i64(8)][owner:PublicKey(32)]
+	data := make([]byte, 105)
+	data[0] = 0 // CREATE_FILE opcode
+	copy(data[1:33], newFileID[:])
+	copy(data[33:65], payerID[:])
+	// balance and owner can be zero for this test
+
+	instr := &transaction.Instruction{
+		ProgramID: systemProgramID,
+		Inputs: map[string]transaction.FileAccess{
+			"program": {
+				FileID:     systemProgramID,
+				Permission: transaction.Read,
+			},
+			"payer": {
+				FileID:     payerID,
+				Permission: transaction.Write,
+			},
+			"new_file": {
+				FileID:     newFileID,
+				Permission: transaction.Write,
+			},
+		},
+		Data: data,
+	}
+
+	// Validate
+	validator := NewInputValidator(fs)
+	err = validator.ValidateInstructionInputs(instr)
+	if err != nil {
+		t.Errorf("Expected validation to pass for CREATE_FILE with non-existent new_file, got error: %v", err)
+	}
+}
+
+// TestValidateInstructionInputs_CreateFileAlreadyExists tests that CREATE_FILE fails
+// if the file already exists
+func TestValidateInstructionInputs_CreateFileAlreadyExists(t *testing.T) {
+	// Setup
+	fs, err := filestore.NewFileStore(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("Failed to create file store: %v", err)
+	}
+	defer fs.Close()
+
+	// Create system program (executable)
+	systemProgramID := filestore.FileID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+	systemProgram := &filestore.File{
+		ID:         systemProgramID,
+		Balance:    10000,
+		TxManager:  filestore.FileID{},
+		Data:       []byte{1, 2, 3},
+		Executable: true,
+	}
+	if _, err := fs.CreateFile(systemProgram); err != nil {
+		t.Fatalf("Failed to create system program: %v", err)
+	}
+
+	// Create payer account
+	payerID := filestore.FileID{0x02}
+	payer := &filestore.File{
+		ID:         payerID,
+		Balance:    100000,
+		TxManager:  systemProgramID,
+		Data:       []byte{},
+		Executable: false,
+	}
+	if _, err := fs.CreateFile(payer); err != nil {
+		t.Fatalf("Failed to create payer: %v", err)
+	}
+
+	// Create the "new" file (it already exists)
+	newFileID := filestore.FileID{0x03}
+	existingFile := &filestore.File{
+		ID:         newFileID,
+		Balance:    50000,
+		TxManager:  systemProgramID,
+		Data:       []byte{},
+		Executable: false,
+	}
+	if _, err := fs.CreateFile(existingFile); err != nil {
+		t.Fatalf("Failed to create existing file: %v", err)
+	}
+
+	// Create CREATE_FILE instruction
+	data := make([]byte, 105)
+	data[0] = 0 // CREATE_FILE opcode
+	copy(data[1:33], newFileID[:])
+	copy(data[33:65], payerID[:])
+
+	instr := &transaction.Instruction{
+		ProgramID: systemProgramID,
+		Inputs: map[string]transaction.FileAccess{
+			"program": {
+				FileID:     systemProgramID,
+				Permission: transaction.Read,
+			},
+			"payer": {
+				FileID:     payerID,
+				Permission: transaction.Write,
+			},
+			"new_file": {
+				FileID:     newFileID,
+				Permission: transaction.Write,
+			},
+		},
+		Data: data,
+	}
+
+	// Validate
+	validator := NewInputValidator(fs)
+	err = validator.ValidateInstructionInputs(instr)
+	if err == nil {
+		t.Error("Expected validation to fail when CREATE_FILE targets an existing file")
+	}
+	if err != nil && !strings.Contains(err.Error(), "file already exists") {
+		t.Errorf("Expected 'file already exists' error, got: %v", err)
+	}
 }

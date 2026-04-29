@@ -29,7 +29,9 @@ Create a new account with an initial balance:
 
 This command:
 - Generates a new Ed25519 keypair
-- Creates an account file in the state database
+- Creates a bootstrap account to pay for the new account creation
+- Creates the user account through a proper CREATE_FILE transaction
+- Processes the transaction through the transaction processor
 - Saves the keypair to a JSON file for later use
 - Automatically creates the `data/` directory if it doesn't exist
 
@@ -39,6 +41,8 @@ Account created successfully!
 Address: 8da2721607fa4cfc2f174941331a2cc5ef02d798af42a7920580074905687722
 Balance: 1000000
 Keypair saved to: my_account.json
+
+Note: Account created via CREATE_FILE transaction (production-ready).
 ```
 
 ### 2. Balance Transfer

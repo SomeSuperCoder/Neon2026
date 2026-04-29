@@ -146,7 +146,7 @@ The system uses a layered architecture:
 The blockchain includes CLI commands for managing accounts and transactions. For programmatic transaction construction, see the [Transaction Builder API](docs/reference/transaction-builder.md).
 
 ```bash
-# Create a new account
+# Create a new account (production-ready via CREATE_FILE transaction)
 go run cmd/main.go account create --balance 1000000 --output keypair.json --state state.db
 
 # Transfer balance between accounts

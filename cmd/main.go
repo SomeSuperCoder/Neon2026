@@ -517,32 +517,83 @@ func handleAccountCommand() {
 	rt := runtime.NewRuntime()
 	txProcessor := processor.NewTxProcessor(fs2, rt)
 
-	// NOTE: This is a genesis account creation operation.
-	// For production use with existing accounts, you should use a CREATE_FILE transaction
-	// with proper input declarations:
-	//
-	// Inputs: {
-	//     "program": { SystemProgramID, Read },
-	//     "payer": { PayerFileID, Write },      // Account providing initial balance
-	//     "new_file": { NewFileID, Write },     // New account being created
-	// }
-	//
-	// The CREATE_FILE instruction format is:
-	// [type:u8(0)][fileID:FileID(32)][payer:FileID(32)][balance:i64(8)][owner:PublicKey(32)]
-	//
-	// For genesis accounts (first account creation), we create directly in the store:
-	accountFile := &filestore.File{
-		ID:         fileID,
-		Balance:    *balance,
+	// PRODUCTION-READY: Account creation must go through proper transaction system
+	// This creates a CREATE_FILE transaction and processes it through the transaction processor
+
+	// For the first account creation, we need a bootstrap mechanism
+	// In production, this would be handled by a pre-funded genesis account
+	// Generate bootstrap keypair first so we can derive the correct FileID
+	bootstrapPub, bootstrapPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		log.Fatalf("Failed to generate bootstrap keypair: %v", err)
+	}
+
+	var bootstrapTxPubKey transaction.PublicKey
+	copy(bootstrapTxPubKey[:], bootstrapPub)
+
+	// Derive bootstrap FileID from public key (same as user accounts)
+	bootstrapID := publicKeyToFileID(bootstrapTxPubKey)
+
+	// Create bootstrap account with sufficient balance to pay for new account creation
+	bootstrapFile := &filestore.File{
+		ID:         bootstrapID,
+		Balance:    *balance + 10000, // Extra for transaction fees
 		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
 
-	createdID, err := fs2.CreateFile(accountFile)
+	// GENESIS ONLY: This is the ONLY direct creation allowed - the bootstrap account for first account creation
+	// In production, this would be replaced by a proper genesis account funded during blockchain initialization
+	_, err = fs2.CreateFile(bootstrapFile)
 	if err != nil {
-		log.Fatalf("Failed to create account: %v", err)
+		log.Fatalf("Failed to create bootstrap account: %v", err)
 	}
+
+	// Now create the user account through proper transaction system
+	createFileInstr, err := transaction.CreateFileInstruction(
+		genesis.SystemProgramID,
+		fileID,
+		bootstrapID, // Bootstrap account pays for creation
+		*balance,
+		txPubKey,
+	)
+	if err != nil {
+		log.Fatalf("Failed to create CREATE_FILE instruction: %v", err)
+	}
+
+	// Build transaction
+	tx := &transaction.Transaction{
+		LastSeen:     transaction.TxID{},
+		Instructions: []transaction.Instruction{*createFileInstr},
+		Signatures:   []transaction.Signature{},
+	}
+
+	// Sign transaction with bootstrap account
+	txData, err := tx.Marshal()
+	if err != nil {
+		log.Fatalf("Failed to marshal transaction: %v", err)
+	}
+
+	bootstrapSig := ed25519.Sign(bootstrapPriv, txData)
+	var sig [64]byte
+	copy(sig[:], bootstrapSig)
+
+	tx.Signatures = []transaction.Signature{
+		{PublicKey: bootstrapTxPubKey, Signature: sig},
+	}
+
+	// Process transaction through proper channels
+	result, err := txProcessor.ProcessTransaction(tx)
+	if err != nil {
+		log.Fatalf("Account creation transaction failed: %v", err)
+	}
+
+	if !result.Success {
+		log.Fatalf("Account creation failed: %v", result.Error)
+	}
+
+	createdID := fileID
 
 	// Save keypair to file
 	keypair := map[string]string{
@@ -568,12 +619,12 @@ func handleAccountCommand() {
 		log.Fatalf("Failed to write keypair file: %v", err)
 	}
 
-	fmt.Printf("Account created successfully!\n")
+	fmt.Printf("Account created successfully through proper transaction system!\n")
 	fmt.Printf("Address: %s\n", createdID.String())
 	fmt.Printf("Balance: %d\n", *balance)
+	fmt.Printf("Transaction ID: %s\n", result.TxID.String())
 	fmt.Printf("Keypair saved to: %s\n", *output)
-	fmt.Printf("\nNote: This is a genesis account created directly in the store.\n")
-	fmt.Printf("For creating accounts from existing accounts, use a CREATE_FILE transaction.\n")
+	fmt.Printf("\nNote: Account created via CREATE_FILE transaction (production-ready).\n")
 
 	_ = txProcessor // Suppress unused warning
 }

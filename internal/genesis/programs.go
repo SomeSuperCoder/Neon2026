@@ -71,6 +71,10 @@ type GenesisConfig struct {
 // stakingBytecode is optional (pass nil to skip loading the Staking_Program).
 // These are the compiled .qsb contents, typically embedded by the caller via //go:embed.
 //
+// SECURITY: This function bypasses normal transaction processing and is ONLY allowed during
+// genesis bootstrap before the blockchain becomes operational. After genesis, all file creation
+// must go through proper transaction processing.
+//
 // The function is idempotent — programs that are already present are skipped.
 //
 // Requirements: 3.6, 3.7, 6.5
@@ -93,6 +97,8 @@ func LoadBuiltinPrograms(fs *filestore.FileStore, systemBytecode, tokenBytecode,
 }
 
 // loadProgram creates a single built-in program file in the FileStore.
+// This is ONLY allowed during genesis bootstrap before the blockchain is operational.
+// After genesis, all file creation must go through proper transaction processing.
 func loadProgram(fs *filestore.FileStore, id filestore.FileID, bytecode []byte, name string) error {
 	// Idempotent: skip if already present.
 	if _, err := fs.GetFile(id); err == nil {
@@ -112,6 +118,8 @@ func loadProgram(fs *filestore.FileStore, id filestore.FileID, bytecode []byte, 
 		Executable: true,
 	}
 
+	// GENESIS ONLY: This direct creation is only allowed during genesis bootstrap
+	// After genesis, all file creation must go through proper transaction processing
 	if _, err := fs.CreateFile(file); err != nil {
 		return fmt.Errorf("CreateFile failed: %w", err)
 	}
@@ -125,6 +133,10 @@ func loadProgram(fs *filestore.FileStore, id filestore.FileID, bytecode []byte, 
 // - Epoch State File at EpochStateFileID with epoch 0 data
 // - Reward Pool File at RewardPoolFileID with zero balance
 // - One Validator Record File per genesis validator (status=active, pre-assigned stake, commission=0)
+//
+// SECURITY: This function bypasses normal transaction processing and is ONLY allowed during
+// genesis bootstrap before the blockchain becomes operational. After genesis, all file creation
+// must go through proper transaction processing.
 //
 // This function is idempotent — if the Epoch State File already exists, it returns early.
 // If genesis config has zero validators, it returns an error.
@@ -176,6 +188,8 @@ func InitializeDPoSGenesis(fs *filestore.FileStore, config GenesisConfig) error 
 			Data:      validatorData,
 		}
 
+		// GENESIS ONLY: This direct creation is only allowed during genesis bootstrap
+		// After genesis, all file creation must go through proper transaction processing
 		_, err = fs.CreateFile(validatorFile)
 		if err != nil {
 			return fmt.Errorf("failed to create validator record file %d: %w", i, err)
@@ -209,6 +223,8 @@ func InitializeDPoSGenesis(fs *filestore.FileStore, config GenesisConfig) error 
 		Data:      epochStateData,
 	}
 
+	// GENESIS ONLY: This direct creation is only allowed during genesis bootstrap
+	// After genesis, all file creation must go through proper transaction processing
 	_, err = fs.CreateFile(epochStateFile)
 	if err != nil {
 		return fmt.Errorf("failed to create epoch state file: %w", err)
@@ -235,6 +251,8 @@ func InitializeDPoSGenesis(fs *filestore.FileStore, config GenesisConfig) error 
 		Data:      rewardPoolData,
 	}
 
+	// GENESIS ONLY: This direct creation is only allowed during genesis bootstrap
+	// After genesis, all file creation must go through proper transaction processing
 	_, err = fs.CreateFile(rewardPoolFile)
 	if err != nil {
 		return fmt.Errorf("failed to create reward pool file: %w", err)

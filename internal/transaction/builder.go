@@ -26,6 +26,71 @@ func NewTransactionBuilder(lastSeen TxID) *TransactionBuilder {
 	}
 }
 
+// AddCreateFileInstruction adds a System Program CREATE_FILE instruction with proper input declarations.
+// The instruction will declare:
+// - System Program with Read permission
+// - Payer account with Write permission
+// - New file with Write permission
+//
+// This implements account creation through the proper transaction system.
+func (tb *TransactionBuilder) AddCreateFileInstruction(
+	systemProgramID filestore.FileID,
+	newFileID filestore.FileID,
+	payerID filestore.FileID,
+	balance int64,
+	owner PublicKey,
+) error {
+	// Validate balance (must be non-negative)
+	if balance < 0 {
+		return fmt.Errorf("balance must be non-negative, got %d", balance)
+	}
+
+	// Create inputs map with proper declarations
+	inputs := map[string]FileAccess{
+		"program": {
+			FileID:     systemProgramID,
+			Permission: Read,
+		},
+		"payer": {
+			FileID:     payerID,
+			Permission: Write,
+		},
+		"new_file": {
+			FileID:     newFileID,
+			Permission: Write,
+		},
+	}
+
+	// Encode instruction data
+	// Format: [type:u8(0)][fileID:FileID(32)][payer:FileID(32)][balance:i64(8)][owner:PublicKey(32)]
+	data := make([]byte, 105)
+
+	// Instruction type (CREATE_FILE = 0)
+	data[0] = 0
+
+	// New file ID
+	copy(data[1:33], newFileID[:])
+
+	// Payer file ID
+	copy(data[33:65], payerID[:])
+
+	// Balance (little-endian)
+	binary.LittleEndian.PutUint64(data[65:73], uint64(balance))
+
+	// Owner public key
+	copy(data[73:105], owner[:])
+
+	// Create instruction
+	instruction := Instruction{
+		ProgramID: systemProgramID,
+		Inputs:    inputs,
+		Data:      data,
+	}
+
+	tb.instructions = append(tb.instructions, instruction)
+	return nil
+}
+
 // AddTransferInstruction adds a System Program transfer instruction with proper input declarations.
 // The instruction will declare:
 // - System Program with Read permission

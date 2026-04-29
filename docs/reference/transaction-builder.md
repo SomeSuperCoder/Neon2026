@@ -12,6 +12,58 @@ The TransactionBuilder simplifies transaction creation by:
 
 ## Basic Usage
 
+### Account Creation
+
+```go
+import (
+    "crypto/ed25519"
+    "crypto/rand"
+    "github.com/poh-blockchain/internal/transaction"
+    "github.com/poh-blockchain/internal/filestore"
+    "github.com/poh-blockchain/internal/genesis"
+)
+
+// Create a new builder
+lastSeen := transaction.TxID{} // or get from ledger
+builder := transaction.NewTransactionBuilder(lastSeen)
+
+// Generate keypair for new account
+pubKey, _, err := ed25519.GenerateKey(rand.Reader)
+if err != nil {
+    // Handle error
+}
+
+var ownerPubKey transaction.PublicKey
+copy(ownerPubKey[:], pubKey)
+
+// Add a CREATE_FILE instruction
+err = builder.AddCreateFileInstruction(
+    genesis.SystemProgramID,  // System Program
+    newAccountID,             // New account being created
+    payerID,                  // Account paying for creation
+    1000000,                  // Initial balance
+    ownerPubKey,              // Owner public key
+)
+if err != nil {
+    // Handle error (e.g., negative balance)
+}
+
+// Add signature(s)
+sig := transaction.Signature{
+    PublicKey: payerPublicKey,
+    Signature: signatureBytes,
+}
+builder.AddSignature(sig)
+
+// Build the final transaction
+tx, err := builder.Build()
+if err != nil {
+    // Handle error
+}
+```
+
+### Balance Transfer
+
 ```go
 import (
     "github.com/poh-blockchain/internal/transaction"
@@ -67,6 +119,59 @@ Creates a new transaction builder with the specified lastSeen transaction ID.
 **Example:**
 ```go
 builder := transaction.NewTransactionBuilder(transaction.TxID{})
+```
+
+### AddCreateFileInstruction
+
+```go
+func (tb *TransactionBuilder) AddCreateFileInstruction(
+    systemProgramID filestore.FileID,
+    newFileID filestore.FileID,
+    payerID filestore.FileID,
+    balance int64,
+    owner PublicKey,
+) error
+```
+
+Adds a System Program CREATE_FILE instruction with proper input declarations for account creation.
+
+**Input Declarations:**
+The instruction automatically declares:
+- System Program with `Read` permission
+- Payer account with `Write` permission (account that pays for creation)
+- New file with `Write` permission (account being created)
+
+**Parameters:**
+- `systemProgramID`: FileID of the System Program (use `genesis.SystemProgramID`)
+- `newFileID`: FileID of the new account being created
+- `payerID`: FileID of the account paying for the creation
+- `balance`: Initial balance for the new account (must be non-negative)
+- `owner`: Public key that will own the new account
+
+**Returns:**
+- `error`: Error if balance is negative, nil otherwise
+
+**Instruction Data Format:**
+```
+[type:u8(0)][fileID:FileID(32)][payer:FileID(32)][balance:i64(8)][owner:PublicKey(32)]
+Total: 105 bytes
+```
+
+**Example:**
+```go
+var ownerPubKey transaction.PublicKey
+copy(ownerPubKey[:], publicKeyBytes)
+
+err := builder.AddCreateFileInstruction(
+    genesis.SystemProgramID,
+    filestore.FileID{0x01, 0x02, ...}, // New account ID
+    filestore.FileID{0x03, 0x04, ...}, // Payer account ID
+    1000000, // Initial balance
+    ownerPubKey,
+)
+if err != nil {
+    log.Fatalf("Failed to add CREATE_FILE instruction: %v", err)
+}
 ```
 
 ### AddTransferInstruction
@@ -159,7 +264,95 @@ if err != nil {
 }
 ```
 
-## Complete Example
+## Complete Examples
+
+### Account Creation Example
+
+```go
+package main
+
+import (
+    "crypto/ed25519"
+    "crypto/rand"
+    "log"
+    
+    "github.com/poh-blockchain/internal/transaction"
+    "github.com/poh-blockchain/internal/filestore"
+    "github.com/poh-blockchain/internal/genesis"
+)
+
+func createAccountTransaction(
+    payerKeypair ed25519.PrivateKey,
+    payerID filestore.FileID,
+    newAccountID filestore.FileID,
+    initialBalance int64,
+) (*transaction.Transaction, error) {
+    // Generate keypair for new account
+    pubKey, _, err := ed25519.GenerateKey(rand.Reader)
+    if err != nil {
+        return nil, err
+    }
+    
+    var ownerPubKey transaction.PublicKey
+    copy(ownerPubKey[:], pubKey)
+    
+    // Create builder
+    builder := transaction.NewTransactionBuilder(transaction.TxID{})
+    
+    // Add CREATE_FILE instruction
+    err = builder.AddCreateFileInstruction(
+        genesis.SystemProgramID,
+        newAccountID,
+        payerID,
+        initialBalance,
+        ownerPubKey,
+    )
+    if err != nil {
+        return nil, err
+    }
+    
+    // Build transaction to get bytes for signing
+    tx, err := builder.Build()
+    if err != nil {
+        return nil, err
+    }
+    
+    // Sign transaction with payer's keypair
+    txBytes, err := tx.Marshal()
+    if err != nil {
+        return nil, err
+    }
+    
+    signature := ed25519.Sign(payerKeypair, txBytes)
+    
+    // Create new builder with signature
+    builder = transaction.NewTransactionBuilder(transaction.TxID{})
+    builder.AddCreateFileInstruction(
+        genesis.SystemProgramID,
+        newAccountID,
+        payerID,
+        initialBalance,
+        ownerPubKey,
+    )
+    
+    // Add signature
+    var payerPubKey transaction.PublicKey
+    copy(payerPubKey[:], payerKeypair.Public().(ed25519.PublicKey))
+    
+    var sig [64]byte
+    copy(sig[:], signature)
+    
+    builder.AddSignature(transaction.Signature{
+        PublicKey: payerPubKey,
+        Signature: sig,
+    })
+    
+    // Build final transaction
+    return builder.Build()
+}
+```
+
+### Transfer Example
 
 ```go
 package main
@@ -200,7 +393,11 @@ func createTransferTransaction(
     }
     
     // Sign transaction
-    txBytes := tx.Serialize() // Implement serialization
+    txBytes, err := tx.Marshal()
+    if err != nil {
+        return nil, err
+    }
+    
     signature := ed25519.Sign(senderKeypair, txBytes)
     
     // Create new builder with signature
@@ -352,14 +549,16 @@ go test ./internal/transaction -v
 ## Implementation Status
 
 - ✅ TransactionBuilder struct and constructor
+- ✅ AddCreateFileInstruction with input declarations for account creation
 - ✅ AddTransferInstruction with input declarations
 - ✅ AddSignature for transaction signing
 - ✅ Build method for transaction assembly
 - ✅ Comprehensive test coverage
 - ✅ System Program helper functions (CreateTransferInstruction, EncodeTransferData)
 - ✅ Input validator implementation (InputValidator with comprehensive tests)
+- ✅ Production-ready account creation through CREATE_FILE transactions
 - 🚧 Input validator integration into TxProcessor
 - 🚧 Update existing tests to use proper input declarations
-- 🚧 CLI integration
+- ✅ CLI integration for account creation and transfers
 
 See [tasks.md](.kiro/specs/transaction-input-validation/tasks.md) for the complete implementation plan.

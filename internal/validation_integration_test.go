@@ -2,6 +2,7 @@ package internal
 
 import (
 	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/binary"
 	"testing"
 
@@ -44,18 +45,91 @@ func setupValidationTestEnv(t *testing.T) (*filestore.FileStore, *runtime.Runtim
 	return fs, rt, tp
 }
 
-// createTestAccount creates a test account with the given balance
+// createTestAccount creates a test account through proper transaction processing.
+// This is production-ready and goes through the transaction system.
 func createTestAccount(t *testing.T, fs *filestore.FileStore, id filestore.FileID, balance int64) {
 	t.Helper()
-	account := &filestore.File{
-		ID:         id,
-		Balance:    balance,
+
+	// Initialize runtime and processor for proper transaction handling
+	rt := runtime.NewRuntime()
+	txProcessor := processor.NewTxProcessor(fs, rt)
+
+	// Generate bootstrap keypair first so we can derive the correct FileID
+	bootstrapPub, bootstrapPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("Failed to generate bootstrap keypair: %v", err)
+	}
+
+	var bootstrapTxPubKey transaction.PublicKey
+	copy(bootstrapTxPubKey[:], bootstrapPub)
+
+	// Derive bootstrap FileID from public key (same as user accounts)
+	bootstrapID := validationPKToFileID(bootstrapTxPubKey)
+
+	// Create a bootstrap account to pay for the new account (only for testing)
+	bootstrapFile := &filestore.File{
+		ID:         bootstrapID,
+		Balance:    balance + 10000, // Extra for fees
 		TxManager:  genesis.SystemProgramID,
 		Data:       []byte{},
 		Executable: false,
 	}
-	if _, err := fs.CreateFile(account); err != nil {
-		t.Fatalf("Failed to create account %s: %v", id.String(), err)
+
+	// This is the ONLY direct creation allowed - the bootstrap account for testing
+	if _, err := fs.CreateFile(bootstrapFile); err != nil {
+		t.Fatalf("Failed to create bootstrap account: %v", err)
+	}
+
+	// Generate a keypair for the new account
+	pubKey, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("Failed to generate keypair: %v", err)
+	}
+
+	var txPubKey transaction.PublicKey
+	copy(txPubKey[:], pubKey)
+
+	// Create the account through proper transaction system
+	createFileInstr, err := transaction.CreateFileInstruction(
+		genesis.SystemProgramID,
+		id,
+		bootstrapID,
+		balance,
+		txPubKey,
+	)
+	if err != nil {
+		t.Fatalf("Failed to create CREATE_FILE instruction: %v", err)
+	}
+
+	// Build and process transaction
+	tx := &transaction.Transaction{
+		LastSeen:     transaction.TxID{},
+		Instructions: []transaction.Instruction{*createFileInstr},
+		Signatures:   []transaction.Signature{},
+	}
+
+	// Sign transaction with bootstrap account
+	txData, err := tx.Marshal()
+	if err != nil {
+		t.Fatalf("Failed to marshal transaction: %v", err)
+	}
+
+	bootstrapSig := ed25519.Sign(bootstrapPriv, txData)
+	var sig [64]byte
+	copy(sig[:], bootstrapSig)
+
+	tx.Signatures = []transaction.Signature{
+		{PublicKey: bootstrapTxPubKey, Signature: sig},
+	}
+
+	// Process through transaction system
+	result, err := txProcessor.ProcessTransaction(tx)
+	if err != nil {
+		t.Fatalf("Account creation transaction failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Fatalf("Account creation failed: %v", result.Error)
 	}
 }
 

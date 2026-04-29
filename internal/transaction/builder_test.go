@@ -39,6 +39,156 @@ func TestNewTransactionBuilder(t *testing.T) {
 	}
 }
 
+// TestAddCreateFileInstruction tests adding a CREATE_FILE instruction
+func TestAddCreateFileInstruction(t *testing.T) {
+	lastSeen := TxID{}
+	builder := NewTransactionBuilder(lastSeen)
+
+	systemID := testSystemProgramID
+	newFileID := filestore.FileID{0x01}
+	payerID := filestore.FileID{0x02}
+	balance := int64(1000000)
+	owner := PublicKey{0x03}
+
+	err := builder.AddCreateFileInstruction(systemID, newFileID, payerID, balance, owner)
+	if err != nil {
+		t.Fatalf("AddCreateFileInstruction failed: %v", err)
+	}
+
+	if len(builder.instructions) != 1 {
+		t.Fatalf("Expected 1 instruction, got %d", len(builder.instructions))
+	}
+
+	instruction := builder.instructions[0]
+
+	// Check program ID
+	if instruction.ProgramID != systemID {
+		t.Errorf("ProgramID mismatch: expected %v, got %v", systemID, instruction.ProgramID)
+	}
+
+	// Check inputs
+	expectedInputs := map[string]FileAccess{
+		"program": {
+			FileID:     systemID,
+			Permission: Read,
+		},
+		"payer": {
+			FileID:     payerID,
+			Permission: Write,
+		},
+		"new_file": {
+			FileID:     newFileID,
+			Permission: Write,
+		},
+	}
+
+	if len(instruction.Inputs) != len(expectedInputs) {
+		t.Fatalf("Expected %d inputs, got %d", len(expectedInputs), len(instruction.Inputs))
+	}
+
+	for key, expected := range expectedInputs {
+		actual, exists := instruction.Inputs[key]
+		if !exists {
+			t.Errorf("Missing input key: %s", key)
+			continue
+		}
+
+		if actual.FileID != expected.FileID {
+			t.Errorf("Input %s FileID mismatch: expected %v, got %v", key, expected.FileID, actual.FileID)
+		}
+
+		if actual.Permission != expected.Permission {
+			t.Errorf("Input %s Permission mismatch: expected %v, got %v", key, expected.Permission, actual.Permission)
+		}
+	}
+
+	// Check instruction data format
+	expectedDataLen := 105 // type(1) + fileID(32) + payer(32) + balance(8) + owner(32)
+	if len(instruction.Data) != expectedDataLen {
+		t.Fatalf("Expected data length %d, got %d", expectedDataLen, len(instruction.Data))
+	}
+
+	// Check instruction type (CREATE_FILE = 0)
+	if instruction.Data[0] != 0 {
+		t.Errorf("Expected instruction type 0, got %d", instruction.Data[0])
+	}
+
+	// Check new file ID
+	var actualNewFileID filestore.FileID
+	copy(actualNewFileID[:], instruction.Data[1:33])
+	if actualNewFileID != newFileID {
+		t.Errorf("New file ID mismatch: expected %v, got %v", newFileID, actualNewFileID)
+	}
+
+	// Check payer ID
+	var actualPayerID filestore.FileID
+	copy(actualPayerID[:], instruction.Data[33:65])
+	if actualPayerID != payerID {
+		t.Errorf("Payer ID mismatch: expected %v, got %v", payerID, actualPayerID)
+	}
+
+	// Check balance
+	actualBalance := int64(binary.LittleEndian.Uint64(instruction.Data[65:73]))
+	if actualBalance != balance {
+		t.Errorf("Balance mismatch: expected %d, got %d", balance, actualBalance)
+	}
+
+	// Check owner
+	var actualOwner PublicKey
+	copy(actualOwner[:], instruction.Data[73:105])
+	if actualOwner != owner {
+		t.Errorf("Owner mismatch: expected %v, got %v", owner, actualOwner)
+	}
+}
+
+// TestAddCreateFileInstructionNegativeBalance tests validation of negative balance
+func TestAddCreateFileInstructionNegativeBalance(t *testing.T) {
+	lastSeen := TxID{}
+	builder := NewTransactionBuilder(lastSeen)
+
+	systemID := testSystemProgramID
+	newFileID := filestore.FileID{0x01}
+	payerID := filestore.FileID{0x02}
+	balance := int64(-1000) // Negative balance
+	owner := PublicKey{0x03}
+
+	err := builder.AddCreateFileInstruction(systemID, newFileID, payerID, balance, owner)
+	if err == nil {
+		t.Fatal("Expected error for negative balance, got nil")
+	}
+
+	expectedError := "balance must be non-negative, got -1000"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
+	}
+
+	// Should not add instruction on error
+	if len(builder.instructions) != 0 {
+		t.Errorf("Expected 0 instructions after error, got %d", len(builder.instructions))
+	}
+}
+
+// TestAddCreateFileInstructionZeroBalance tests that zero balance is allowed
+func TestAddCreateFileInstructionZeroBalance(t *testing.T) {
+	lastSeen := TxID{}
+	builder := NewTransactionBuilder(lastSeen)
+
+	systemID := testSystemProgramID
+	newFileID := filestore.FileID{0x01}
+	payerID := filestore.FileID{0x02}
+	balance := int64(0) // Zero balance should be allowed
+	owner := PublicKey{0x03}
+
+	err := builder.AddCreateFileInstruction(systemID, newFileID, payerID, balance, owner)
+	if err != nil {
+		t.Fatalf("AddCreateFileInstruction with zero balance failed: %v", err)
+	}
+
+	if len(builder.instructions) != 1 {
+		t.Fatalf("Expected 1 instruction, got %d", len(builder.instructions))
+	}
+}
+
 // TestAddTransferInstruction tests adding a transfer instruction
 func TestAddTransferInstruction(t *testing.T) {
 	lastSeen := TxID{}

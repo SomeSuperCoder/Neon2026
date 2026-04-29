@@ -103,6 +103,21 @@ func (iv *InputValidator) ValidateInstructionInputs(instr *transaction.Instructi
 			}
 		}
 
+		// SPECIAL CASE: For CREATE_FILE operations, the "new_file" input doesn't need to exist yet
+		// This is identified by checking if the instruction data starts with opcode 0 (CREATE_FILE)
+		// and the key is "new_file"
+		isCreateFileOp := len(instr.Data) > 0 && instr.Data[0] == 0
+		isNewFileInput := key == "new_file"
+
+		if isCreateFileOp && isNewFileInput {
+			// Skip existence check for the file being created
+			// But verify it doesn't already exist (can't create a file that exists)
+			if _, err := iv.fileStore.GetFile(fileAccess.FileID); err == nil {
+				return fmt.Errorf("cannot create file %s: file already exists", fileAccess.FileID.String())
+			}
+			continue
+		}
+
 		// Validate file exists (Requirement 1.2, 5.3)
 		if err := iv.ValidateFileExists(fileAccess.FileID); err != nil {
 			return fmt.Errorf("input file %s (key: %s) not found: %w",
