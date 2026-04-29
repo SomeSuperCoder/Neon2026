@@ -182,28 +182,130 @@ func (h *RPCHandler) successResponse(id interface{}, result interface{}) *JSONRP
 // Method handlers (stubs for now, will be implemented in subsequent tasks)
 
 func (h *RPCHandler) handleGetBalance(req *JSONRPCRequest) *JSONRPCResponse {
-	// TODO: Implement in task 3.2
-	return h.errorResponse(req.ID, InternalError, "Not implemented")
+	// Parse parameters
+	var params struct {
+		Address string `json:"address"`
+	}
+
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return h.errorResponse(req.ID, InvalidParams, "Invalid parameters")
+	}
+
+	// Validate address parameter is provided
+	if params.Address == "" {
+		return h.errorResponse(req.ID, InvalidParams, "address parameter is required")
+	}
+
+	// Get balance from query engine
+	balance, err := h.queryEngine.GetBalance(params.Address)
+	if err != nil {
+		h.logger.Printf("Failed to get balance for address %s: %v", params.Address, err)
+		return h.errorResponse(req.ID, InternalError, "Failed to get balance: "+err.Error())
+	}
+
+	// Return balance in response format
+	result := map[string]interface{}{
+		"balance": balance,
+	}
+
+	return h.successResponse(req.ID, result)
 }
 
 func (h *RPCHandler) handleGetAccountInfo(req *JSONRPCRequest) *JSONRPCResponse {
-	// TODO: Implement in task 3.2
-	return h.errorResponse(req.ID, InternalError, "Not implemented")
+	// Parse parameters
+	var params struct {
+		Address string `json:"address"`
+	}
+
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return h.errorResponse(req.ID, InvalidParams, "Invalid parameters")
+	}
+
+	// Validate address parameter is provided
+	if params.Address == "" {
+		return h.errorResponse(req.ID, InvalidParams, "address parameter is required")
+	}
+
+	// Get account info from query engine
+	accountInfo, err := h.queryEngine.GetAccountInfo(params.Address)
+	if err != nil {
+		h.logger.Printf("Failed to get account info for address %s: %v", params.Address, err)
+		return h.errorResponse(req.ID, InternalError, "Failed to get account info: "+err.Error())
+	}
+
+	// Return account info (may be nil for non-existent accounts)
+	return h.successResponse(req.ID, accountInfo)
 }
 
 func (h *RPCHandler) handleGetTransactionHistory(req *JSONRPCRequest) *JSONRPCResponse {
-	// TODO: Implement in task 3.4
-	return h.errorResponse(req.ID, InternalError, "Not implemented")
+	// Parse parameters
+	var params struct {
+		Address string `json:"address"`
+		Limit   int    `json:"limit,omitempty"`
+		Before  string `json:"before,omitempty"`
+	}
+
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return h.errorResponse(req.ID, InvalidParams, "Invalid parameters")
+	}
+
+	// Validate address parameter is provided
+	if params.Address == "" {
+		return h.errorResponse(req.ID, InvalidParams, "address parameter is required")
+	}
+
+	// Validate limit (max 100)
+	if params.Limit > 100 {
+		return h.errorResponse(req.ID, InvalidParams, "limit cannot exceed 100")
+	}
+
+	// Get transaction history from query engine
+	history, err := h.queryEngine.GetTransactionHistory(params.Address, params.Limit)
+	if err != nil {
+		h.logger.Printf("Failed to get transaction history for address %s: %v", params.Address, err)
+		return h.errorResponse(req.ID, InternalError, "Failed to get transaction history: "+err.Error())
+	}
+
+	return h.successResponse(req.ID, history)
 }
 
 func (h *RPCHandler) handleGetBlockHeight(req *JSONRPCRequest) *JSONRPCResponse {
-	// TODO: Implement in task 3.3
-	return h.errorResponse(req.ID, InternalError, "Not implemented")
+	// getBlockHeight doesn't require any parameters, so we don't need to parse them
+
+	// Get block height from query engine
+	height, err := h.queryEngine.GetBlockHeight()
+	if err != nil {
+		h.logger.Printf("Failed to get block height: %v", err)
+		return h.errorResponse(req.ID, InternalError, "Failed to get block height: "+err.Error())
+	}
+
+	return h.successResponse(req.ID, height)
 }
 
 func (h *RPCHandler) handleGetRecentBlockhash(req *JSONRPCRequest) *JSONRPCResponse {
-	// TODO: Implement in task 3.3
-	return h.errorResponse(req.ID, InternalError, "Not implemented")
+	// getRecentBlockhash doesn't require any parameters
+
+	// Get recent blockhash from query engine
+	blockhash, err := h.queryEngine.GetRecentBlockhash()
+	if err != nil {
+		h.logger.Printf("Failed to get recent blockhash: %v", err)
+		return h.errorResponse(req.ID, InternalError, "Failed to get recent blockhash: "+err.Error())
+	}
+
+	// Get current block height for the response
+	height, err := h.queryEngine.GetBlockHeight()
+	if err != nil {
+		h.logger.Printf("Failed to get block height: %v", err)
+		return h.errorResponse(req.ID, InternalError, "Failed to get block height: "+err.Error())
+	}
+
+	// Return blockhash and height
+	result := map[string]interface{}{
+		"blockhash":   blockhash,
+		"blockHeight": height,
+	}
+
+	return h.successResponse(req.ID, result)
 }
 
 func (h *RPCHandler) handleSendTransaction(req *JSONRPCRequest) *JSONRPCResponse {
@@ -293,8 +395,28 @@ func (h *RPCHandler) verifyTransactionSignatures(tx *transaction.Transaction) er
 }
 
 func (h *RPCHandler) handleGetTransactionStatus(req *JSONRPCRequest) *JSONRPCResponse {
-	// TODO: Implement in task 4.2
-	return h.errorResponse(req.ID, InternalError, "Not implemented")
+	// Parse parameters
+	var params struct {
+		Signature string `json:"signature"`
+	}
+
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return h.errorResponse(req.ID, InvalidParams, "Invalid parameters")
+	}
+
+	// Validate signature parameter is provided
+	if params.Signature == "" {
+		return h.errorResponse(req.ID, InvalidParams, "signature parameter is required")
+	}
+
+	// Get transaction status from query engine
+	status, err := h.queryEngine.GetTransactionStatus(params.Signature)
+	if err != nil {
+		h.logger.Printf("Failed to get transaction status for signature %s: %v", params.Signature, err)
+		return h.errorResponse(req.ID, InternalError, "Failed to get transaction status: "+err.Error())
+	}
+
+	return h.successResponse(req.ID, status)
 }
 
 // writeError writes a JSON-RPC error response

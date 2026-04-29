@@ -77,7 +77,32 @@ Pipeline: `.qs` → Lexer → Parser → TypeChecker → CodeGen → `.qsb`
 
 Conflict detection for transaction scheduling — identifies read/write conflicts to enable safe parallel execution.
 
-### 7. BFT Testing
+### 7. RPC Server (`internal/rpc`)
+
+JSON-RPC 2.0 server for blockchain queries and transaction submission.
+
+- **HTTP Server** (`server.go`): HTTP transport with CORS support, graceful shutdown, configurable timeouts
+- **Request Handler** (`handler.go`): Method routing, parameter validation, signature verification, request logging
+- **Query Engine** (`query.go`): Blockchain data queries with caching, account info, transaction history
+- **Type System** (`types.go`): JSON-RPC request/response types, error codes, data structures
+
+**Implemented Methods:**
+- `getBalance` — Account balance queries
+- `getAccountInfo` — Full account information with owner, data length, executable status
+- `getBlockHeight` — Current blockchain height
+- `getRecentBlockhash` — Recent block hash for transaction construction
+- `getTransactionHistory` — Transaction history with pagination (limit, reverse chronological)
+- `sendTransaction` — Transaction submission with signature verification
+- `getTransactionStatus` — Transaction confirmation status
+
+**Features:**
+- Read-only FileStore access for safe concurrent queries
+- Request size limits (1MB) and connection limits
+- Comprehensive error handling with JSON-RPC error codes
+- Request timing and logging
+- CORS headers for browser access
+
+### 8. BFT Testing
 
 - Malicious node behaviors (invalid hash counts, wrong previous hashes, skipped validation)
 - Demo scripts: `demo.sh`, `demo-bft.sh`, `demo-automated.sh`, `test-launcher.sh`
@@ -141,7 +166,10 @@ Conflict detection for transaction scheduling — identifies read/write conflict
 - ✅ 36 wallet core tests (mnemonic, derivation, encryption, wallet management)
 - ✅ 10 transaction tests (building, signing, submission, validation)
 - ✅ 14 RPC client tests (all methods, error handling, timeouts)
-- ✅ Total: 60 tests passing
+- ✅ 24 RPC handler tests (method routing, parameter validation, signature verification)
+- ✅ 15 RPC query engine tests (balance, account info, transaction history, caching)
+- ✅ 13 RPC server tests (HTTP transport, CORS, concurrent requests, graceful shutdown)
+- ✅ Total: 112 tests passing
 
 ## Usage Examples
 

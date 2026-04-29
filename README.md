@@ -406,6 +406,7 @@ This project is under active development. See `.kiro/specs/` for feature specifi
   - ✅ RPC server with HTTP transport and CORS support
   - ✅ Query engine with caching for blockchain data
   - ✅ Transaction submission with signature verification
+  - ✅ All RPC methods implemented (getBalance, getAccountInfo, getBlockHeight, getRecentBlockhash, getTransactionHistory, sendTransaction, getTransactionStatus)
   - ✅ Wallet configuration management
   - ✅ BIP39 mnemonic generation and validation
   - ✅ BIP44 key derivation for Ed25519

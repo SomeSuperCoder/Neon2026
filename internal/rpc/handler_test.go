@@ -32,31 +32,31 @@ func TestHandleRequest_MethodRouting(t *testing.T) {
 		{
 			name:            "getBalance routes correctly",
 			method:          "getBalance",
-			expectError:     true, // Not implemented yet, but should route
-			expectedErrCode: InternalError,
+			expectError:     true, // Requires address parameter
+			expectedErrCode: InvalidParams,
 		},
 		{
 			name:            "getAccountInfo routes correctly",
 			method:          "getAccountInfo",
-			expectError:     true,
-			expectedErrCode: InternalError,
+			expectError:     true, // Requires address parameter
+			expectedErrCode: InvalidParams,
 		},
 		{
 			name:            "getTransactionHistory routes correctly",
 			method:          "getTransactionHistory",
 			expectError:     true,
-			expectedErrCode: InternalError,
+			expectedErrCode: InvalidParams, // Requires address parameter
 		},
 		{
 			name:            "getBlockHeight routes correctly",
 			method:          "getBlockHeight",
-			expectError:     true,
-			expectedErrCode: InternalError,
+			expectError:     false, // Now implemented
+			expectedErrCode: 0,
 		},
 		{
 			name:            "getRecentBlockhash routes correctly",
 			method:          "getRecentBlockhash",
-			expectError:     true,
+			expectError:     true, // Will fail because no blocks in test ledger
 			expectedErrCode: InternalError,
 		},
 		{
@@ -69,7 +69,7 @@ func TestHandleRequest_MethodRouting(t *testing.T) {
 			name:            "getTransactionStatus routes correctly",
 			method:          "getTransactionStatus",
 			expectError:     true,
-			expectedErrCode: InternalError,
+			expectedErrCode: InvalidParams, // Requires signature parameter
 		},
 		{
 			name:            "unknown method returns MethodNotFound",
@@ -131,8 +131,8 @@ func TestHandleRequest_RequestValidation(t *testing.T) {
 				Params:  json.RawMessage(`{}`),
 				ID:      1,
 			},
-			expectError: true, // Method not implemented yet
-			errorCode:   InternalError,
+			expectError: false, // Method is now implemented
+			errorCode:   0,
 		},
 		{
 			name: "missing method",
@@ -153,8 +153,8 @@ func TestHandleRequest_RequestValidation(t *testing.T) {
 				Params:  json.RawMessage(`{}`),
 				ID:      nil,
 			},
-			expectError: true,
-			errorCode:   InternalError,
+			expectError: false, // getBlockHeight now works
+			errorCode:   0,
 		},
 		{
 			name: "string ID is valid",
@@ -164,8 +164,8 @@ func TestHandleRequest_RequestValidation(t *testing.T) {
 				Params:  json.RawMessage(`{}`),
 				ID:      "test-id",
 			},
-			expectError: true,
-			errorCode:   InternalError,
+			expectError: false, // getBlockHeight now works
+			errorCode:   0,
 		},
 	}
 
@@ -203,8 +203,8 @@ func TestServeHTTP_JSONParsing(t *testing.T) {
 			name:           "valid JSON-RPC request",
 			requestBody:    `{"jsonrpc":"2.0","method":"getBlockHeight","params":{},"id":1}`,
 			expectedStatus: http.StatusOK,
-			expectError:    true, // Method not implemented
-			errorCode:      InternalError,
+			expectError:    false, // Method is now implemented
+			errorCode:      0,
 		},
 		{
 			name:           "invalid JSON",
@@ -439,6 +439,67 @@ func TestHandleSendTransaction(t *testing.T) {
 				}
 				if resp.Result == nil {
 					t.Error("Expected result, got nil")
+				}
+			}
+		})
+	}
+}
+
+// TestHandleGetBlockHeight tests the getBlockHeight RPC method
+func TestHandleGetBlockHeight(t *testing.T) {
+	handler := createTestHandler(t)
+
+	tests := []struct {
+		name        string
+		params      string
+		expectError bool
+		errorCode   int
+	}{
+		{
+			name:        "valid request with empty params",
+			params:      `{}`,
+			expectError: false,
+		},
+		{
+			name:        "valid request with null params",
+			params:      `null`,
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &JSONRPCRequest{
+				JSONRPC: "2.0",
+				Method:  "getBlockHeight",
+				Params:  json.RawMessage(tt.params),
+				ID:      1,
+			}
+
+			resp := handler.HandleRequest(req)
+
+			if resp == nil {
+				t.Fatal("Expected response, got nil")
+			}
+
+			if tt.expectError {
+				if resp.Error == nil {
+					t.Error("Expected error in response, got nil")
+				} else if resp.Error.Code != tt.errorCode {
+					t.Errorf("Expected error code %d, got %d", tt.errorCode, resp.Error.Code)
+				}
+			} else {
+				if resp.Error != nil {
+					t.Errorf("Expected no error, got: %v", resp.Error)
+				}
+				if resp.Result == nil {
+					t.Error("Expected result, got nil")
+				}
+				// Result should be a number (int64)
+				if height, ok := resp.Result.(int64); !ok {
+					t.Errorf("Expected result to be int64, got %T", resp.Result)
+				} else if height < 0 {
+					t.Errorf("Expected non-negative height, got %d", height)
 				}
 			}
 		})

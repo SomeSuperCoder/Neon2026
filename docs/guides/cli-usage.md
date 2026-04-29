@@ -195,13 +195,13 @@ Press Ctrl+C to stop...
 ```
 
 **Available RPC Methods:**
-- `getBalance` - Get account balance
-- `getAccountInfo` - Get full account information
-- `getTransactionHistory` - Get transaction history with pagination
-- `getBlockHeight` - Get current blockchain height
-- `getRecentBlockhash` - Get recent block hash
-- `sendTransaction` - Submit a signed transaction
-- `getTransactionStatus` - Check transaction confirmation status
+- `getBalance` - Get account balance ✅ **Implemented**
+- `getAccountInfo` - Get full account information ✅ **Implemented**
+- `getTransactionHistory` - Get transaction history with pagination ✅ **Implemented**
+- `getBlockHeight` - Get current blockchain height ✅ **Implemented**
+- `getRecentBlockhash` - Get recent block hash ✅ **Implemented**
+- `sendTransaction` - Submit a signed transaction ✅ **Implemented**
+- `getTransactionStatus` - Check transaction confirmation status ✅ **Implemented**
 
 **Example RPC Request:**
 ```bash
