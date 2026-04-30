@@ -101,7 +101,7 @@ start_devnet() {
   
   # Build binary
   echo -e "${BLUE}Building poh-node binary...${NC}"
-  if ! go build -o bin/poh-node cmd/main.go; then
+  if ! go build -o bin/poh-node ./cmd/main.go; then
     echo -e "${RED}Failed to build poh-node binary${NC}"
     exit 1
   fi

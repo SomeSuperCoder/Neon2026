@@ -73,7 +73,7 @@ func (v *AuthView) Update(msg tea.Msg) (ViewModel, tea.Cmd) {
 			return v, nil
 		} else {
 			v.failedAttempts++
-			v.err = fmt.Errorf(msg.error)
+			v.err = fmt.Errorf("%s", msg.error)
 
 			// Lock after 3 failed attempts
 			if v.failedAttempts >= 3 {

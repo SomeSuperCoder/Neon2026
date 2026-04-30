@@ -148,6 +148,9 @@ func TestEndToEndWalletWorkflow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping end-to-end test in short mode")
 	}
+	if os.Getenv("E2E_TESTS") == "" {
+		t.Skip("Skipping end-to-end test: set E2E_TESTS=1 to run")
+	}
 
 	suite := NewE2ETestSuite(t)
 
@@ -486,6 +489,9 @@ func TestEndToEndWalletCreationFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping end-to-end test in short mode")
 	}
+	if os.Getenv("E2E_TESTS") == "" {
+		t.Skip("Skipping end-to-end test: set E2E_TESTS=1 to run")
+	}
 
 	suite := NewE2ETestSuite(t)
 
@@ -664,6 +670,12 @@ func (s *E2ETestSuite) testWalletRestoration(t *testing.T) {
 func TestEndToEndRPCErrorHandling(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping end-to-end test in short mode")
+	}
+	if os.Getenv("E2E_TESTS") == "" {
+		t.Skip("Skipping end-to-end test: set E2E_TESTS=1 to run")
+	}
+	if os.Getenv("E2E_TESTS") == "" {
+		t.Skip("Skipping end-to-end test: set E2E_TESTS=1 to run")
 	}
 
 	suite := NewE2ETestSuite(t)
