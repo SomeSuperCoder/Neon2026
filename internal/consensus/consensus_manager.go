@@ -511,6 +511,12 @@ func (cm *ConsensusManager) persistEpochState(epochStartSlot int64) error {
 		}
 	} else {
 		// File exists, update it
+		// Recalculate storage cost for the new data
+		newStorageCost := filestore.CalculateStorageCost(int64(len(epochStateData)))
+		// Ensure balance is sufficient for the new data
+		if epochStateFile.Balance < newStorageCost {
+			epochStateFile.Balance = newStorageCost + 1000 // Add buffer
+		}
 		epochStateFile.Data = epochStateData
 		if err := cm.fileStore.UpdateFile(genesis.EpochStateFileID, epochStateFile); err != nil {
 			return fmt.Errorf("failed to update Epoch State File: %w", err)

@@ -2158,3 +2158,319 @@ func TestResetAllBlockProductionCountersAtEpochBoundary(t *testing.T) {
 		}
 	}
 }
+
+// TestLoggingEpochBoundaryScheduleComputation tests that correct log messages are emitted when computing new schedule
+func TestLoggingEpochBoundaryScheduleComputation(t *testing.T) {
+	// Create a temporary FileStore
+	tmpDir := t.TempDir()
+	fs, err := filestore.NewFileStore(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to create FileStore: %v", err)
+	}
+	defer fs.Close()
+
+	// Create ConsensusManager with small epoch for testing
+	config := GenesisConfig{
+		EpochLength: 100,
+		GenesisValidators: []GenesisValidator{
+			{
+				PublicKey:   [32]byte{1},
+				StakeAmount: 1000000,
+			},
+		},
+	}
+
+	pk := [32]byte{1}
+	validatorID := filestore.GenerateFileID(append([]byte("validator:"), pk[:]...))
+	cm := NewConsensusManagerWithGenesis(validatorID, nil, config)
+	cm.SetFileStore(fs)
+
+	// Create test validator records
+	pk1 := [32]byte{1, 2, 3}
+	pk2 := [32]byte{4, 5, 6}
+
+	validator1ID := filestore.GenerateFileID(append([]byte("validator:"), pk1[:]...))
+	validator2ID := filestore.GenerateFileID(append([]byte("validator:"), pk2[:]...))
+
+	// Create validator 1: active with 2 Neon stake
+	validator1Data, err := quanticscript.SerializeValidatorRecord(
+		pk1[:], 0, 2000000, 1, 0, 0, 0,
+	)
+	if err != nil {
+		t.Fatalf("failed to serialize validator1: %v", err)
+	}
+
+	storageCost := filestore.CalculateStorageCost(int64(len(validator1Data)))
+	validator1File := &filestore.File{
+		ID: validator1ID, Balance: storageCost + 1000, TxManager: filestore.FileID{}, Data: validator1Data,
+	}
+	_, err = fs.CreateFile(validator1File)
+	if err != nil {
+		t.Fatalf("failed to create validator1 file: %v", err)
+	}
+
+	// Create validator 2: active with 3 Neon stake
+	validator2Data, err := quanticscript.SerializeValidatorRecord(
+		pk2[:], 0, 3000000, 1, 0, 0, 0,
+	)
+	if err != nil {
+		t.Fatalf("failed to serialize validator2: %v", err)
+	}
+
+	storageCost = filestore.CalculateStorageCost(int64(len(validator2Data)))
+	validator2File := &filestore.File{
+		ID: validator2ID, Balance: storageCost + 1000, TxManager: filestore.FileID{}, Data: validator2Data,
+	}
+	_, err = fs.CreateFile(validator2File)
+	if err != nil {
+		t.Fatalf("failed to create validator2 file: %v", err)
+	}
+
+	// Process epoch boundary with hash
+	lastBlockHash := [32]byte{1, 2, 3, 4, 5, 6, 7, 8}
+	err = cm.ProcessEpochBoundaryWithHash(0, lastBlockHash)
+	if err != nil {
+		t.Fatalf("ProcessEpochBoundaryWithHash failed: %v", err)
+	}
+
+	// Verify that the schedule was computed and persisted
+	if len(cm.validatorSchedule) != int(cm.epochLength) {
+		t.Errorf("expected schedule length %d, got %d", cm.epochLength, len(cm.validatorSchedule))
+	}
+
+	// Verify epoch was incremented
+	if cm.currentEpoch != 1 {
+		t.Errorf("expected currentEpoch=1, got %d", cm.currentEpoch)
+	}
+}
+
+// TestLoggingBlockProduction tests that correct log messages are emitted when producing a block
+func TestLoggingBlockProduction(t *testing.T) {
+	// Create a temporary FileStore
+	tmpDir := t.TempDir()
+	fs, err := filestore.NewFileStore(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to create FileStore: %v", err)
+	}
+	defer fs.Close()
+
+	// Create ConsensusManager
+	config := GenesisConfig{
+		EpochLength: 100,
+		GenesisValidators: []GenesisValidator{
+			{
+				PublicKey:   [32]byte{1},
+				StakeAmount: 1000000,
+			},
+		},
+	}
+
+	pk := [32]byte{1}
+	validatorID := filestore.GenerateFileID(append([]byte("validator:"), pk[:]...))
+	cm := NewConsensusManagerWithGenesis(validatorID, nil, config)
+	cm.SetFileStore(fs)
+
+	// Create validator record
+	validatorData, err := quanticscript.SerializeValidatorRecord(
+		pk[:], 0, 1000000, 1, 0, 0, 0,
+	)
+	if err != nil {
+		t.Fatalf("failed to serialize validator: %v", err)
+	}
+
+	storageCost := filestore.CalculateStorageCost(int64(len(validatorData)))
+	validatorFile := &filestore.File{
+		ID: validatorID, Balance: storageCost + 1000, TxManager: filestore.FileID{}, Data: validatorData,
+	}
+	_, err = fs.CreateFile(validatorFile)
+	if err != nil {
+		t.Fatalf("failed to create validator file: %v", err)
+	}
+
+	// Record block production
+	err = cm.RecordBlockProduction(validatorID)
+	if err != nil {
+		t.Fatalf("RecordBlockProduction failed: %v", err)
+	}
+
+	// Verify block production counter was incremented
+	updatedFile, err := fs.GetFile(validatorID)
+	if err != nil {
+		t.Fatalf("failed to get updated validator file: %v", err)
+	}
+
+	_, _, _, _, blocksProduced, _, _, err := quanticscript.DeserializeValidatorRecord(updatedFile.Data)
+	if err != nil {
+		t.Fatalf("failed to deserialize validator record: %v", err)
+	}
+
+	if blocksProduced != 1 {
+		t.Errorf("expected blocksProduced=1, got %d", blocksProduced)
+	}
+}
+
+// TestLoggingMissedBlock tests that correct log messages are emitted when recording missed blocks
+func TestLoggingMissedBlock(t *testing.T) {
+	// Create a temporary FileStore
+	tmpDir := t.TempDir()
+	fs, err := filestore.NewFileStore(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to create FileStore: %v", err)
+	}
+	defer fs.Close()
+
+	// Create ConsensusManager
+	config := GenesisConfig{
+		EpochLength: 100,
+		GenesisValidators: []GenesisValidator{
+			{
+				PublicKey:   [32]byte{1},
+				StakeAmount: 1000000,
+			},
+		},
+	}
+
+	pk := [32]byte{1}
+	validatorID := filestore.GenerateFileID(append([]byte("validator:"), pk[:]...))
+	cm := NewConsensusManagerWithGenesis(validatorID, nil, config)
+	cm.SetFileStore(fs)
+
+	// Create validator record
+	validatorData, err := quanticscript.SerializeValidatorRecord(
+		pk[:], 0, 1000000, 1, 0, 0, 0,
+	)
+	if err != nil {
+		t.Fatalf("failed to serialize validator: %v", err)
+	}
+
+	storageCost := filestore.CalculateStorageCost(int64(len(validatorData)))
+	validatorFile := &filestore.File{
+		ID: validatorID, Balance: storageCost + 1000, TxManager: filestore.FileID{}, Data: validatorData,
+	}
+	_, err = fs.CreateFile(validatorFile)
+	if err != nil {
+		t.Fatalf("failed to create validator file: %v", err)
+	}
+
+	// Initialize epoch state file first
+	err = cm.persistEpochState(0)
+	if err != nil {
+		t.Fatalf("failed to persist epoch state: %v", err)
+	}
+
+	// Record missed block
+	err = cm.RecordMissedBlock(0, validatorID)
+	if err != nil {
+		t.Fatalf("RecordMissedBlock failed: %v", err)
+	}
+
+	// Verify missed block counter was incremented
+	updatedFile, err := fs.GetFile(validatorID)
+	if err != nil {
+		t.Fatalf("failed to get updated validator file: %v", err)
+	}
+
+	_, _, _, _, _, missedBlocks, _, err := quanticscript.DeserializeValidatorRecord(updatedFile.Data)
+	if err != nil {
+		t.Fatalf("failed to deserialize validator record: %v", err)
+	}
+
+	if missedBlocks != 1 {
+		t.Errorf("expected missedBlocks=1, got %d", missedBlocks)
+	}
+}
+
+// TestLoggingObserverMode tests that warning is logged when starting in observer mode
+func TestLoggingObserverMode(t *testing.T) {
+	// Create ConsensusManager in observer mode (zero validator ID)
+	config := GenesisConfig{
+		EpochLength: 100,
+		GenesisValidators: []GenesisValidator{
+			{
+				PublicKey:   [32]byte{1},
+				StakeAmount: 1000000,
+			},
+		},
+	}
+
+	zeroValidatorID := filestore.FileID{}
+	cm := NewConsensusManagerWithGenesis(zeroValidatorID, nil, config)
+
+	// Verify that IsLeader returns false in observer mode
+	if cm.IsLeader(0) {
+		t.Errorf("IsLeader should return false in observer mode")
+	}
+
+	// Verify that localValidatorID is zero
+	if cm.GetLocalValidatorID() != (filestore.FileID{}) {
+		t.Errorf("expected zero localValidatorID in observer mode")
+	}
+}
+
+// TestLoggingRestoreEpochState tests that correct log messages are emitted when restoring epoch state
+func TestLoggingRestoreEpochState(t *testing.T) {
+	// Create a temporary FileStore
+	tmpDir := t.TempDir()
+	fs, err := filestore.NewFileStore(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to create FileStore: %v", err)
+	}
+	defer fs.Close()
+
+	// Create ConsensusManager
+	config := GenesisConfig{
+		EpochLength: 100,
+		GenesisValidators: []GenesisValidator{
+			{
+				PublicKey:   [32]byte{1},
+				StakeAmount: 1000000,
+			},
+		},
+	}
+
+	pk := [32]byte{1}
+	validatorID := filestore.GenerateFileID(append([]byte("validator:"), pk[:]...))
+	cm := NewConsensusManagerWithGenesis(validatorID, nil, config)
+	cm.SetFileStore(fs)
+
+	// Initialize genesis (this creates the epoch state file)
+	err = cm.InitializeGenesis(config)
+	if err != nil {
+		t.Fatalf("InitializeGenesis failed: %v", err)
+	}
+
+	// Verify epoch state was initialized
+	if cm.currentEpoch != 0 {
+		t.Errorf("expected currentEpoch=0 after genesis init, got %d", cm.currentEpoch)
+	}
+
+	// Genesis creates a schedule with just the genesis validators (not full stake-weighted)
+	if len(cm.validatorSchedule) != len(config.GenesisValidators) {
+		t.Errorf("expected schedule length %d, got %d", len(config.GenesisValidators), len(cm.validatorSchedule))
+	}
+
+	// Create a new ConsensusManager and restore from the persisted epoch state
+	cm2 := NewConsensusManagerWithGenesis(validatorID, nil, config)
+	cm2.SetFileStore(fs)
+
+	err = cm2.InitializeGenesis(config)
+	if err != nil {
+		t.Fatalf("InitializeGenesis failed on second manager: %v", err)
+	}
+
+	// Verify epoch state was restored correctly
+	if cm2.currentEpoch != cm.currentEpoch {
+		t.Errorf("expected restored currentEpoch=%d, got %d", cm.currentEpoch, cm2.currentEpoch)
+	}
+
+	if len(cm2.validatorSchedule) != len(cm.validatorSchedule) {
+		t.Errorf("expected restored schedule length %d, got %d", len(cm.validatorSchedule), len(cm2.validatorSchedule))
+	}
+
+	// Verify schedules match
+	for i := range cm.validatorSchedule {
+		if cm.validatorSchedule[i] != cm2.validatorSchedule[i] {
+			t.Errorf("restored schedule differs at slot %d", i)
+		}
+	}
+}

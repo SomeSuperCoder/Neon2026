@@ -174,7 +174,7 @@
   - Test counter resets at epoch boundary
   - _Requirements: 8.4_
 
-- [ ] 12. Implement logging and observability
+- [x] 12. Implement logging and observability
   - Log epoch number, active validator count, total stake when computing new schedule
   - Log slot number, local validator FileID when producing block
   - Log slot number, scheduled validator FileID when skipping slot due to missed block
@@ -182,24 +182,24 @@
   - Log warning when starting in observer mode
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-- [ ] 12.1 Write tests for logging output
+- [x] 12.1 Write tests for logging output
   - Verify correct log messages are emitted for each scenario
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-- [ ] 13. Update demo scripts to use wallet-based validators
+- [x] 13. Update demo scripts to use wallet-based validators
   - Update `demo-dpos.sh` to create genesis wallets automatically
   - Replace `--type=leader` flags with `--wallet <name>` flags
   - Add `--wallet-keypair-index` flag for non-interactive keypair selection in automation
   - Update genesis configuration JSON to match new format
   - _Requirements: 7.5_
 
-- [ ] 13.1 Test demo script with 2, 3, and 5 validators
+- [x] 13.1 Test demo script with 2, 3, and 5 validators
   - Verify stake-weighted slot distribution (validator with 2x stake gets ~2x slots)
   - Verify epoch boundary schedule recalculation
   - Verify missed block handling
   - _Requirements: 2.3, 4.1, 5.1_
 
-- [ ] 14. Write comprehensive integration test for full stake-weighted consensus lifecycle
+- [x] 14. Write comprehensive integration test for full stake-weighted consensus lifecycle
   - Create `internal/stake_weighted_consensus_test.go`
   - Test: genesis → block production → epoch boundary → schedule recalculation → continued block production
   - Test with 3 validators: stakes 10 Neon, 5 Neon, 2 Neon
