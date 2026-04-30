@@ -26,6 +26,7 @@ import (
 	"github.com/poh-blockchain/internal/storage"
 	"github.com/poh-blockchain/internal/transaction"
 	"github.com/poh-blockchain/internal/verification"
+	"github.com/poh-blockchain/internal/wallet"
 	"github.com/poh-blockchain/programs"
 )
 
@@ -1387,6 +1388,275 @@ func compileSource(source string, verbose bool) ([]byte, []error) {
 	}
 
 	return bytecode, nil
+}
+
+// handleWalletCommand handles wallet management commands
+func handleWalletCommand() {
+	if len(os.Args) < 3 {
+		printWalletHelp()
+		os.Exit(1)
+	}
+
+	subcommand := os.Args[2]
+
+	switch subcommand {
+	case "create":
+		handleWalletCreateCommand()
+	case "list":
+		handleWalletListCommand()
+	case "show":
+		handleWalletShowCommand()
+	case "export":
+		handleWalletExportCommand()
+	case "import":
+		handleWalletImportCommand()
+	case "help":
+		printWalletHelp()
+	default:
+		fmt.Printf("Unknown wallet subcommand: %s\n", subcommand)
+		printWalletHelp()
+		os.Exit(1)
+	}
+}
+
+// printWalletHelp prints help for wallet commands
+func printWalletHelp() {
+	fmt.Println("Wallet Management")
+	fmt.Println("\nUsage:")
+	fmt.Println("  poh-blockchain wallet <subcommand> [options]")
+	fmt.Println("\nSubcommands:")
+	fmt.Println("  create --name <wallet-name>")
+	fmt.Println("    Create a new password-protected wallet")
+	fmt.Println()
+	fmt.Println("  list")
+	fmt.Println("    List all available wallets")
+	fmt.Println()
+	fmt.Println("  show --name <wallet-name>")
+	fmt.Println("    Display wallet information")
+	fmt.Println()
+	fmt.Println("  export --name <wallet-name> --output <file>")
+	fmt.Println("    Export wallet to unencrypted JSON")
+	fmt.Println()
+	fmt.Println("  import --input <file> --name <wallet-name>")
+	fmt.Println("    Import wallet from unencrypted JSON")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  # Create a new wallet")
+	fmt.Println("  poh-blockchain wallet create --name validator1")
+	fmt.Println()
+	fmt.Println("  # List all wallets")
+	fmt.Println("  poh-blockchain wallet list")
+	fmt.Println()
+	fmt.Println("  # Show wallet details")
+	fmt.Println("  poh-blockchain wallet show --name validator1")
+	fmt.Println()
+	fmt.Println("  # Export wallet to JSON")
+	fmt.Println("  poh-blockchain wallet export --name validator1 --output validator1.json")
+	fmt.Println()
+	fmt.Println("  # Import wallet from JSON")
+	fmt.Println("  poh-blockchain wallet import --input validator1.json --name validator1")
+}
+
+// handleWalletCreateCommand creates a new wallet
+func handleWalletCreateCommand() {
+	fs := flag.NewFlagSet("wallet create", flag.ExitOnError)
+	name := fs.String("name", "", "Wallet name")
+	password := fs.String("password", "", "Wallet password")
+
+	fs.Parse(os.Args[3:])
+
+	if *name == "" || *password == "" {
+		fmt.Println("Error: --name and --password are required")
+		fmt.Println()
+		fmt.Println("Usage: wallet create --name <wallet-name> --password <password>")
+		os.Exit(1)
+	}
+
+	wallet, err := wallet.Create(*name, *password)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create wallet: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Wallet created successfully!\n")
+	fmt.Printf("  Name: %s\n", wallet.Name)
+	fmt.Printf("  Keypairs: %d\n", len(wallet.Keypairs))
+	if len(wallet.Keypairs) > 0 {
+		fmt.Printf("  Public Key: %s\n", hex.EncodeToString(wallet.Keypairs[0].PublicKey[:]))
+	}
+}
+
+// handleWalletListCommand lists all wallets
+func handleWalletListCommand() {
+	wallets, err := wallet.List()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to list wallets: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(wallets) == 0 {
+		fmt.Println("No wallets found")
+		return
+	}
+
+	fmt.Printf("Wallets (%d):\n", len(wallets))
+	for _, w := range wallets {
+		fmt.Printf("  - %s\n", w)
+	}
+}
+
+// handleWalletShowCommand shows wallet details
+func handleWalletShowCommand() {
+	fs := flag.NewFlagSet("wallet show", flag.ExitOnError)
+	name := fs.String("name", "", "Wallet name")
+	password := fs.String("password", "", "Wallet password")
+
+	fs.Parse(os.Args[3:])
+
+	if *name == "" || *password == "" {
+		fmt.Println("Error: --name and --password are required")
+		fmt.Println()
+		fmt.Println("Usage: wallet show --name <wallet-name> --password <password>")
+		os.Exit(1)
+	}
+
+	w, err := wallet.Open(*name, *password)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open wallet: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Wallet: %s\n", w.Name)
+	fmt.Printf("  Keypairs: %d\n", len(w.Keypairs))
+	for i, kp := range w.Keypairs {
+		fmt.Printf("  Keypair %d:\n", i+1)
+		fmt.Printf("    Public Key:  %s\n", hex.EncodeToString(kp.PublicKey[:]))
+		fmt.Printf("    Private Key: [hidden]\n")
+	}
+}
+
+// handleWalletExportCommand exports wallet to JSON
+func handleWalletExportCommand() {
+	fs := flag.NewFlagSet("wallet export", flag.ExitOnError)
+	name := fs.String("name", "", "Wallet name")
+	password := fs.String("password", "", "Wallet password")
+	output := fs.String("output", "", "Output file path")
+
+	fs.Parse(os.Args[3:])
+
+	if *name == "" || *password == "" || *output == "" {
+		fmt.Println("Error: --name, --password, and --output are required")
+		fmt.Println()
+		fmt.Println("Usage: wallet export --name <wallet-name> --password <password> --output <file>")
+		os.Exit(1)
+	}
+
+	w, err := wallet.Open(*name, *password)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open wallet: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := w.Export(*output); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to export wallet: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Wallet exported successfully to: %s\n", *output)
+	fmt.Println("Warning: The exported file is unencrypted. Keep it safe!")
+}
+
+// handleWalletImportCommand imports wallet from JSON
+func handleWalletImportCommand() {
+	fs := flag.NewFlagSet("wallet import", flag.ExitOnError)
+	input := fs.String("input", "", "Input file path")
+	name := fs.String("name", "", "Wallet name")
+	password := fs.String("password", "", "Wallet password")
+
+	fs.Parse(os.Args[3:])
+
+	if *input == "" || *name == "" || *password == "" {
+		fmt.Println("Error: --input, --name, and --password are required")
+		fmt.Println()
+		fmt.Println("Usage: wallet import --input <file> --name <wallet-name> --password <password>")
+		os.Exit(1)
+	}
+
+	w, err := wallet.Import(*input, *name, *password)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to import wallet: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Wallet imported successfully!\n")
+	fmt.Printf("  Name: %s\n", w.Name)
+	fmt.Printf("  Keypairs: %d\n", len(w.Keypairs))
+}
+
+// initializeValidatorIdentity initializes the validator identity from a wallet
+func initializeValidatorIdentity(walletName string, fs *filestore.FileStore) (filestore.FileID, *wallet.Keypair, error) {
+	if walletName == "" {
+		// No wallet specified - observer mode
+		return filestore.FileID{}, nil, nil
+	}
+
+	// For now, we need to get the password from environment or use a default
+	// In a full implementation, this would prompt for password or use a keyring
+	password := os.Getenv("WALLET_PASSWORD")
+	if password == "" {
+		// Try to load from a keyfile or use default development password
+		keyfile := os.Getenv("WALLET_KEYFILE")
+		if keyfile != "" {
+			// Load password from keyfile
+			keyfileData, err := os.ReadFile(keyfile)
+			if err != nil {
+				return filestore.FileID{}, nil, fmt.Errorf("failed to read wallet keyfile: %w", err)
+			}
+			password = strings.TrimSpace(string(keyfileData))
+		} else {
+			// Development fallback - in production this should not be used
+			fmt.Println("Warning: Using development wallet password. Set WALLET_PASSWORD or WALLET_KEYFILE for production.")
+			password = "development-password-change-in-production"
+		}
+	}
+
+	// Open the wallet
+	w, err := wallet.Open(walletName, password)
+	if err != nil {
+		return filestore.FileID{}, nil, fmt.Errorf("failed to open wallet: %w", err)
+	}
+
+	if len(w.Keypairs) == 0 {
+		return filestore.FileID{}, nil, fmt.Errorf("wallet has no keypairs")
+	}
+
+	// Use the first keypair
+	kp := &w.Keypairs[0]
+
+	// Derive FileID from public key
+	var validatorID filestore.FileID
+	copy(validatorID[:], kp.PublicKey[:])
+
+	// Create or get validator account in FileStore
+	validatorFile, err := fs.GetFile(validatorID)
+	if err != nil {
+		// Create validator account if it doesn't exist
+		validatorFile = &filestore.File{
+			ID:         validatorID,
+			Balance:    1000000, // Initial balance for validator
+			TxManager:  genesis.SystemProgramID,
+			Data:       []byte{},
+			Executable: false,
+		}
+		if _, err := fs.CreateFile(validatorFile); err != nil {
+			return filestore.FileID{}, nil, fmt.Errorf("failed to create validator account: %w", err)
+		}
+		log.Printf("Created validator account at %s", validatorID.String())
+	} else {
+		log.Printf("Using existing validator account at %s (balance=%d)", validatorID.String(), validatorFile.Balance)
+	}
+
+	return validatorID, kp, nil
 }
 
 // formatCompilationError formats a compilation error with helpful context

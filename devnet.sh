@@ -106,9 +106,21 @@ start_devnet() {
     exit 1
   fi
   
+  # Create wallets for validators if they don't exist
+  echo -e "${BLUE}Creating wallets for validators...${NC}"
+  for i in $(seq 1 $num); do
+    local wallet_name="validator$i"
+    if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$wallet_name$"; then
+      echo "Creating wallet: $wallet_name"
+      echo "development-password" | ./bin/poh-node wallet create --name "$wallet_name" --password "development-password" 2>/dev/null || true
+    else
+      echo "Wallet already exists: $wallet_name"
+    fi
+  done
+  
   # Start leader
   echo -e "${BLUE}Starting leader (validator 1) on port $PORT_START...${NC}"
-  ./bin/poh-node --type=leader --port=$PORT_START \
+  WALLET_PASSWORD="development-password" ./bin/poh-node --wallet=validator1 --port=$PORT_START \
     --db="$DB_DIR/validator1.db" \
     > "$LOG_DIR/devnet-validator-1.log" 2>&1 &
   echo $! > "$PID_DIR/validator1.pid"
@@ -120,7 +132,7 @@ start_devnet() {
   for i in $(seq 2 $num); do
     local port=$((PORT_START + i - 1))
     echo -e "${BLUE}Starting replica (validator $i) on port $port...${NC}"
-    ./bin/poh-node --type=replica --port=$port \
+    WALLET_PASSWORD="development-password" ./bin/poh-node --wallet=validator$i --port=$port \
       --peers=localhost:$PORT_START \
       --db="$DB_DIR/validator$i.db" \
       > "$LOG_DIR/devnet-validator-$i.log" 2>&1 &

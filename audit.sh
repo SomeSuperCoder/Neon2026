@@ -261,12 +261,18 @@ run_basic_consensus_test() {
     local phase_pids=()
     local phase_dbs=()
     
+    # Create wallet for leader
+    local leader_wallet="audit-leader"
+    if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$leader_wallet$"; then
+        echo "development-password" | ./bin/poh-node wallet create --name "$leader_wallet" --password "development-password" 2>/dev/null || true
+    fi
+    
     # Start leader
     local leader_db="${AUDIT_DIR}/basic-leader.db"
     phase_dbs+=("$leader_db")
     DBS_TO_CLEANUP+=("$leader_db")
     
-    ./bin/poh-node --type=leader --port=9000 --db="$leader_db" > "${AUDIT_DIR}/basic-leader.log" 2>&1 &
+    WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$leader_wallet" --port=9000 --db="$leader_db" > "${AUDIT_DIR}/basic-leader.log" 2>&1 &
     local leader_pid=$!
     phase_pids+=($leader_pid)
     PIDS_TO_CLEANUP+=($leader_pid)
@@ -279,12 +285,18 @@ run_basic_consensus_test() {
     else
         # Start replicas
         for i in {1..3}; do
+            # Create wallet for replica
+            local replica_wallet="audit-replica${i}"
+            if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$replica_wallet$"; then
+                echo "development-password" | ./bin/poh-node wallet create --name "$replica_wallet" --password "development-password" 2>/dev/null || true
+            fi
+            
             local replica_db="${AUDIT_DIR}/basic-replica${i}.db"
             phase_dbs+=("$replica_db")
             DBS_TO_CLEANUP+=("$replica_db")
             
             local port=$((9000 + i))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9000 --db="$replica_db" > "${AUDIT_DIR}/basic-replica${i}.log" 2>&1 &
+            WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$replica_wallet" --port=$port --peers=localhost:9000 --db="$replica_db" > "${AUDIT_DIR}/basic-replica${i}.log" 2>&1 &
             local replica_pid=$!
             phase_pids+=($replica_pid)
             PIDS_TO_CLEANUP+=($replica_pid)
@@ -359,12 +371,18 @@ run_bft_with_tolerance_test() {
     local phase_pids=()
     local phase_dbs=()
     
+    # Create wallet for leader
+    local leader_wallet="bft-leader"
+    if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$leader_wallet$"; then
+        echo "development-password" | ./bin/poh-node wallet create --name "$leader_wallet" --password "development-password" 2>/dev/null || true
+    fi
+    
     # Start leader
     local leader_db="${AUDIT_DIR}/bft-leader.db"
     phase_dbs+=("$leader_db")
     DBS_TO_CLEANUP+=("$leader_db")
     
-    ./bin/poh-node --type=leader --port=9100 --db="$leader_db" > "${AUDIT_DIR}/bft-leader.log" 2>&1 &
+    WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$leader_wallet" --port=9100 --db="$leader_db" > "${AUDIT_DIR}/bft-leader.log" 2>&1 &
     local leader_pid=$!
     phase_pids+=($leader_pid)
     PIDS_TO_CLEANUP+=($leader_pid)
@@ -377,12 +395,18 @@ run_bft_with_tolerance_test() {
     else
         # Start 4 honest replicas
         for i in {1..4}; do
+            # Create wallet for replica
+            local replica_wallet="bft-replica${i}"
+            if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$replica_wallet$"; then
+                echo "development-password" | ./bin/poh-node wallet create --name "$replica_wallet" --password "development-password" 2>/dev/null || true
+            fi
+            
             local replica_db="${AUDIT_DIR}/bft-replica${i}.db"
             phase_dbs+=("$replica_db")
             DBS_TO_CLEANUP+=("$replica_db")
             
             local port=$((9100 + i))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9100 --db="$replica_db" > "${AUDIT_DIR}/bft-replica${i}.log" 2>&1 &
+            WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$replica_wallet" --port=$port --peers=localhost:9100 --db="$replica_db" > "${AUDIT_DIR}/bft-replica${i}.log" 2>&1 &
             local replica_pid=$!
             phase_pids+=($replica_pid)
             PIDS_TO_CLEANUP+=($replica_pid)
@@ -394,10 +418,15 @@ run_bft_with_tolerance_test() {
         done
         
         # Start 1 malicious replica
+        local malicious_wallet="bft-malicious"
+        if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$malicious_wallet$"; then
+            echo "development-password" | ./bin/poh-node wallet create --name "$malicious_wallet" --password "development-password" 2>/dev/null || true
+        fi
+        
         local malicious_db="${AUDIT_DIR}/bft-malicious.db"
         DBS_TO_CLEANUP+=("$malicious_db")
         
-        ./bin/poh-node --type=replica --port=9105 --peers=localhost:9100 --db="$malicious_db" --malicious > "${AUDIT_DIR}/bft-malicious.log" 2>&1 &
+        WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$malicious_wallet" --port=9105 --peers=localhost:9100 --db="$malicious_db" --malicious > "${AUDIT_DIR}/bft-malicious.log" 2>&1 &
         local malicious_pid=$!
         phase_pids+=($malicious_pid)
         PIDS_TO_CLEANUP+=($malicious_pid)
@@ -463,12 +492,18 @@ run_bft_without_tolerance_test() {
     local phase_pids=()
     local phase_dbs=()
     
+    # Create wallet for leader
+    local leader_wallet="nobft-leader"
+    if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$leader_wallet$"; then
+        echo "development-password" | ./bin/poh-node wallet create --name "$leader_wallet" --password "development-password" 2>/dev/null || true
+    fi
+    
     # Start leader
     local leader_db="${AUDIT_DIR}/nobft-leader.db"
     phase_dbs+=("$leader_db")
     DBS_TO_CLEANUP+=("$leader_db")
     
-    ./bin/poh-node --type=leader --port=9200 --db="$leader_db" > "${AUDIT_DIR}/nobft-leader.log" 2>&1 &
+    WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$leader_wallet" --port=9200 --db="$leader_db" > "${AUDIT_DIR}/nobft-leader.log" 2>&1 &
     local leader_pid=$!
     phase_pids+=($leader_pid)
     PIDS_TO_CLEANUP+=($leader_pid)
@@ -481,12 +516,18 @@ run_bft_without_tolerance_test() {
     else
         # Start 2 honest replicas
         for i in {1..2}; do
+            # Create wallet for replica
+            local replica_wallet="nobft-replica${i}"
+            if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$replica_wallet$"; then
+                echo "development-password" | ./bin/poh-node wallet create --name "$replica_wallet" --password "development-password" 2>/dev/null || true
+            fi
+            
             local replica_db="${AUDIT_DIR}/nobft-replica${i}.db"
             phase_dbs+=("$replica_db")
             DBS_TO_CLEANUP+=("$replica_db")
             
             local port=$((9200 + i))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9200 --db="$replica_db" > "${AUDIT_DIR}/nobft-replica${i}.log" 2>&1 &
+            WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$replica_wallet" --port=$port --peers=localhost:9200 --db="$replica_db" > "${AUDIT_DIR}/nobft-replica${i}.log" 2>&1 &
             local replica_pid=$!
             phase_pids+=($replica_pid)
             PIDS_TO_CLEANUP+=($replica_pid)
@@ -499,11 +540,17 @@ run_bft_without_tolerance_test() {
         
         # Start 2 malicious replicas
         for i in {1..2}; do
+            # Create wallet for malicious replica
+            local malicious_wallet="nobft-malicious${i}"
+            if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$malicious_wallet$"; then
+                echo "development-password" | ./bin/poh-node wallet create --name "$malicious_wallet" --password "development-password" 2>/dev/null || true
+            fi
+            
             local malicious_db="${AUDIT_DIR}/nobft-malicious${i}.db"
             DBS_TO_CLEANUP+=("$malicious_db")
             
             local port=$((9202 + i))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9200 --db="$malicious_db" --malicious > "${AUDIT_DIR}/nobft-malicious${i}.log" 2>&1 &
+            WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$malicious_wallet" --port=$port --peers=localhost:9200 --db="$malicious_db" --malicious > "${AUDIT_DIR}/nobft-malicious${i}.log" 2>&1 &
             local malicious_pid=$!
             phase_pids+=($malicious_pid)
             PIDS_TO_CLEANUP+=($malicious_pid)
@@ -563,12 +610,18 @@ run_dpos_lifecycle_test() {
     local phase_pids=()
     local phase_dbs=()
     
-    # Start leader
+    # Create wallet for validator 1
+    local validator1_wallet="dpos-validator1"
+    if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$validator1_wallet$"; then
+        echo "development-password" | ./bin/poh-node wallet create --name "$validator1_wallet" --password "development-password" 2>/dev/null || true
+    fi
+    
+    # Start validator 1
     local leader_db="${AUDIT_DIR}/dpos-validator1.db"
     phase_dbs+=("$leader_db")
     DBS_TO_CLEANUP+=("$leader_db")
     
-    ./bin/poh-node --type=leader --port=9300 --db="$leader_db" > "${AUDIT_DIR}/dpos-validator1.log" 2>&1 &
+    WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$validator1_wallet" --port=9300 --db="$leader_db" > "${AUDIT_DIR}/dpos-validator1.log" 2>&1 &
     local leader_pid=$!
     phase_pids+=($leader_pid)
     PIDS_TO_CLEANUP+=($leader_pid)
@@ -581,12 +634,18 @@ run_dpos_lifecycle_test() {
     else
         # Start remaining validators
         for i in $(seq 2 $VALIDATORS); do
+            # Create wallet for validator
+            local validator_wallet="dpos-validator${i}"
+            if ! ./bin/poh-node wallet list 2>/dev/null | grep -q "^$validator_wallet$"; then
+                echo "development-password" | ./bin/poh-node wallet create --name "$validator_wallet" --password "development-password" 2>/dev/null || true
+            fi
+            
             local validator_db="${AUDIT_DIR}/dpos-validator${i}.db"
             phase_dbs+=("$validator_db")
             DBS_TO_CLEANUP+=("$validator_db")
             
             local port=$((9300 + i - 1))
-            ./bin/poh-node --type=replica --port=$port --peers=localhost:9300 --db="$validator_db" > "${AUDIT_DIR}/dpos-validator${i}.log" 2>&1 &
+            WALLET_PASSWORD="development-password" ./bin/poh-node --wallet="$validator_wallet" --port=$port --peers=localhost:9300 --db="$validator_db" > "${AUDIT_DIR}/dpos-validator${i}.log" 2>&1 &
             local validator_pid=$!
             phase_pids+=($validator_pid)
             PIDS_TO_CLEANUP+=($validator_pid)
