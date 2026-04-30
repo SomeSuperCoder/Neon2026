@@ -207,7 +207,7 @@
   - Verify schedule changes at epoch boundary when stakes change
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.6, 4.1, 4.2, 4.3, 8.1, 8.2, 8.3, 8.5_
 
-- [ ] 15. Update documentation and README
+- [x] 15. Update documentation and README
   - Update README.md to remove references to `--type` flag
   - Add wallet management section to README
   - Add stake-weighted leader schedule explanation

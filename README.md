@@ -20,6 +20,28 @@ A Proof of History (PoH) blockchain implementation inspired by Solana's architec
 
 See [docs/guides/quickstart.md](docs/guides/quickstart.md) for a 30-second introduction.
 
+### First-Time Setup
+
+1. **Create a wallet for your validator:**
+   ```bash
+   go run cmd/main.go wallet create --name validator1
+   ```
+
+2. **Start a validator node:**
+   ```bash
+   go run cmd/main.go --wallet validator1 --port 8000
+   ```
+
+3. **Start additional validators (optional):**
+   ```bash
+   go run cmd/main.go --wallet validator2 --port 8001 --peers localhost:8000
+   ```
+
+4. **Start in observer mode (no wallet):**
+   ```bash
+   go run cmd/main.go --port 8002 --peers localhost:8000
+   ```
+
 ## Overview
 
 This project implements a verifiable delay function using sequential SHA-256 hashing to create a cryptographic clock, enabling high-throughput transaction ordering without traditional consensus overhead.
@@ -27,16 +49,17 @@ This project implements a verifiable delay function using sequential SHA-256 has
 ## Features
 
 - Proof of History clock generator with verifiable sequential hashing
-- Leader-based consensus protocol with 400ms slots
+- **Stake-weighted leader schedule** — deterministic slot assignment based on delegated stake
 - P2P network communication for block distribution
 - SQLite-based persistent ledger storage
 - Full chain verification and integrity checking
 - Transaction integration with cryptographic timestamping
-- **Delegated Proof of Stake (DPoS) genesis initialization**
-- **Byzantine Fault Tolerance testing with malicious nodes**
-- **Comprehensive audit script for automated testing**
-- **Local development network (devnet) for testing and development**
-- **CI/CD-friendly testing with JSON reports**
+- **Delegated Proof of Stake (DPoS)** — validator registration, stake delegation, epoch scheduling, reward distribution, and slashing
+- **Byzantine Fault Tolerance testing** with malicious nodes
+- **Comprehensive audit script** for automated testing
+- **Local development network (devnet)** for testing and development
+- **CI/CD-friendly testing** with JSON reports
+- **Secure wallet management** — AES-256-GCM encryption with Argon2id key derivation
 
 ## Requirements
 
@@ -63,22 +86,25 @@ go mod download
 │   ├── validator-tui/     # Validator TUI dashboard
 │   │   └── main.go
 │   └── wallet/            # Wallet implementation
-│       └── core/          # Wallet core functionality
-│           ├── config.go       # Configuration management
-│           ├── mnemonic.go     # BIP39 seed phrase generation
-│           ├── mnemonic_test.go
-│           ├── derivation.go   # BIP44 key derivation
-│           ├── derivation_test.go
-│           ├── encryption.go   # AES-256-GCM encryption
-│           ├── encryption_test.go
-│           ├── types.go        # Core wallet types
-│           ├── wallet.go       # Wallet management
+│       ├── core/            # User-facing wallet (BIP39/44)
+│       │   ├── config.go       # Configuration management
+│       │   ├── mnemonic.go     # BIP39 seed phrase generation
+│       │   ├── mnemonic_test.go
+│       │   ├── derivation.go   # BIP44 key derivation
+│       │   ├── derivation_test.go
+│       │   ├── encryption.go   # AES-256-GCM encryption
+│       │   ├── encryption_test.go
+│       │   ├── types.go        # Core wallet types
+│       │   ├── wallet.go       # Wallet management
+│       │   └── wallet_test.go
+│       └── internal/wallet/ # Validator wallet (encrypted keypairs)
+│           ├── wallet.go       # Validator wallet management
 │           └── wallet_test.go
 ├── internal/
 │   ├── poh/               # PoH clock generator
 │   ├── blockchain/        # Core blockchain data structures and serialization
 │   ├── network/           # P2P networking layer
-│   ├── consensus/         # Consensus protocol
+│   ├── consensus/         # Consensus protocol (stake-weighted leader schedule)
 │   ├── storage/           # SQLite ledger persistence
 │   ├── verification/      # Chain integrity verification
 │   ├── filestore/         # File-based state model (BadgerDB)
@@ -140,6 +166,39 @@ The system uses a layered architecture:
 - **Slot**: Time window for block production (minimum 64 ticks)
 - **Slot Tolerance**: 100-slot (~40 second) window for accepting blocks to handle clock skew and network delays
 
+## Stake-Weighted Leader Schedule
+
+The PoH Blockchain uses a deterministic, stake-weighted leader schedule for block production. This replaces the static leader/replica node type system with a dynamic validator rotation based on delegated stake.
+
+### How It Works
+
+1. **Validator Registration**: Validators register in the Staking Program and receive delegated stake from token holders
+2. **Stake-Based Selection**: At each epoch boundary (~2 days), the leader schedule is computed deterministically based on validator stakes
+3. **Weighted Randomness**: Validators with more stake are assigned more slots proportionally (e.g., 2x stake = ~2x slots)
+4. **Deterministic Computation**: All nodes compute the same schedule independently using the last block hash as a random seed
+5. **Slot Assignment**: Each slot is assigned to exactly one validator, who is responsible for producing a block
+
+### Benefits
+
+- **Decentralization**: No single "leader node" - leadership rotates based on stake
+- **Security**: Attackers need significant stake to influence block production
+- **Fairness**: Validators with more delegated stake produce more blocks (and earn more rewards)
+- **Determinism**: All nodes agree on the schedule without communication
+
+### Migration from Old System
+
+The old `--type=leader|replica` flags are deprecated. Use `--wallet <name>` instead:
+
+```bash
+# Old (deprecated)
+go run cmd/main.go --type=leader --port=8000
+
+# New (recommended)
+go run cmd/main.go --wallet validator1 --port=8000
+```
+
+See [docs/reference/dpos-genesis.md](docs/reference/dpos-genesis.md) for complete DPoS documentation.
+
 ## Usage
 
 ### CLI Commands for Account Management
@@ -170,6 +229,48 @@ go run cmd/main.go help
 ```
 
 See [docs/guides/cli-usage.md](docs/guides/cli-usage.md) for detailed CLI documentation.
+
+### Wallet Management
+
+The wallet system provides secure, encrypted storage for validator keypairs used by validator nodes for identity and block signing.
+
+**Features:**
+- AES-256-GCM encryption with Argon2id key derivation
+- Platform-specific secure storage (Linux/macOS/Windows)
+- Ed25519 keypair generation and management
+- Export/import for backup and migration
+- Password-protected with minimum 8-character requirement
+
+**CLI Commands:**
+
+```bash
+# Create a new wallet
+go run cmd/main.go wallet create --name validator1
+
+# List all wallets
+go run cmd/main.go wallet list
+
+# Show wallet information
+go run cmd/main.go wallet show --name validator1
+
+# Export wallet for backup
+go run cmd/main.go wallet export --name validator1 --output backup.json
+
+# Import wallet from backup
+go run cmd/main.go wallet import --input backup.json --name validator2
+```
+
+**Node Integration:**
+
+```bash
+# Start validator with wallet identity
+go run cmd/main.go --wallet validator1
+
+# Start in observer mode (no wallet)
+go run cmd/main.go
+```
+
+See [docs/reference/validator-wallet.md](docs/reference/validator-wallet.md) for complete validator wallet documentation.
 
 ### Neon Wallet (TUI)
 
@@ -217,33 +318,31 @@ The validator wallet system (`internal/wallet`) provides secure, encrypted stora
 
 **Usage:**
 
-```go
-import "github.com/poh-blockchain/internal/wallet"
+```bash
+# Create a new wallet
+go run cmd/main.go wallet create --name validator1
 
-// Create new validator wallet
-w, err := wallet.Create("validator1", "strong-password")
+# List all wallets
+go run cmd/main.go wallet list
 
-// Open existing wallet
-w, err := wallet.Open("validator1", "strong-password")
+# Show wallet information
+go run cmd/main.go wallet show --name validator1
 
-// List all wallets
-wallets, err := wallet.List()
+# Export wallet for backup
+go run cmd/main.go wallet export --name validator1 --output backup.json
 
-// Export for backup
-err := w.Export("/secure/backup.json")
-
-// Import from backup
-w, err := wallet.Import("/secure/backup.json", "validator2", "password")
+# Import wallet from backup
+go run cmd/main.go wallet import --input backup.json --name validator2
 ```
 
 **Node Integration:**
 
 ```bash
 # Start validator with wallet identity
-./poh-blockchain --wallet validator1
+go run cmd/main.go --wallet validator1
 
 # Start in observer mode (no wallet)
-./poh-blockchain
+go run cmd/main.go
 ```
 
 See [docs/reference/validator-wallet.md](docs/reference/validator-wallet.md) for complete validator wallet documentation.
@@ -286,8 +385,9 @@ The easiest way to see the blockchain in action is to use the devnet script, whi
 
 This will:
 - Build the project
-- Start a leader node on port 8000
-- Start the specified number of replica nodes on ports 8001, 8002, etc.
+- Create wallets for each validator automatically
+- Start a validator node on port 8000 (will be leader for epoch 0)
+- Start the specified number of additional validator nodes on ports 8001, 8002, etc.
 - Run nodes as background processes
 - Maintain state across restarts
 
@@ -298,6 +398,38 @@ This will:
 - `status`: Show validator status and block counts
 - `logs [ID]`: View logs for specific validator or all
 - `clean`: Stop network and remove all data
+
+### DPoS Demo with demo-dpos.sh
+
+For a demonstration of the stake-weighted leader schedule, use the DPoS demo script:
+
+```bash
+# Start with 3 validators (first gets 2x stake for testing)
+./demo-dpos.sh start 3
+
+# Check network status
+./demo-dpos.sh status
+
+# View logs
+./demo-dpos.sh logs
+
+# Stop the demo
+./demo-dpos.sh stop
+```
+
+This will:
+- Create wallets for each validator
+- Start validators with different stake weights
+- Demonstrate stake-weighted slot distribution
+- Show block production statistics
+
+**demo-dpos.sh Commands:**
+- `start [N]`: Start DPoS demo with N validators (default: 3)
+- `stop`: Stop all validators
+- `restart [N]`: Restart demo
+- `status`: Show validator status and block counts
+- `logs [ID]`: View logs for specific validator or all
+- `clean`: Stop demo and remove all data
 
 ### Comprehensive Testing with audit.sh
 
@@ -318,40 +450,41 @@ The audit script tests:
 - **Phase 1**: Basic consensus with honest nodes
 - **Phase 2**: BFT with tolerance (4 honest + 1 malicious)
 - **Phase 3**: BFT without tolerance (2 honest + 2 malicious)
-- **Phase 4**: DPoS lifecycle (delegation, epochs, rewards, slashing)
+- **Phase 4**: DPoS lifecycle (validator registration, delegation, epochs, rewards, slashing)
 
 Results are saved to `logs/audit-TIMESTAMP.json` for analysis.
 
 ### Command-Line Options
 
-- `--type`: Node type, either "leader" or "replica" (default: "replica")
-- `--port`: Port to listen on for P2P connections (default: 8080)
-- `--peers`: Comma-separated list of peer addresses in format "host:port"
-- `--db`: Path to the SQLite database file (default: "blockchain.db")
+- `--wallet <name>`: Wallet name for validator identity (omit for observer mode)
+- `--port <port>`: Port to listen on for P2P connections (default: 8080)
+- `--peers <addresses>`: Comma-separated list of peer addresses in format "host:port"
+- `--db <path>`: Path to the SQLite database file (default: "blockchain.db")
 - `--malicious`: Run node in malicious mode for BFT testing (default: false)
   - Enables Byzantine fault behaviors for testing network resilience
   - See BFT-TESTING.md for detailed malicious behaviors
 
-### Running a Leader Node
+### Running a Validator Node
 
 ```bash
-go run cmd/main.go --type=leader --port=8000 --db=./leader.db
+go run cmd/main.go --wallet validator1 --port 8000 --db=./leader.db
 ```
 
-The leader node will:
+The validator node will:
 - Initialize the PoH clock and start continuous block production
 - Initialize DPoS genesis with default 2-validator configuration (10 Neon and 5 Neon stakes)
 - Configure epoch length to 432,000 slots (~2 days at 400ms/slot)
-- Produce blocks every 400ms slot (minimum 64 ticks per block)
+- Produce blocks every 400ms slot (minimum 64 ticks per block) when scheduled as leader
 - Store blocks to the local ledger
 - Broadcast blocks to all connected replica nodes
+- Wait for blocks from scheduled validators when not the leader
 
 **Note:** In production, the genesis validator configuration would be loaded from a config file. The current implementation uses hardcoded validators for development purposes.
 
 ### Running a Replica Node
 
 ```bash
-go run cmd/main.go --type=replica --port=8001 --peers=localhost:8000 --db=./replica.db
+go run cmd/main.go --wallet validator2 --port 8001 --peers=localhost:8000 --db=./replica.db
 ```
 
 The replica node will:
@@ -360,29 +493,45 @@ The replica node will:
 - Verify block integrity and chain linkage
 - Store valid blocks to the local ledger
 
+### Running in Observer Mode
+
+```bash
+go run cmd/main.go --port 8002 --peers=localhost:8000
+```
+
+Observer nodes:
+- Do not produce blocks
+- Receive and validate blocks from the network
+- Useful for monitoring and querying the blockchain
+
 ### Running a Malicious Node (for BFT Testing)
 
 ```bash
-# Malicious leader
-go run cmd/main.go --type=leader --port=8000 --db=./leader.db --malicious
+# Malicious validator
+go run cmd/main.go --wallet validator1 --port=8000 --db=./leader.db --malicious
 
 # Malicious replica
-go run cmd/main.go --type=replica --port=8002 --peers=localhost:8000 --db=./malicious.db --malicious
+go run cmd/main.go --wallet validator2 --port=8002 --peers=localhost:8000 --db=./malicious.db --malicious
 ```
 
 Malicious nodes exhibit Byzantine fault behaviors for testing network resilience. See [docs/testing/bft-testing.md](docs/testing/bft-testing.md) for details on malicious behaviors and testing scenarios.
 
 ### Running a Multi-Node Network
 
-Start a leader node:
+Start a validator node (will be the leader for epoch 0):
 ```bash
-go run cmd/main.go --type=leader --port=8000 --db=./leader.db
+go run cmd/main.go --wallet validator1 --port 8000 --db=./leader.db
 ```
 
-Start replica nodes connecting to the leader:
+Start additional validator nodes connecting to the first:
 ```bash
-go run cmd/main.go --type=replica --port=8001 --peers=localhost:8000 --db=./replica1.db
-go run cmd/main.go --type=replica --port=8002 --peers=localhost:8000 --db=./replica2.db
+go run cmd/main.go --wallet validator2 --port 8001 --peers=localhost:8000 --db=./replica1.db
+go run cmd/main.go --wallet validator3 --port 8002 --peers=localhost:8000 --db=./replica2.db
+```
+
+Start observer nodes (optional):
+```bash
+go run cmd/main.go --port 8003 --peers=localhost:8000
 ```
 
 ### Validator TUI Dashboard
@@ -461,13 +610,6 @@ This project is under active development. See `.kiro/specs/` for feature specifi
   - 🚧 Transaction building and signing (in progress)
   - 🚧 TUI with Bubble Tea framework (in progress)
 
-- **Delegated Proof of Stake (DPoS)** — validator registration, stake delegation, epoch scheduling, reward distribution, and slashing (see `.kiro/specs/delegated-proof-of-stake/`)
-  - ✅ Genesis initialization with configurable validators
-  - ✅ ConsensusManager integration with FileStore and Runtime
-  - ✅ Automatic DPoS state initialization on node startup
-  - ✅ Validator TUI dashboard
-  - 🚧 Demo script implementation (in progress)
-
 ### Completed
 
 - [x] Project initialization and Go module setup
@@ -476,11 +618,11 @@ This project is under active development. See `.kiro/specs/` for feature specifi
 - [x] JSON serialization with hex encoding
 - [x] Block Producer with Merkle root calculation
 - [x] Network Layer — TCP P2P with block broadcasting
-- [x] Consensus Manager — leader-based, 400ms slots
+- [x] Consensus Manager — stake-weighted leader schedule
 - [x] Ledger Storage — SQLite with full CRUD and chain recovery
 - [x] Verification Engine — entry hash chain, block linkage, full chain verification
-- [x] Main application and CLI — node flags, leader/replica logic, graceful shutdown
-- [x] Integration tests — block production, leader-replica communication, ledger persistence
+- [x] Main application and CLI — wallet-based node identity, graceful shutdown
+- [x] Integration tests — block production, validator communication, ledger persistence
 - [x] File-based state model — BadgerDB persistence, storage cost with exponential growth
 - [x] Transaction and Instruction structures — serialization, signature verification, fee calculation
 - [x] Access Control System — permission validation, access logging, concurrent safety
@@ -497,6 +639,10 @@ This project is under active development. See `.kiro/specs/` for feature specifi
 - [x] DISPATCH opcode and instruction registry for smart contract routing
 - [x] System_Program and Token_Program written in QuanticScript
 - [x] Cross-Program Invocation — INVOKE/INVOKERET with depth tracking (max 4 levels)
+- [x] Wallet Management — encrypted Ed25519 keypair storage with AES-256-GCM + Argon2id
+- [x] Stake-Weighted Leader Schedule — deterministic slot assignment based on delegated stake
+- [x] DPoS Genesis — validator registration, epoch scheduling, reward distribution, slashing
+- [x] Validator TUI Dashboard — real-time monitoring of validator and staking information
 
 **Token System:**
 
