@@ -83,14 +83,20 @@ main() {
     
     local failed=0
     
-    # Main node binary
-    build_binary "poh-node" "./cmd/main.go" || ((failed++))
+    # Audit binary
+    build_binary "audit" "./cmd/audit/main.go" || ((failed++))
     
     # Wallet binary
     build_binary "neon-wallet" "./cmd/wallet/main.go" || ((failed++))
     
-    # Validator TUI binary
-    build_binary "validator-tui" "./cmd/validator-tui/main.go" || ((failed++))
+    # Validator binary
+    build_binary "validator" "./cmd/validator/main.go" || ((failed++))
+    
+    # Devnet binary
+    build_binary "devnet" "./cmd/devnet/main.go" || ((failed++))
+    
+    # Build binary
+    build_binary "build" "./cmd/build/main.go" || ((failed++))
     
     # Summary
     print_header "Build Summary"
@@ -102,9 +108,11 @@ main() {
         ls -lh "${BIN_DIR}"
         echo ""
         print_msg "$BLUE" "Usage:"
-        print_msg "$NC" "  ${BIN_DIR}/poh-node --help"
+        print_msg "$NC" "  ${BIN_DIR}/audit --help"
         print_msg "$NC" "  ${BIN_DIR}/neon-wallet --help"
-        print_msg "$NC" "  ${BIN_DIR}/validator-tui --help"
+        print_msg "$NC" "  ${BIN_DIR}/validator --help"
+        print_msg "$NC" "  ${BIN_DIR}/devnet --help"
+        print_msg "$NC" "  ${BIN_DIR}/build --help"
         exit 0
     else
         print_msg "$RED" "✗ ${failed} binary(ies) failed to build"
